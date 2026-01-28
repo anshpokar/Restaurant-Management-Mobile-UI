@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { BottomNav, BottomNavItem } from '@/app/components/design-system/bottom-nav';
-import { LayoutDashboard, ShoppingBag, Menu, Table, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Menu, Table, BarChart3, Users } from 'lucide-react';
 import { AdminDashboard } from './admin-dashboard';
 import { AdminOrders } from './admin-orders';
 import { AdminMenu } from './admin-menu';
 import { AdminTables } from './admin-tables';
 import { AdminReports } from './admin-reports';
+import { AdminUserManagement } from './admin-user-management';
 
-type AdminTab = 'dashboard' | 'orders' | 'menu' | 'tables' | 'reports';
+type AdminTab = 'dashboard' | 'orders' | 'menu' | 'tables' | 'reports' | 'users';
 
 interface AdminAppProps {
   onLogout: () => void;
@@ -23,6 +24,7 @@ export function AdminApp({ onLogout }: AdminAppProps) {
       {activeTab === 'menu' && <AdminMenu />}
       {activeTab === 'tables' && <AdminTables />}
       {activeTab === 'reports' && <AdminReports onLogout={onLogout} />}
+      {activeTab === 'users' && <AdminUserManagement />}
 
       <BottomNav>
         <BottomNavItem
@@ -54,6 +56,12 @@ export function AdminApp({ onLogout }: AdminAppProps) {
           label="Reports"
           active={activeTab === 'reports'}
           onClick={() => setActiveTab('reports')}
+        />
+        <BottomNavItem
+          icon={<Users className="w-6 h-6" />}
+          label="Users"
+          active={activeTab === 'users'}
+          onClick={() => setActiveTab('users')}
         />
       </BottomNav>
     </div>

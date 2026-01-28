@@ -7,14 +7,15 @@ import { SignupScreen } from './components/auth/signup-screen';
 import { ForgotPasswordScreen } from './components/auth/forgot-password-screen';
 import { CustomerApp } from './components/customer/customer-app';
 import { AdminApp } from './components/admin/admin-app';
+import { DeliveryApp } from './components/delivery/delivery-app';
+import { type UserRole } from '@/lib/supabase';
 
-type AppScreen = 'splash' | 'onboarding' | 'login' | 'signup' | 'forgot-password' | 'customer' | 'admin';
-type UserRole = 'customer' | 'admin' | null;
+type AppScreen = 'splash' | 'onboarding' | 'login' | 'signup' | 'forgot-password' | 'customer' | 'admin' | 'delivery';
 
 export default function App() {
   console.log("App component rendered, currentScreen:", 'splash');
   const [currentScreen, setCurrentScreen] = useState<AppScreen>('splash');
-  const [userRole, setUserRole] = useState<UserRole>(null);
+  const [userRole, setUserRole] = useState<UserRole | null>(null);
 
   // Simulate splash screen timeout
   React.useEffect(() => {
@@ -26,9 +27,9 @@ export default function App() {
     }
   }, [currentScreen]);
 
-  const handleLogin = (role: 'customer' | 'admin') => {
+  const handleLogin = (role: UserRole) => {
     setUserRole(role);
-    setCurrentScreen(role);
+    setCurrentScreen(role as AppScreen);
   };
 
   const handleLogout = () => {
@@ -72,6 +73,10 @@ export default function App() {
       
       {currentScreen === 'admin' && userRole === 'admin' && (
         <AdminApp onLogout={handleLogout} />
+      )}
+
+      {currentScreen === 'delivery' && userRole === 'delivery' && (
+        <DeliveryApp onLogout={handleLogout} />
       )}
     </MobileContainer>
   );

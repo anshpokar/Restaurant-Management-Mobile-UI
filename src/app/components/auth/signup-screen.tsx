@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
 import { Button } from '../design-system/button';
 import { Input } from '../design-system/input';
-import { Sparkles, Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import { Sparkles, Eye, EyeOff, ArrowLeft, UserCircle } from 'lucide-react';
+import { supabase, type UserRole } from '@/lib/supabase';
 
 interface SignupScreenProps {
   onLogin: () => void;
-  onSignupSuccess: (role: 'customer') => void;
+  onSignupSuccess: (role: UserRole) => void;
 }
 
 export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -43,7 +46,7 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
     return isValid;
   };
 
-  const handleSignup = (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validateForm()) {
@@ -52,11 +55,53 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
 
     setIsLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      // 1. Sign up with Supabase Auth - Passing extra data in options.data
+      const { data, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: name,
+            username: username,
+            phone_number: phoneNumber,
+            role: 'customer'
+          }
+        }
+      });
+
+      if (authError) throw authError;
+
+      if (data.user) {
+        // If email confirmation is ON, tell the user to check their mail
+        if (!data.session) {
+          alert('Signup successful! Please check your email for the verification link.');
+          onLogin();
+        } else {
+          onSignupSuccess('customer');
+        }
+      }
+    } catch (error: any) {
+      console.error('Signup Error Full Object:', error);
+      
+      let message = 'An error occurred during signup';
+      
+      if (error instanceof Error) {
+        message = error.message;
+      } else if (typeof error === 'object' && error !== null) {
+        message = error.message || error.error_description || JSON.stringify(error);
+      } else if (typeof error === 'string') {
+        message = error;
+      }
+
+      if (message === '{}' || !message) {
+        message = 'Connection Error: Could not reach Supabase. Please check your internet and restart the server.';
+      }
+
+      alert(message);
+    } finally {
       setIsLoading(false);
-      onSignupSuccess('customer');
-    }, 1000);
+    }
   };
 
   return (
@@ -91,6 +136,24 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
             placeholder="Enter your full name"
             value={name}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
+            required
+          />
+
+          <Input
+            type="text"
+            label="Username"
+            placeholder="Create a username"
+            value={username}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUsername(e.target.value)}
+            required
+          />
+
+          <Input
+            type="tel"
+            label="Phone Number"
+            placeholder="Enter your phone number"
+            value={phoneNumber}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPhoneNumber(e.target.value)}
             required
           />
 

@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { Button } from '@/app/components/design-system/button';
 import { Input } from '@/app/components/design-system/input';
 import { Sparkles, Eye, EyeOff } from 'lucide-react';
+import { supabase, type UserRole } from '@/lib/supabase';
 
 interface LoginScreenProps {
-  onLogin: (role: 'customer' | 'admin') => void;
+  onLogin: (role: UserRole) => void;
   onSignup: () => void;
   onForgotPassword: () => void;
 }
@@ -15,20 +16,57 @@ export function LoginScreen({ onLogin, onSignup, onForgotPassword }: LoginScreen
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-      // Check if admin login (simple check for demo)
-      if (email.includes('admin')) {
-        onLogin('admin');
-      } else {
-        onLogin('customer');
+    try {
+      // 1. Sign in with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (authError) throw authError;
+
+      if (authData.user) {
+        // 2. Fetch the user's role from the profiles table
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', authData.user.id)
+          .single();
+
+        if (profileError) throw profileError;
+        
+        if (profileData) {
+          onLogin(profileData.role as UserRole);
+        } else {
+          // Fallback if profile not found
+          onLogin('customer');
+        }
       }
-    }, 1000);
+    } catch (error: any) {
+      console.error('Login Error Full Object:', error);
+      
+      let message = 'Invalid login credentials';
+      
+      if (error instanceof Error) {
+        message = error.message;
+      } else if (typeof error === 'object' && error !== null) {
+        message = error.message || error.error_description || JSON.stringify(error);
+      } else if (typeof error === 'string') {
+        message = error;
+      }
+
+      if (message === '{}' || !message) {
+        message = 'Connection Error: Could not reach Supabase. Please check your internet and restart the server.';
+      }
+
+      alert(message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -50,9 +88,9 @@ export function LoginScreen({ onLogin, onSignup, onForgotPassword }: LoginScreen
       <div className="flex-1 px-8">
         <form onSubmit={handleLogin} className="space-y-4">
           <Input
-            type="email"
-            label="Email or Phone"
-            placeholder="Enter your email or phone"
+            type="text"
+            label="Username or Email or Phone"
+            placeholder="Enter your email, phone or username"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
