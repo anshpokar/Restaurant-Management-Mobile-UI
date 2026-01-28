@@ -6,9 +6,10 @@ import { Sparkles, Eye, EyeOff } from 'lucide-react';
 interface LoginScreenProps {
   onLogin: (role: 'customer' | 'admin') => void;
   onSignup: () => void;
+  onForgotPassword: () => void;
 }
 
-export function LoginScreen({ onLogin, onSignup }: LoginScreenProps) {
+export function LoginScreen({ onLogin, onSignup, onForgotPassword }: LoginScreenProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -78,6 +79,7 @@ export function LoginScreen({ onLogin, onSignup }: LoginScreenProps) {
           <div className="text-right">
             <button
               type="button"
+              onClick={onForgotPassword}
               className="text-sm text-primary hover:underline"
             >
               Forgot Password?

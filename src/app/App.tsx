@@ -4,10 +4,11 @@ import { SplashScreen } from './components/auth/splash-screen';
 import { OnboardingScreen } from './components/auth/onboarding-screen';
 import { LoginScreen } from './components/auth/login-screen';
 import { SignupScreen } from './components/auth/signup-screen';
+import { ForgotPasswordScreen } from './components/auth/forgot-password-screen';
 import { CustomerApp } from './components/customer/customer-app';
 import { AdminApp } from './components/admin/admin-app';
 
-type AppScreen = 'splash' | 'onboarding' | 'login' | 'signup' | 'customer' | 'admin';
+type AppScreen = 'splash' | 'onboarding' | 'login' | 'signup' | 'forgot-password' | 'customer' | 'admin';
 type UserRole = 'customer' | 'admin' | null;
 
 export default function App() {
@@ -47,6 +48,14 @@ export default function App() {
         <LoginScreen 
           onLogin={handleLogin}
           onSignup={() => setCurrentScreen('signup')}
+          onForgotPassword={() => setCurrentScreen('forgot-password')}
+        />
+      )}
+
+      {currentScreen === 'forgot-password' && (
+        <ForgotPasswordScreen
+          onBack={() => setCurrentScreen('login')}
+          onSuccess={() => setCurrentScreen('login')}
         />
       )}
 
