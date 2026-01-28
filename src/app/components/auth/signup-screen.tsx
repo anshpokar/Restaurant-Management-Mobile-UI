@@ -14,9 +14,42 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+
+  const validateForm = () => {
+    const newErrors: { email?: string; password?: string } = {};
+    let isValid = true;
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      newErrors.email = 'Please enter a valid email address';
+      isValid = false;
+    }
+
+    // Password validation
+    const hasNumber = /\d/.test(password);
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+    
+    if (password.length < 8) {
+      newErrors.password = 'Password must be at least 8 characters long';
+      isValid = false;
+    } else if (!hasNumber || !hasSpecialChar) {
+      newErrors.password = 'Password must contain at least one number and one special character';
+      isValid = false;
+    }
+
+    setErrors(newErrors);
+    return isValid;
+  };
 
   const handleSignup = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+
     setIsLoading(true);
     
     // Simulate API call
@@ -31,6 +64,7 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
       {/* Header */}
       <div className="px-8 pt-16 pb-8">
         <button 
+          type="button"
           onClick={onLogin}
           className="mb-6 p-2 -ml-2 text-muted-foreground hover:text-foreground rounded-full hover:bg-muted/20 transition-colors"
         >
@@ -62,10 +96,14 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
 
           <Input
             type="email"
-            label="Email or Phone"
-            placeholder="Enter your email or phone"
+            label="Email"
+            placeholder="Enter your email"
             value={email}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+              setEmail(e.target.value);
+              if (errors.email) setErrors({ ...errors, email: undefined });
+            }}
+            error={errors.email}
             required
           />
 
@@ -75,7 +113,11 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
               label="Password"
               placeholder="Create a password"
               value={password}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                setPassword(e.target.value);
+                if (errors.password) setErrors({ ...errors, password: undefined });
+              }}
+              error={errors.password}
               required
             />
             <button
@@ -85,6 +127,12 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
             >
               {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
+          </div>
+          
+          {/* Password requirements hint */}
+          <div className="text-xs text-muted-foreground space-y-1">
+            <p className={password.length >= 8 ? "text-green-600" : ""}>• At least 8 characters</p>
+            <p className={/\d/.test(password) && /[!@#$%^&*(),.?":{}|<>]/.test(password) ? "text-green-600" : ""}>• Contains number and special character</p>
           </div>
 
           <div className="pt-4">
@@ -97,9 +145,9 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
         {/* Terms */}
         <p className="mt-6 text-xs text-center text-muted-foreground">
           By signing up, you agree to our{' '}
-          <button className="text-primary hover:underline">Terms of Service</button>
+          <button type="button" className="text-primary hover:underline">Terms of Service</button>
           {' '}and{' '}
-          <button className="text-primary hover:underline">Privacy Policy</button>
+          <button type="button" className="text-primary hover:underline">Privacy Policy</button>
         </p>
       </div>
 
@@ -108,7 +156,11 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
         <p className="text-sm text-muted-foreground">
           Already have an account?{' '}
           <button
-            onClick={onLogin}
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              onLogin();
+            }}
             className="text-primary font-medium hover:underline"
           >
             Sign In

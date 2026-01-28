@@ -11,6 +11,7 @@ type AppScreen = 'splash' | 'onboarding' | 'login' | 'signup' | 'customer' | 'ad
 type UserRole = 'customer' | 'admin' | null;
 
 export default function App() {
+  console.log("App component rendered, currentScreen:", 'splash');
   const [currentScreen, setCurrentScreen] = useState<AppScreen>('splash');
   const [userRole, setUserRole] = useState<UserRole>(null);
 
