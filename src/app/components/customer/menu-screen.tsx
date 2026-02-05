@@ -1,33 +1,53 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppHeader } from '@/app/components/design-system/app-header';
 import { Card, CardBody } from '@/app/components/design-system/card';
 import { VegBadge } from '@/app/components/design-system/badge';
 import { Input } from '@/app/components/design-system/input';
-import { Search, SlidersHorizontal, Star, Plus } from 'lucide-react';
+import { Search, SlidersHorizontal, Star, Plus, RefreshCw } from 'lucide-react';
+import { supabase, type MenuItem } from '@/lib/supabase';
 
-const menuItems = [
-  { id: 1, name: 'Paneer Tikka', price: 299, category: 'Starters', veg: true, rating: 4.5, image: '🧈' },
-  { id: 2, name: 'Butter Chicken', price: 349, category: 'Main Course', veg: false, rating: 4.8, image: '🍗' },
-  { id: 3, name: 'Dal Makhani', price: 249, category: 'Main Course', veg: true, rating: 4.7, image: '🍛' },
-  { id: 4, name: 'Chicken Biryani', price: 399, category: 'Biryani', veg: false, rating: 4.6, image: '🍚' },
-  { id: 5, name: 'Naan', price: 49, category: 'Breads', veg: true, rating: 4.4, image: '🫓' },
-  { id: 6, name: 'Gulab Jamun', price: 99, category: 'Desserts', veg: true, rating: 4.9, image: '🍮' },
-];
-
-export function MenuScreen() {
+export function MenuScreen({ onAddToCart }: { onAddToCart?: (item: MenuItem) => void }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const categories = ['All', 'Starters', 'Main Course', 'Biryani', 'Breads', 'Desserts'];
+
+  useEffect(() => {
+    fetchMenu();
+  }, []);
+
+  const fetchMenu = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('menu_items')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setMenuItems(data || []);
+    } catch (error) {
+      console.error('Error fetching menu:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background pb-4">
       <AppHeader 
         title="Menu" 
         actions={
-          <button className="p-2 text-foreground hover:bg-muted rounded-full transition-colors">
-            <SlidersHorizontal className="w-5 h-5" />
-          </button>
+          <div className="flex gap-1">
+            <button onClick={fetchMenu} className="p-2 text-foreground hover:bg-muted rounded-full transition-colors">
+              <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+            <button className="p-2 text-foreground hover:bg-muted rounded-full transition-colors">
+              <SlidersHorizontal className="w-5 h-5" />
+            </button>
+          </div>
         }
       />
 
@@ -63,38 +83,58 @@ export function MenuScreen() {
 
         {/* Menu Items */}
         <div className="space-y-3">
-          {menuItems
-            .filter((item) => selectedCategory === 'All' || item.category === selectedCategory)
-            .filter((item) => item.name.toLowerCase().includes(searchQuery.toLowerCase()))
-            .map((item) => (
-              <Card key={item.id}>
-                <CardBody className="p-4">
-                  <div className="flex gap-4">
-                    <div className="text-5xl">{item.image}</div>
-                    <div className="flex-1">
-                      <div className="flex items-start justify-between mb-1">
-                        <div>
-                          <h4 className="font-medium text-foreground">{item.name}</h4>
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                            <Star className="w-3 h-3 fill-secondary text-secondary" />
-                            <span>{item.rating}</span>
+          {loading ? (
+            <div className="py-20 text-center text-muted-foreground">
+              <RefreshCw className="w-10 h-10 mx-auto mb-4 animate-spin opacity-20" />
+              <p className="font-medium">Loading delicious items...</p>
+            </div>
+          ) : menuItems.length === 0 ? (
+            <div className="py-20 text-center text-muted-foreground">
+              <p className="font-medium">No menu items found.</p>
+            </div>
+          ) : (
+            menuItems
+              .filter((item) => selectedCategory === 'All' || item.category === selectedCategory)
+              .filter((item) => item.name.toLowerCase().includes(searchQuery.toLowerCase()))
+              .map((item) => (
+                <Card key={item.id}>
+                  <CardBody className="p-4">
+                    <div className="flex gap-4">
+                      <div className="text-5xl">{item.image}</div>
+                      <div className="flex-1">
+                        <div className="flex items-start justify-between mb-1">
+                          <div>
+                            <h4 className="font-medium text-foreground">{item.name}</h4>
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                              <Star className="w-3 h-3 fill-secondary text-secondary" />
+                              <span>{item.rating}</span>
+                            </div>
                           </div>
+                          {item.veg ? <VegBadge /> : <div className="inline-flex items-center justify-center w-5 h-5 border-2 border-red-600 rounded"><div className="w-2 h-2 bg-red-600 rounded-full"></div></div>}
                         </div>
-                        {item.veg ? <VegBadge /> : <div className="inline-flex items-center justify-center w-5 h-5 border-2 border-red-600 rounded"><div className="w-2 h-2 bg-red-600 rounded-full"></div></div>}
-                      </div>
-                      <p className="text-xs text-muted-foreground mb-3">{item.category}</p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-lg font-bold text-foreground">₹{item.price}</span>
-                        <button className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-xl text-sm font-medium hover:opacity-90">
-                          <Plus className="w-4 h-4" />
-                          Add
-                        </button>
+                        <p className="text-xs text-muted-foreground mb-3">{item.category}</p>
+                        <div className="flex items-center justify-between">
+                          <span className="text-lg font-bold text-foreground">₹{item.price}</span>
+                          {item.is_available ? (
+                            <button 
+                              onClick={() => onAddToCart?.(item)}
+                              className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-xl text-sm font-medium hover:opacity-90 active:scale-95 transition-all"
+                            >
+                              <Plus className="w-4 h-4" />
+                              Add
+                            </button>
+                          ) : (
+                            <span className="text-xs font-black text-red-500 bg-red-50 px-3 py-2 rounded-xl border border-red-100 uppercase tracking-tighter">
+                              Sold Out
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </CardBody>
-              </Card>
-            ))}
+                  </CardBody>
+                </Card>
+              ))
+          )}
         </div>
       </div>
     </div>

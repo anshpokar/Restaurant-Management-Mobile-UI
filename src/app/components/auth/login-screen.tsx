@@ -21,33 +21,98 @@ export function LoginScreen({ onLogin, onSignup, onForgotPassword }: LoginScreen
     setIsLoading(true);
     
     try {
-      // 1. Sign in with Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
+      console.log('Starting login process with email:', email);
+      
+      let loginEmail = email;
+
+      // 1. Resolve email if user entered a username or phone number instead
+      if (!email.includes('@')) {
+        console.log('Resolving username/phone to email:', email);
+        
+        const resolvePromise = supabase
+          .from('profiles')
+          .select('email')
+          .or(`username.eq.${email},phone_number.eq.${email}`)
+          .single();
+        
+        // Create a timeout promise for email resolution
+        const resolveTimeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('Username/Phone resolution timeout: Could not resolve username or phone number. Please try again.')), 10000); // 10 second timeout
+        });
+        
+        const resolveResult = await Promise.race([resolvePromise, resolveTimeoutPromise]);
+        const { data: profile, error: resolveError } = resolveResult;
+
+        if (resolveError) {
+          console.error('Resolve error:', resolveError);
+          throw new Error('User not found with that username or phone number');
+        }
+        
+        if (!profile) {
+          throw new Error('User not found with that username or phone number');
+        }
+        
+        loginEmail = profile.email;
+        console.log('Resolved to email:', loginEmail);
+      }
+
+      // 2. Sign in with Supabase Auth
+      console.log('Attempting to sign in with Supabase...');
+      
+      // Set a timeout for the authentication request
+      const authPromise = supabase.auth.signInWithPassword({
+        email: loginEmail,
         password,
       });
+      
+      // Create a timeout promise
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout: Connection to Supabase took too long. Please check your internet connection.')), 10000); // 10 second timeout
+      });
+      
+      const { data: authData, error: authError } = await Promise.race([authPromise, timeoutPromise]) as Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>;
 
-      if (authError) throw authError;
+      if (authError) {
+        console.error('Auth error:', authError);
+        throw authError;
+      }
 
       if (authData.user) {
-        // 2. Fetch the user's role from the profiles table
-        const { data: profileData, error: profileError } = await supabase
+        console.log('Authentication successful, fetching profile...');
+        
+        // 3. Fetch the user's role from the profiles table
+        const profileFetchPromise = supabase
           .from('profiles')
           .select('role')
           .eq('id', authData.user.id)
           .single();
+        
+        // Create a timeout promise for profile fetching
+        const profileTimeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('Profile fetch timeout: Could not retrieve user profile. Please try again.')), 10000); // 10 second timeout
+        });
+        
+        const profileResult = await Promise.race([profileFetchPromise, profileTimeoutPromise]);
+        const { data: profileData, error: profileError } = profileResult;
 
-        if (profileError) throw profileError;
+        if (profileError) {
+          console.error('Profile fetch error:', profileError);
+          throw profileError;
+        }
         
         if (profileData) {
+          console.log('Login successful, role:', profileData.role);
           onLogin(profileData.role as UserRole);
         } else {
-          // Fallback if profile not found
+          console.warn('No profile found, defaulting to customer');
           onLogin('customer');
         }
+      } else {
+        throw new Error('Authentication failed: No user data returned');
       }
     } catch (error: any) {
       console.error('Login Error Full Object:', error);
+      console.log('Error Properties:', Object.getOwnPropertyNames(error));
       
       let message = 'Invalid login credentials';
       
@@ -66,6 +131,7 @@ export function LoginScreen({ onLogin, onSignup, onForgotPassword }: LoginScreen
       alert(message);
     } finally {
       setIsLoading(false);
+      console.log('Login process completed, loading state set to false');
     }
   };
 
@@ -153,6 +219,27 @@ export function LoginScreen({ onLogin, onSignup, onForgotPassword }: LoginScreen
             onClick={() => onLogin('admin')}
           >
             Continue as Admin (Demo)
+          </Button>
+          <Button 
+            variant="outline" 
+            className="w-full" 
+            onClick={() => onLogin('delivery')}
+          >
+            Continue as Delivery Person (Demo)
+          </Button>
+          <Button 
+            variant="outline" 
+            className="w-full" 
+            onClick={() => onLogin('waiter')}
+          >
+            Continue as Waiter (Demo)
+          </Button>
+          <Button 
+            variant="outline" 
+            className="w-full" 
+            onClick={() => onLogin('chef')}
+          >
+            Continue as Chef (Demo)
           </Button>
         </div>
       </div>

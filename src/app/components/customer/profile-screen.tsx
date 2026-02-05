@@ -3,12 +3,14 @@ import { AppHeader } from '@/app/components/design-system/app-header';
 import { Card, CardBody } from '@/app/components/design-system/card';
 import { Button } from '@/app/components/design-system/button';
 import { User, MapPin, Bell, Heart, HelpCircle, LogOut, ChevronRight } from 'lucide-react';
+import { type Profile } from '@/lib/supabase';
 
 interface ProfileScreenProps {
   onLogout: () => void;
+  profile: Profile | null;
 }
 
-export function ProfileScreen({ onLogout }: ProfileScreenProps) {
+export function ProfileScreen({ onLogout, profile }: ProfileScreenProps) {
   const menuItems = [
     { icon: User, label: 'Edit Profile', action: () => {} },
     { icon: MapPin, label: 'Saved Addresses', action: () => {} },
@@ -28,9 +30,20 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
             <div className="w-20 h-20 mx-auto mb-4 bg-primary/10 rounded-full flex items-center justify-center">
               <User className="w-10 h-10 text-primary" />
             </div>
-            <h3 className="text-xl font-bold text-foreground mb-1">John Doe</h3>
-            <p className="text-sm text-muted-foreground mb-1">john.doe@example.com</p>
-            <p className="text-sm text-muted-foreground">+91 98765 43210</p>
+            <h3 className="text-xl font-bold text-foreground mb-1">
+              {profile?.full_name || 'Guest User'}
+            </h3>
+            <p className="text-sm text-muted-foreground mb-1">
+              {profile?.email || 'No email available'}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {profile?.phone_number || 'No phone number'}
+            </p>
+            {profile?.username && (
+              <p className="text-xs text-primary mt-2 font-medium">
+                @{profile.username}
+              </p>
+            )}
           </CardBody>
         </Card>
 

@@ -3,6 +3,7 @@ import { Button } from '@/app/components/design-system/button';
 import { Input } from '@/app/components/design-system/input';
 import { AppHeader } from '@/app/components/design-system/app-header';
 import { KeyRound, Mail, Phone, CheckCircle2, ArrowRight } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 interface ForgotPasswordScreenProps {
   onBack: () => void;
@@ -14,42 +15,90 @@ type Step = 'input' | 'otp' | 'reset' | 'success';
 export function ForgotPasswordScreen({ onBack, onSuccess }: ForgotPasswordScreenProps) {
   const [step, setStep] = useState<Step>('input');
   const [identifier, setIdentifier] = useState('');
-  const [otp, setOtp] = useState(['', '', '', '']);
+  const [otp, setOtp] = useState(['', '', '', '', '', '']); // Changed to 6 digits for Supabase
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [method, setMethod] = useState<'email' | 'phone' | null>(null);
   const [passwordError, setPasswordError] = useState<string | undefined>(undefined);
+  const [resendTimer, setResendTimer] = useState(0);
 
-  const handleSendOtp = (e: React.FormEvent) => {
-    e.preventDefault();
+  React.useEffect(() => {
+    let timer: any;
+    if (resendTimer > 0) {
+      timer = setInterval(() => {
+        setResendTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [resendTimer]);
+
+  const handleSendOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setIsLoading(true);
     
-    // Simulate sending OTP
-    setTimeout(() => {
-      setIsLoading(false);
-      // Determine if it's email or phone (simple check)
-      if (identifier.includes('@')) {
-        setMethod('email');
+    try {
+      const isEmail = identifier.includes('@');
+      setMethod(isEmail ? 'email' : 'phone');
+
+      if (isEmail) {
+        const { error } = await supabase.auth.resetPasswordForEmail(identifier);
+        if (error) throw error;
+        alert('Password reset code sent to your email!');
       } else {
-        setMethod('phone');
+        const { error } = await supabase.auth.signInWithOtp({ phone: identifier });
+        if (error) throw error;
+        alert('Verification code sent to your phone!');
       }
+      
       setStep('otp');
-    }, 1500);
+      setResendTimer(60); // Start 60s cooldown
+    } catch (error: any) {
+      console.error('Send OTP Error:', error);
+      alert(error.message || 'Failed to send OTP. Please check your credentials.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleVerifyOtp = (e: React.FormEvent) => {
+  const handleResendOtp = () => {
+    if (resendTimer > 0) return;
+    handleSendOtp();
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
-    // Simulate OTP verification
-    setTimeout(() => {
-      setIsLoading(false);
+    const token = otp.join('');
+    
+    try {
+      if (method === 'email') {
+        const { error } = await supabase.auth.verifyOtp({
+          email: identifier,
+          token,
+          type: 'recovery'
+        });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.auth.verifyOtp({
+          phone: identifier,
+          token,
+          type: 'sms'
+        });
+        if (error) throw error;
+      }
+      
       setStep('reset');
-    }, 1000);
+    } catch (error: any) {
+      console.error('Verify OTP Error:', error);
+      alert(error.message || 'Invalid or expired OTP. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleResetPassword = (e: React.FormEvent) => {
+  const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Password validation
@@ -72,11 +121,20 @@ export function ForgotPasswordScreen({ onBack, onSuccess }: ForgotPasswordScreen
     setPasswordError(undefined);
     setIsLoading(true);
     
-    // Simulate password reset
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (error) throw error;
+      
       setStep('success');
-    }, 1500);
+    } catch (error: any) {
+      console.error('Reset Password Error:', error);
+      alert(error.message || 'Failed to update password. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleOtpChange = (index: number, value: string) => {
@@ -86,7 +144,7 @@ export function ForgotPasswordScreen({ onBack, onSuccess }: ForgotPasswordScreen
     setOtp(newOtp);
     
     // Auto-focus next input
-    if (value && index < 3) {
+    if (value && index < 5) {
       const nextInput = document.getElementById(`otp-${index + 1}`);
       nextInput?.focus();
     }
@@ -139,13 +197,13 @@ export function ForgotPasswordScreen({ onBack, onSuccess }: ForgotPasswordScreen
             <div className="text-center mb-8">
               <h2 className="text-2xl font-bold text-foreground mb-2">Verify OTP</h2>
               <p className="text-muted-foreground">
-                We've sent a 4-digit code to your {method === 'email' ? 'email' : 'phone'}
+                We've sent a 6-digit code to your {method === 'email' ? 'email' : 'phone'}
                 <br />
                 <span className="font-medium text-foreground">{identifier}</span>
               </p>
             </div>
             <form onSubmit={handleVerifyOtp} className="space-y-8">
-              <div className="flex justify-center gap-4">
+              <div className="flex justify-center gap-2">
                 {otp.map((digit, index) => (
                   <input
                     key={index}
@@ -153,7 +211,7 @@ export function ForgotPasswordScreen({ onBack, onSuccess }: ForgotPasswordScreen
                     type="number"
                     value={digit}
                     onChange={(e) => handleOtpChange(index, e.target.value)}
-                    className="w-14 h-14 text-center text-2xl font-bold bg-card border border-divider rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                    className="w-12 h-14 text-center text-2xl font-bold bg-card border border-divider rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                     required
                   />
                 ))}
@@ -164,10 +222,11 @@ export function ForgotPasswordScreen({ onBack, onSuccess }: ForgotPasswordScreen
                 </Button>
                 <button 
                   type="button"
-                  className="w-full text-sm text-primary font-medium hover:underline"
-                  onClick={() => {/* Resend logic */}}
+                  className={`w-full text-sm font-medium hover:underline ${resendTimer > 0 ? 'text-muted-foreground cursor-not-allowed' : 'text-primary'}`}
+                  onClick={handleResendOtp}
+                  disabled={resendTimer > 0}
                 >
-                  Resend Code
+                  {resendTimer > 0 ? `Resend Code in ${resendTimer}s` : 'Resend Code'}
                 </button>
               </div>
             </form>

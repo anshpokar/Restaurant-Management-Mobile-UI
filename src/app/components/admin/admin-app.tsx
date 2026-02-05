@@ -15,7 +15,13 @@ interface AdminAppProps {
 }
 
 export function AdminApp({ onLogout }: AdminAppProps) {
-  const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => {
+    return (localStorage.getItem('adminActiveTab') as AdminTab) || 'dashboard';
+  });
+
+  React.useEffect(() => {
+    localStorage.setItem('adminActiveTab', activeTab);
+  }, [activeTab]);
 
   return (
     <div className="pb-16">

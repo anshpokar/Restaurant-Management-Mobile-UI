@@ -17,10 +17,10 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [errors, setErrors] = useState<{ email?: string; password?: string; username?: string }>({});
 
   const validateForm = () => {
-    const newErrors: { email?: string; password?: string } = {};
+    const newErrors: { email?: string; password?: string; username?: string } = {};
     let isValid = true;
 
     // Email validation
@@ -56,6 +56,21 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
     setIsLoading(true);
     
     try {
+      // 0. Check if username is unique
+      const { data: existingUser, error: checkError } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('username', username)
+        .maybeSingle();
+
+      if (checkError) throw checkError;
+
+      if (existingUser) {
+        setErrors({ ...errors, username: 'Username is already taken' });
+        setIsLoading(false);
+        return;
+      }
+
       // 1. Sign up with Supabase Auth - Passing extra data in options.data
       const { data, error: authError } = await supabase.auth.signUp({
         email,
@@ -83,6 +98,7 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
       }
     } catch (error: any) {
       console.error('Signup Error Full Object:', error);
+      console.log('Error Properties:', Object.getOwnPropertyNames(error));
       
       let message = 'An error occurred during signup';
       
@@ -144,7 +160,11 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
             label="Username"
             placeholder="Create a username"
             value={username}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUsername(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+              setUsername(e.target.value);
+              if (errors.username) setErrors({ ...errors, username: undefined });
+            }}
+            error={errors.username}
             required
           />
 
