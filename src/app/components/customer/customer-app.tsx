@@ -69,8 +69,10 @@ export function CustomerApp({ onLogout, profile }: CustomerAppProps) {
 
   const handlePlaceOrder = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      // Prefer profile ID (supports demo mode)
+      const userId = profile?.id;
+
+      if (!userId) {
         alert('Please login to place an order');
         return;
       }
@@ -79,7 +81,7 @@ export function CustomerApp({ onLogout, profile }: CustomerAppProps) {
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
-          user_id: user.id,
+          user_id: userId,
           total_amount: totalAmount,
           status: 'placed',
           delivery_address: 'Home - Connaught Place' // Simplified for demo
@@ -118,15 +120,15 @@ export function CustomerApp({ onLogout, profile }: CustomerAppProps) {
   return (
     <div className="relative min-h-screen bg-background pb-16">
       {activeTab === 'home' && (
-        <HomeScreen 
-          onNavigate={(tab: CustomerTab) => setActiveTab(tab)} 
+        <HomeScreen
+          onNavigate={(tab: CustomerTab) => setActiveTab(tab)}
           onAddToCart={addToCart}
           profile={profile}
         />
       )}
       {activeTab === 'menu' && <MenuScreen onAddToCart={addToCart} />}
       {activeTab === 'bookings' && <BookingsScreen />}
-      {activeTab === 'orders' && <OrdersScreen />}
+      {activeTab === 'orders' && <OrdersScreen profile={profile} />}
       {activeTab === 'profile' && <ProfileScreen onLogout={onLogout} profile={profile} />}
 
       {/* Floating Cart Button */}
@@ -150,7 +152,7 @@ export function CustomerApp({ onLogout, profile }: CustomerAppProps) {
       {/* Cart Drawer/Overlay */}
       {isCartOpen && (
         <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
-          <div 
+          <div
             className="absolute inset-0 bg-black/40 backdrop-blur-sm"
             onClick={() => setIsCartOpen(false)}
           />
@@ -160,7 +162,7 @@ export function CustomerApp({ onLogout, profile }: CustomerAppProps) {
                 <h2 className="text-xl font-bold text-foreground">Your Cart</h2>
                 <p className="text-sm text-muted-foreground">{totalItems} items selected</p>
               </div>
-              <button 
+              <button
                 onClick={() => setIsCartOpen(false)}
                 className="p-2 hover:bg-muted rounded-full transition-colors"
               >
@@ -177,7 +179,7 @@ export function CustomerApp({ onLogout, profile }: CustomerAppProps) {
                   <div className="flex-1">
                     <div className="flex justify-between items-start">
                       <h4 className="font-medium text-foreground">{item.name}</h4>
-                      <button 
+                      <button
                         onClick={() => removeFromCart(item.id)}
                         className="p-1 text-muted-foreground hover:text-red-500"
                       >
@@ -186,14 +188,14 @@ export function CustomerApp({ onLogout, profile }: CustomerAppProps) {
                     </div>
                     <p className="text-sm text-muted-foreground mb-2">₹{item.price}</p>
                     <div className="flex items-center gap-3">
-                      <button 
+                      <button
                         onClick={() => updateQuantity(item.id, -1)}
                         className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center hover:bg-muted/80"
                       >
                         <Minus className="w-4 h-4" />
                       </button>
                       <span className="font-bold text-foreground min-w-[20px] text-center">{item.quantity}</span>
-                      <button 
+                      <button
                         onClick={() => updateQuantity(item.id, 1)}
                         className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center hover:bg-muted/80"
                       >
@@ -211,8 +213,8 @@ export function CustomerApp({ onLogout, profile }: CustomerAppProps) {
                 <span className="text-muted-foreground font-medium">Total Amount</span>
                 <span className="text-2xl font-black text-foreground">₹{totalAmount}</span>
               </div>
-              <Button 
-                className="w-full h-14 text-lg rounded-2xl" 
+              <Button
+                className="w-full h-14 text-lg rounded-2xl"
                 onClick={handlePlaceOrder}
               >
                 Place Order

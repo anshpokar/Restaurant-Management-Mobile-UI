@@ -3,9 +3,9 @@ import { AppHeader } from '@/app/components/design-system/app-header';
 import { Card, CardBody } from '@/app/components/design-system/card';
 import { Badge } from '@/app/components/design-system/badge';
 import { Package, Clock, CheckCircle2, Truck, Phone, User } from 'lucide-react';
-import { supabase, type Order } from '@/lib/supabase';
+import { supabase, type Order, type Profile } from '@/lib/supabase';
 
-export function OrdersScreen() {
+export function OrdersScreen({ profile }: { profile: Profile | null }) {
   const [filter, setFilter] = useState<'all' | 'ongoing' | 'completed'>('all');
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
@@ -28,8 +28,8 @@ export function OrdersScreen() {
   const fetchMyOrders = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const userId = profile?.id;
+      if (!userId) return;
 
       const { data, error } = await supabase
         .from('orders')
@@ -38,7 +38,7 @@ export function OrdersScreen() {
           delivery_person:profiles!delivery_person_id (full_name, phone_number),
           order_items (*)
         `)
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -61,11 +61,10 @@ export function OrdersScreen() {
             <button
               key={tab}
               onClick={() => setFilter(tab as any)}
-              className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${
-                filter === tab
+              className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${filter === tab
                   ? 'bg-card text-primary shadow-sm'
                   : 'text-muted-foreground'
-              }`}
+                }`}
             >
               {tab.toUpperCase()}
             </button>
@@ -82,11 +81,10 @@ export function OrdersScreen() {
             })
             .map((order) => (
               <Card key={order.id} className="border-none shadow-sm overflow-hidden">
-                <div className={`h-1.5 ${
-                  order.status === 'delivered' ? 'bg-green-500' :
-                  order.status === 'cancelled' ? 'bg-red-500' :
-                  order.status === 'out_for_delivery' ? 'bg-secondary' : 'bg-primary'
-                }`} />
+                <div className={`h-1.5 ${order.status === 'delivered' ? 'bg-green-500' :
+                    order.status === 'cancelled' ? 'bg-red-500' :
+                      order.status === 'out_for_delivery' ? 'bg-secondary' : 'bg-primary'
+                  }`} />
                 <CardBody className="p-4 space-y-4">
                   <div className="flex items-start justify-between">
                     <div>
@@ -97,8 +95,8 @@ export function OrdersScreen() {
                     </div>
                     <Badge variant={
                       order.status === 'delivered' ? 'success' :
-                      order.status === 'cancelled' ? 'error' :
-                      order.status === 'out_for_delivery' ? 'paid' : 'pending'
+                        order.status === 'cancelled' ? 'error' :
+                          order.status === 'out_for_delivery' ? 'paid' : 'pending'
                     }>
                       {order.status.replace(/_/g, ' ').toUpperCase()}
                     </Badge>
@@ -133,7 +131,7 @@ export function OrdersScreen() {
                           </p>
                           <p className="font-bold text-foreground">{(order.delivery_person as any).full_name}</p>
                         </div>
-                        <a 
+                        <a
                           href={`tel:${(order.delivery_person as any).phone_number}`}
                           className="w-10 h-10 bg-green-500 text-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform"
                         >
@@ -148,11 +146,11 @@ export function OrdersScreen() {
                       {order.status === 'placed' && <Clock className="w-3 h-3" />}
                       {order.status === 'delivered' && <CheckCircle2 className="w-3 h-3 text-green-500" />}
                       <span>
-                        {order.status === 'placed' ? 'Waiting for kitchen' : 
-                         order.status === 'preparing' ? 'Chef is preparing' :
-                         order.status === 'cooking' ? 'Dish is being cooked' :
-                         order.status === 'prepared' ? 'Ready for pickup' :
-                         order.status === 'out_for_delivery' ? 'On its way!' : 'Completed'}
+                        {order.status === 'placed' ? 'Waiting for kitchen' :
+                          order.status === 'preparing' ? 'Chef is preparing' :
+                            order.status === 'cooking' ? 'Dish is being cooked' :
+                              order.status === 'prepared' ? 'Ready for pickup' :
+                                order.status === 'out_for_delivery' ? 'On its way!' : 'Completed'}
                       </span>
                     </div>
                   </div>

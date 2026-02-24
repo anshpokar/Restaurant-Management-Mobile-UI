@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '@/app/components/design-system/button';
 import { Menu, Calendar, MapPin } from 'lucide-react';
 
@@ -58,17 +59,43 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
       </div>
 
       {/* Content */}
-      <div className="flex-1 flex flex-col items-center justify-center px-8 pb-8">
-        <div className={`flex items-center justify-center w-32 h-32 ${slide.color} rounded-3xl mb-8 shadow-lg`}>
-          <Icon className="w-16 h-16 text-white" />
-        </div>
+      <div className="flex-1 flex flex-col items-center justify-center px-8 pb-8 relative overflow-hidden">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentSlide}
+            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 1.1, y: -20 }}
+            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+            className="flex flex-col items-center"
+          >
+            <motion.div
+              initial={{ rotate: -10 }}
+              animate={{ rotate: 0 }}
+              transition={{ delay: 0.2, type: "spring" }}
+              className={`flex items-center justify-center w-32 h-32 ${slide.color} rounded-[32px] mb-8 shadow-2xl`}
+            >
+              <Icon className="w-16 h-16 text-white" />
+            </motion.div>
 
-        <h2 className="text-3xl font-bold text-foreground mb-4 text-center">
-          {slide.title}
-        </h2>
-        <p className="text-center text-muted-foreground text-lg max-w-sm">
-          {slide.description}
-        </p>
+            <motion.h2
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="text-3xl font-bold text-foreground mb-4 text-center"
+            >
+              {slide.title}
+            </motion.h2>
+            <motion.p
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="text-center text-muted-foreground text-lg max-w-sm"
+            >
+              {slide.description}
+            </motion.p>
+          </motion.div>
+        </AnimatePresence>
       </div>
 
       {/* Indicators and Button */}
@@ -77,11 +104,10 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
           {slides.map((_, index) => (
             <div
               key={index}
-              className={`h-2 rounded-full transition-all ${
-                index === currentSlide
+              className={`h-2 rounded-full transition-all ${index === currentSlide
                   ? 'w-8 bg-primary'
                   : 'w-2 bg-muted'
-              }`}
+                }`}
             />
           ))}
         </div>

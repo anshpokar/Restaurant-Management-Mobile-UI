@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AppHeader } from '@/app/components/design-system/app-header';
 import { Card, CardBody } from '@/app/components/design-system/card';
 import { Badge, VegBadge } from '@/app/components/design-system/badge';
+import { motion, AnimatePresence } from 'motion/react';
 import { MapPin, User, UtensilsCrossed, Calendar, Truck, Star, RefreshCw, Tag } from 'lucide-react';
 import { supabase, type MenuItem, type Offer } from '@/lib/supabase';
 import { type Profile } from '@/lib/supabase';
@@ -78,10 +79,10 @@ export function HomeScreen({ onNavigate, onAddToCart, profile }: HomeScreenProps
   };
   return (
     <div className="min-h-screen bg-background pb-10">
-      <AppHeader 
+      <AppHeader
         title="NAVRATNA"
         actions={
-          <button 
+          <button
             onClick={() => onNavigate('profile')}
             className="p-2 text-foreground hover:bg-muted rounded-full transition-colors relative"
           >
@@ -115,36 +116,45 @@ export function HomeScreen({ onNavigate, onAddToCart, profile }: HomeScreenProps
 
         {/* Hero Banner (Dynamic Animated Today's Special) */}
         {specials.length > 0 ? (
-          <div className="relative overflow-hidden rounded-3xl shadow-xl">
-            {specials.map((special, idx) => (
-              <Card 
-                key={special.id} 
-                className={`overflow-hidden bg-gradient-to-br from-primary to-accent border-none transition-all duration-700 absolute inset-0 ${
-                  idx === specialIndex ? 'opacity-100 translate-x-0 z-10' : 'opacity-0 translate-x-full z-0'
-                }`}
+          <div className="relative overflow-hidden rounded-[32px] shadow-2xl h-[180px]">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={specialIndex}
+                initial={{ opacity: 0, scale: 1.1 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.6, ease: "easeInOut" }}
+                className="absolute inset-0"
               >
-                <CardBody className="p-6 text-white relative h-full">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Star className="w-5 h-5 fill-secondary text-secondary" />
-                    <Badge variant="warning" size="sm">Today's Special</Badge>
-                  </div>
-                  <h2 className="text-2xl font-black mb-1">{special.name}</h2>
-                  <p className="text-white/90 mb-4 text-sm max-w-[200px]">Fresh from the kitchen! Limited availability.</p>
-                  <button 
-                    onClick={() => onNavigate('menu')}
-                    className="bg-secondary text-white px-6 py-2 rounded-xl font-bold hover:opacity-90 transition-all active:scale-95"
-                  >
-                    Order Now - ₹{special.price}
-                  </button>
-                  <div className="absolute top-6 right-6 text-7xl opacity-20">{special.image}</div>
-                </CardBody>
-              </Card>
-            ))}
-            {/* Height Spacer because cards are absolute */}
-            <div className="invisible p-6 h-[180px]">
-              <h2 className="text-2xl font-black mb-1">Spacer</h2>
-            </div>
-            
+                <Card
+                  className="h-full bg-gradient-to-br from-primary to-accent border-none"
+                >
+                  <CardBody className="p-6 text-white relative h-full flex flex-col justify-center">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Star className="w-5 h-5 fill-secondary text-secondary" />
+                      <Badge variant="warning" size="sm">Today's Special</Badge>
+                    </div>
+                    <h2 className="text-2xl font-black mb-1">{specials[specialIndex].name}</h2>
+                    <p className="text-white/90 mb-4 text-sm max-w-[200px]">Fresh from the kitchen! Limited availability.</p>
+                    <button
+                      onClick={() => onNavigate('menu')}
+                      className="bg-secondary text-white w-fit px-6 py-2 rounded-xl font-bold hover:opacity-90 transition-all active:scale-95 shadow-lg"
+                    >
+                      Order Now - ₹{specials[specialIndex].price}
+                    </button>
+                    <motion.div
+                      key={specials[specialIndex].id}
+                      initial={{ opacity: 0, x: 20, rotate: 10 }}
+                      animate={{ opacity: 0.3, x: 0, rotate: 0 }}
+                      className="absolute top-4 right-4 text-8xl"
+                    >
+                      {specials[specialIndex].image}
+                    </motion.div>
+                  </CardBody>
+                </Card>
+              </motion.div>
+            </AnimatePresence>
+
             {/* Pagination Dots */}
             {specials.length > 1 && (
               <div className="absolute bottom-4 right-6 z-20 flex gap-1.5">
@@ -163,7 +173,7 @@ export function HomeScreen({ onNavigate, onAddToCart, profile }: HomeScreenProps
               </div>
               <h2 className="text-2xl font-black mb-1">Navratna Korma</h2>
               <p className="text-white/90 mb-4 text-sm max-w-[200px]">Nine precious ingredients in a creamy cashew sauce</p>
-              <button 
+              <button
                 onClick={() => onNavigate('menu')}
                 className="bg-secondary text-white px-6 py-2 rounded-xl font-bold hover:opacity-90 transition-all active:scale-95"
               >
@@ -214,18 +224,24 @@ export function HomeScreen({ onNavigate, onAddToCart, profile }: HomeScreenProps
               { name: 'Breads', icon: '🫓', color: 'bg-orange-100', category: 'Breads' },
               { name: 'Desserts', icon: '🍨', color: 'bg-pink-100', category: 'Desserts' },
             ].map((category, index) => (
-              <Card 
-                key={index} 
-                onClick={() => onNavigate('menu')}
-                className="cursor-pointer hover:shadow-lg transition-all border-none bg-surface active:scale-95"
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
               >
-                <CardBody className="p-3 text-center">
-                  <div className={`w-12 h-12 mx-auto mb-2 ${category.color} rounded-2xl flex items-center justify-center text-2xl`}>
-                    {category.icon}
-                  </div>
-                  <p className="text-[10px] font-bold text-foreground uppercase tracking-wider">{category.name}</p>
-                </CardBody>
-              </Card>
+                <Card
+                  onClick={() => onNavigate('menu')}
+                  className="cursor-pointer hover:shadow-lg transition-all border-none bg-surface active:scale-95"
+                >
+                  <CardBody className="p-3 text-center">
+                    <div className={`w-12 h-12 mx-auto mb-2 ${category.color} rounded-2xl flex items-center justify-center text-2xl`}>
+                      {category.icon}
+                    </div>
+                    <p className="text-[10px] font-bold text-foreground uppercase tracking-wider">{category.name}</p>
+                  </CardBody>
+                </Card>
+              </motion.div>
             ))}
           </div>
         </div>
@@ -236,7 +252,7 @@ export function HomeScreen({ onNavigate, onAddToCart, profile }: HomeScreenProps
             <h3 className="text-xl font-black text-foreground">Bestsellers</h3>
             <button onClick={() => onNavigate('menu')} className="text-sm text-primary font-bold hover:underline">See All</button>
           </div>
-          
+
           <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 scrollbar-hide">
             {loading ? (
               [1, 2, 3].map(i => (
@@ -262,7 +278,7 @@ export function HomeScreen({ onNavigate, onAddToCart, profile }: HomeScreenProps
                     <div className="flex items-center justify-between mt-4">
                       <span className="font-black text-primary">₹{item.price}</span>
                       {item.is_available ? (
-                        <button 
+                        <button
                           onClick={(e) => {
                             e.stopPropagation();
                             onAddToCart?.(item);
@@ -286,11 +302,10 @@ export function HomeScreen({ onNavigate, onAddToCart, profile }: HomeScreenProps
         {offers.length > 0 ? (
           <div className="relative h-[90px]">
             {offers.map((offer, idx) => (
-              <Card 
-                key={offer.id} 
-                className={`absolute inset-0 bg-secondary/10 border-dashed border-2 border-secondary/30 transition-all duration-500 ${
-                  idx === offerIndex ? 'opacity-100 scale-100 z-10' : 'opacity-0 scale-95 z-0'
-                }`}
+              <Card
+                key={offer.id}
+                className={`absolute inset-0 bg-secondary/10 border-dashed border-2 border-secondary/30 transition-all duration-500 ${idx === offerIndex ? 'opacity-100 scale-100 z-10' : 'opacity-0 scale-95 z-0'
+                  }`}
               >
                 <CardBody className="p-4 h-full">
                   <div className="flex items-center justify-between">
