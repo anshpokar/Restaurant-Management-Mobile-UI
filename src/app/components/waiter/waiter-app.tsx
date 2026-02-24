@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { AppHeader } from '@/app/components/design-system/app-header';
 import { Card, CardBody } from '@/app/components/design-system/card';
 import { Button } from '@/app/components/design-system/button';
@@ -8,14 +8,12 @@ import {
   LogOut,
   Search,
   UtensilsCrossed,
-  CheckCircle2,
   Clock,
   LayoutGrid,
   ShoppingCart,
   Plus,
   Minus,
   Trash2,
-  User,
   ArrowLeft
 } from 'lucide-react';
 import { supabase, type RestaurantTable, type Profile, type MenuItem, type Order } from '@/lib/supabase';
@@ -31,7 +29,6 @@ interface WaiterCartItem extends MenuItem {
 
 export function WaiterApp({ onLogout, profile }: WaiterAppProps) {
   const navigate = useNavigate();
-  const location = useLocation();
 
   const [tables, setTables] = useState<RestaurantTable[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -133,10 +130,10 @@ function WaiterDashboard({ tables, loading, fetchTables, onTableClick }: { table
               key={table.id}
               onClick={() => onTableClick(table)}
               className={`cursor-pointer transition-all active:scale-95 border-2 ${table.status === 'occupied'
-                  ? 'bg-red-50 border-red-200'
-                  : table.status === 'reserved'
-                    ? 'bg-orange-50 border-orange-200'
-                    : 'bg-green-50 border-green-200 hover:border-primary'
+                ? 'bg-red-50 border-red-200'
+                : table.status === 'reserved'
+                  ? 'bg-orange-50 border-orange-200'
+                  : 'bg-green-50 border-green-200 hover:border-primary'
                 }`}
             >
               <CardBody className="p-6 text-center">
@@ -159,7 +156,6 @@ function WaiterDashboard({ tables, loading, fetchTables, onTableClick }: { table
 
 function WaiterOrdering({ menuItems, onBack }: { menuItems: MenuItem[], onBack: () => void }) {
   const { tableId } = useParams<{ tableId: string }>();
-  const navigate = useNavigate();
   const [selectedTable, setSelectedTable] = useState<RestaurantTable | null>(null);
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
   const [customerSearch, setCustomerSearch] = useState('');

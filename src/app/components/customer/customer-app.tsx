@@ -21,7 +21,6 @@ interface CustomerAppProps {
 
 export function CustomerApp({ onLogout, profile }: CustomerAppProps) {
   const navigate = useNavigate();
-  const location = useLocation();
 
   const getActiveTab = () => {
     const path = location.pathname;

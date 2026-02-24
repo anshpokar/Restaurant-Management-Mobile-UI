@@ -1,4 +1,3 @@
-import React from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { BottomNav, BottomNavItem } from '../design-system/bottom-nav';
 import { Truck, Package, MapPin, User, CheckCircle2, LogOut as LogOutIcon } from 'lucide-react';

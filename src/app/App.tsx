@@ -87,8 +87,10 @@ export default function App() {
     exit: { opacity: 0, x: -20 },
   };
 
+  const isDesktopRole = userRole === 'admin' || userRole === 'chef';
+
   return (
-    <MobileContainer>
+    <MobileContainer fullWidth={isDesktopRole}>
       <AnimatePresence mode="wait">
         <motion.div
           key={location.pathname}

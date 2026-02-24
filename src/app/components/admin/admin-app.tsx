@@ -1,4 +1,3 @@
-import React from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { BottomNav, BottomNavItem } from '@/app/components/design-system/bottom-nav';
 import { LayoutDashboard, ShoppingBag, Menu, Table, BarChart3, Users } from 'lucide-react';

@@ -1,17 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppHeader } from '@/app/components/design-system/app-header';
 import { Card, CardBody } from '@/app/components/design-system/card';
 import { Button } from '@/app/components/design-system/button';
 import { Badge } from '@/app/components/design-system/badge';
-import { 
-  LogOut, 
-  Clock, 
-  CheckCircle2, 
-  Flame, 
-  Utensils, 
+import {
+  LogOut,
+  Flame,
+  Utensils,
   Timer,
   RefreshCw,
-  ChefHat
+  ChefHat,
+  CheckCircle2
 } from 'lucide-react';
 import { supabase, type Order, type Profile } from '@/lib/supabase';
 
@@ -21,12 +21,21 @@ interface ChefAppProps {
 }
 
 export function ChefApp({ onLogout, profile }: ChefAppProps) {
+  return (
+    <Routes>
+      <Route index element={<ChefDashboard onLogout={onLogout} profile={profile} />} />
+      <Route path="*" element={<Navigate to="/chef" replace />} />
+    </Routes>
+  );
+}
+
+function ChefDashboard({ onLogout }: ChefAppProps) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     fetchActiveOrders();
-    
+
     const subscription = supabase
       .channel('chef-orders')
       .on('postgres_changes' as any, { event: '*', table: 'orders' }, () => {
@@ -42,7 +51,6 @@ export function ChefApp({ onLogout, profile }: ChefAppProps) {
   const fetchActiveOrders = async () => {
     setLoading(true);
     try {
-      // Fetch orders that are placed, preparing, or cooking
       const { data, error } = await supabase
         .from('orders')
         .select(`
@@ -80,7 +88,7 @@ export function ChefApp({ onLogout, profile }: ChefAppProps) {
 
   return (
     <div className="min-h-screen bg-muted/20 flex flex-col">
-      <AppHeader 
+      <AppHeader
         title="Kitchen Dashboard"
         actions={
           <div className="flex items-center gap-2">
@@ -129,11 +137,10 @@ export function ChefApp({ onLogout, profile }: ChefAppProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {orders.map((order) => (
                 <Card key={order.id} className="border-none shadow-xl overflow-hidden group">
-                  <div className={`h-2 ${
-                    order.status === 'placed' ? 'bg-primary' :
+                  <div className={`h-2 ${order.status === 'placed' ? 'bg-primary' :
                     order.status === 'preparing' ? 'bg-orange-400' :
-                    'bg-orange-600 animate-pulse'
-                  }`} />
+                      'bg-orange-600 animate-pulse'
+                    }`} />
                   <CardBody className="p-6 space-y-4">
                     <div className="flex justify-between items-start">
                       <div>
@@ -151,7 +158,7 @@ export function ChefApp({ onLogout, profile }: ChefAppProps) {
                       </div>
                       <Badge variant={
                         order.status === 'placed' ? 'info' :
-                        order.status === 'preparing' ? 'warning' : 'error'
+                          order.status === 'preparing' ? 'warning' : 'error'
                       }>
                         {order.status.toUpperCase()}
                       </Badge>
@@ -170,7 +177,7 @@ export function ChefApp({ onLogout, profile }: ChefAppProps) {
 
                     <div className="flex flex-wrap gap-2 pt-2">
                       {order.status === 'placed' && (
-                        <Button 
+                        <Button
                           className="flex-1 bg-orange-400 hover:bg-orange-500"
                           onClick={() => updateOrderStatus(order.id, 'preparing')}
                         >
@@ -178,7 +185,7 @@ export function ChefApp({ onLogout, profile }: ChefAppProps) {
                         </Button>
                       )}
                       {order.status === 'preparing' && (
-                        <Button 
+                        <Button
                           className="flex-1 bg-orange-600 hover:bg-orange-700"
                           onClick={() => updateOrderStatus(order.id, 'cooking')}
                         >
@@ -186,7 +193,7 @@ export function ChefApp({ onLogout, profile }: ChefAppProps) {
                         </Button>
                       )}
                       {order.status === 'cooking' && (
-                        <Button 
+                        <Button
                           className="flex-1 bg-green-500 hover:bg-green-600"
                           onClick={() => updateOrderStatus(order.id, 'prepared')}
                         >
@@ -204,3 +211,4 @@ export function ChefApp({ onLogout, profile }: ChefAppProps) {
     </div>
   );
 }
+
