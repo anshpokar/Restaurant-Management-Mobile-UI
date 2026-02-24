@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { MobileContainer } from './components/mobile-container';
 import { SplashScreen } from './components/auth/splash-screen';
@@ -12,16 +13,14 @@ import { DeliveryApp } from './components/delivery/delivery-app';
 import { WaiterApp } from './components/waiter/waiter-app';
 import { ChefApp } from './components/chef/chef-app';
 import { supabase, type UserRole, type Profile } from '@/lib/supabase';
-
-type AppScreen = 'splash' | 'onboarding' | 'login' | 'signup' | 'forgot-password' | 'customer' | 'admin' | 'delivery' | 'waiter' | 'chef';
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
 
 export default function App() {
-  console.log("App component rendered");
-  const [currentScreen, setCurrentScreen] = useState<AppScreen>('splash');
+  const navigate = useNavigate();
+  const location = useLocation();
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
-  const [history, setHistory] = useState<AppScreen[]>([]);
-  const [isInitializing, setIsInitializing] = useState(false);
+  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
 
   // Auth Session Recovery & Persistence
   useEffect(() => {
@@ -39,23 +38,25 @@ export default function App() {
           if (profile && !error) {
             setUserRole(profile.role);
             setUserProfile(profile);
-            setCurrentScreen(profile.role as AppScreen);
-            setIsInitializing(false);
-            return;
+            // If on auth pages, redirect to dashboard
+            if (['/login', '/signup', '/forgot-password', '/'].includes(location.pathname)) {
+              navigate(`/${profile.role}`, { replace: true });
+            }
           }
         }
       } catch (err) {
         console.error("Auth init error:", err);
+      } finally {
+        setIsLoadingAuth(false);
       }
-      setIsInitializing(false);
     };
 
     initializeAuth();
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: any, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
-        const { data: profileData, error: _profileError } = await supabase
+        const { data: profileData } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
@@ -64,92 +65,21 @@ export default function App() {
         if (profileData) {
           setUserRole(profileData.role);
           setUserProfile(profileData);
-          navigateTo(profileData.role as AppScreen);
+          navigate(`/${profileData.role}`, { replace: true });
         }
       } else if (event === 'SIGNED_OUT') {
         setUserRole(null);
         setUserProfile(null);
-        setCurrentScreen('login');
-        setHistory([]);
+        navigate('/login', { replace: true });
       }
     });
 
     return () => subscription.unsubscribe();
-  }, []);
-
-  // Back button handler (browser back)
-  useEffect(() => {
-    const handlePopState = (event: PopStateEvent) => {
-      if (history.length > 0) {
-        const prevHistory = [...history];
-        const lastScreen = prevHistory.pop();
-        if (lastScreen) {
-          setCurrentScreen(lastScreen);
-          setHistory(prevHistory);
-        }
-      }
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [history]);
-
-  const navigateTo = (screen: AppScreen) => {
-    if (screen === currentScreen) return;
-
-    // Push current screen to history before changing
-    setHistory(prev => [...prev, currentScreen]);
-    setCurrentScreen(screen);
-
-    // Update browser URL state for back button support
-    window.history.pushState({ screen }, "", "");
-  };
-
-  const goBack = () => {
-    if (history.length > 0) {
-      const prevHistory = [...history];
-      const lastScreen = prevHistory.pop();
-      if (lastScreen) {
-        setCurrentScreen(lastScreen);
-        setHistory(prevHistory);
-        window.history.back();
-      }
-    }
-  };
-
-  // Simulate splash screen timeout (only if not logged in)
-  useEffect(() => {
-    if (currentScreen === 'splash' && !isInitializing) {
-      const timer = setTimeout(() => {
-        if (!userRole) {
-          setCurrentScreen('onboarding');
-        }
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [currentScreen, isInitializing, userRole]);
-
-  const handleLogin = async (role: UserRole, profile?: Profile | null) => {
-    setUserRole(role);
-
-    if (profile) {
-      setUserProfile(profile);
-    } else {
-      console.error('Login failed: No profile data provided.');
-      // Optionally reset role if profile is missing
-      setUserRole(null);
-      return;
-    }
-
-    navigateTo(role as AppScreen);
-  };
+  }, [navigate]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
   };
-
-  if (isInitializing) {
-    return <SplashScreen />;
-  }
 
   const screenVariants = {
     initial: { opacity: 0, x: 20 },
@@ -161,7 +91,7 @@ export default function App() {
     <MobileContainer>
       <AnimatePresence mode="wait">
         <motion.div
-          key={currentScreen}
+          key={location.pathname}
           initial="initial"
           animate="animate"
           exit="exit"
@@ -169,55 +99,62 @@ export default function App() {
           transition={{ duration: 0.3, ease: "easeInOut" }}
           className="h-full w-full"
         >
-          {currentScreen === 'splash' && <SplashScreen />}
-
-          {currentScreen === 'onboarding' && (
-            <OnboardingScreen onComplete={() => navigateTo('login')} />
-          )}
-
-          {currentScreen === 'login' && (
-            <LoginScreen
-              onLogin={handleLogin}
-              onSignup={() => navigateTo('signup')}
-              onForgotPassword={() => navigateTo('forgot-password')}
+          <Routes location={location}>
+            {/* Public Routes */}
+            <Route path="/" element={<SplashScreen onTimeout={() => navigate('/onboarding')} />} />
+            <Route path="/onboarding" element={<OnboardingScreen onComplete={() => navigate('/login')} />} />
+            <Route
+              path="/login"
+              element={
+                userRole ?
+                  <Navigate to={`/${userRole}`} replace /> :
+                  <LoginScreen
+                    onLogin={() => { }} // Handle via auth change listener
+                    onSignup={() => navigate('/signup')}
+                    onForgotPassword={() => navigate('/forgot-password')}
+                  />
+              }
             />
-          )}
+            <Route path="/signup" element={<SignupScreen onLogin={() => navigate('/login')} onSignupSuccess={() => { }} />} />
+            <Route path="/forgot-password" element={<ForgotPasswordScreen onBack={() => navigate(-1)} onSuccess={() => navigate('/login')} />} />
 
-          {currentScreen === 'forgot-password' && (
-            <ForgotPasswordScreen
-              onBack={goBack}
-              onSuccess={() => navigateTo('login')}
-            />
-          )}
+            {/* Role Protected Routes */}
+            <Route path="/customer/*" element={
+              <ProtectedRoute userRole={userRole} allowedRoles={['customer']} isLoading={isLoadingAuth}>
+                <CustomerApp onLogout={handleLogout} profile={userProfile} />
+              </ProtectedRoute>
+            } />
 
-          {currentScreen === 'signup' && (
-            <SignupScreen
-              onLogin={() => navigateTo('login')}
-              onSignupSuccess={(role, profile) => handleLogin(role, profile)}
-            />
-          )}
+            <Route path="/admin/*" element={
+              <ProtectedRoute userRole={userRole} allowedRoles={['admin']} isLoading={isLoadingAuth}>
+                <AdminApp onLogout={handleLogout} />
+              </ProtectedRoute>
+            } />
 
-          {currentScreen === 'customer' && userRole === 'customer' && (
-            <CustomerApp onLogout={handleLogout} profile={userProfile} />
-          )}
+            <Route path="/delivery/*" element={
+              <ProtectedRoute userRole={userRole} allowedRoles={['delivery']} isLoading={isLoadingAuth}>
+                <DeliveryApp onLogout={handleLogout} />
+              </ProtectedRoute>
+            } />
 
-          {currentScreen === 'admin' && userRole === 'admin' && (
-            <AdminApp onLogout={handleLogout} />
-          )}
+            <Route path="/waiter/*" element={
+              <ProtectedRoute userRole={userRole} allowedRoles={['waiter']} isLoading={isLoadingAuth}>
+                <WaiterApp onLogout={handleLogout} profile={userProfile} />
+              </ProtectedRoute>
+            } />
 
-          {currentScreen === 'delivery' && userRole === 'delivery' && (
-            <DeliveryApp onLogout={handleLogout} />
-          )}
+            <Route path="/chef/*" element={
+              <ProtectedRoute userRole={userRole} allowedRoles={['chef']} isLoading={isLoadingAuth}>
+                <ChefApp onLogout={handleLogout} profile={userProfile} />
+              </ProtectedRoute>
+            } />
 
-          {currentScreen === 'waiter' && userRole === 'waiter' && (
-            <WaiterApp onLogout={handleLogout} profile={userProfile} />
-          )}
-
-          {currentScreen === 'chef' && userRole === 'chef' && (
-            <ChefApp onLogout={handleLogout} profile={userProfile} />
-          )}
+            {/* 404 / Default */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
         </motion.div>
       </AnimatePresence>
     </MobileContainer>
   );
 }
+

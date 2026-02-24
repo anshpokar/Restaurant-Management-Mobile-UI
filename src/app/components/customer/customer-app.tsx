@@ -1,20 +1,18 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { BottomNav, BottomNavItem } from '../design-system/bottom-nav';
-import { Home, Menu, Calendar, ShoppingBag, User, ShoppingCart, Trash2, Plus, Minus, X } from 'lucide-react';
+import { Home, Menu, ShoppingBag, User, ShoppingCart, Trash2, Plus, Minus, X } from 'lucide-react';
 import { HomeScreen } from './home-screen';
-import { MenuScreen, type MenuItem } from './menu-screen';
+import { MenuScreen } from './menu-screen';
 import { BookingsScreen } from './bookings-screen';
 import { OrdersScreen } from './orders-screen';
 import { ProfileScreen } from './profile-screen';
-import { Card, CardBody } from '../design-system/card';
 import { Button } from '../design-system/button';
-import { Profile, supabase } from '@/lib/supabase';
+import { Profile, supabase, type MenuItem } from '@/lib/supabase';
 
 export interface CartItem extends MenuItem {
   quantity: number;
 }
-
-type CustomerTab = 'home' | 'menu' | 'bookings' | 'orders' | 'profile';
 
 interface CustomerAppProps {
   onLogout: () => void;
@@ -22,9 +20,20 @@ interface CustomerAppProps {
 }
 
 export function CustomerApp({ onLogout, profile }: CustomerAppProps) {
-  const [activeTab, setActiveTab] = useState<CustomerTab>(() => {
-    return (localStorage.getItem('customerActiveTab') as CustomerTab) || 'home';
-  });
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const getActiveTab = () => {
+    const path = location.pathname;
+    if (path.includes('/customer/menu')) return 'menu';
+    if (path.includes('/customer/bookings')) return 'bookings';
+    if (path.includes('/customer/orders')) return 'orders';
+    if (path.includes('/customer/profile')) return 'profile';
+    return 'home';
+  };
+
+  const activeTab = getActiveTab();
+
   const [cartItems, setCartItems] = useState<CartItem[]>(() => {
     const saved = localStorage.getItem('cartItems');
     return saved ? JSON.parse(saved) : [];
@@ -32,11 +41,7 @@ export function CustomerApp({ onLogout, profile }: CustomerAppProps) {
   const [isCartOpen, setIsCartOpen] = useState(false);
 
   // Persistence Effects
-  React.useEffect(() => {
-    localStorage.setItem('customerActiveTab', activeTab);
-  }, [activeTab]);
-
-  React.useEffect(() => {
+  useEffect(() => {
     localStorage.setItem('cartItems', JSON.stringify(cartItems));
   }, [cartItems]);
 
@@ -69,29 +74,25 @@ export function CustomerApp({ onLogout, profile }: CustomerAppProps) {
 
   const handlePlaceOrder = async () => {
     try {
-      // Prefer profile ID (supports demo mode)
       const userId = profile?.id;
-
       if (!userId) {
         alert('Please login to place an order');
         return;
       }
 
-      // 1. Create the order
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
           user_id: userId,
           total_amount: totalAmount,
           status: 'placed',
-          delivery_address: 'Home - Connaught Place' // Simplified for demo
+          delivery_address: 'Home - Connaught Place'
         })
         .select()
         .single();
 
       if (orderError) throw orderError;
 
-      // 2. Create order items
       const orderItemsData = cartItems.map(item => ({
         order_id: order.id,
         menu_item_id: item.id,
@@ -110,7 +111,7 @@ export function CustomerApp({ onLogout, profile }: CustomerAppProps) {
       alert('Order placed successfully! The chef is now viewing your order.');
       setCartItems([]);
       setIsCartOpen(false);
-      setActiveTab('orders');
+      navigate('/customer/orders');
     } catch (error: any) {
       console.error('Error placing order:', error);
       alert('Failed to place order: ' + error.message);
@@ -119,17 +120,27 @@ export function CustomerApp({ onLogout, profile }: CustomerAppProps) {
 
   return (
     <div className="relative min-h-screen bg-background pb-16">
-      {activeTab === 'home' && (
-        <HomeScreen
-          onNavigate={(tab: CustomerTab) => setActiveTab(tab)}
-          onAddToCart={addToCart}
-          profile={profile}
-        />
-      )}
-      {activeTab === 'menu' && <MenuScreen onAddToCart={addToCart} />}
-      {activeTab === 'bookings' && <BookingsScreen />}
-      {activeTab === 'orders' && <OrdersScreen profile={profile} />}
-      {activeTab === 'profile' && <ProfileScreen onLogout={onLogout} profile={profile} />}
+      <Routes>
+        <Route index element={
+          <HomeScreen
+            onNavigate={(tab: string) => navigate(`/customer/${tab}`)}
+            onAddToCart={addToCart}
+            profile={profile}
+          />
+        } />
+        <Route path="home" element={
+          <HomeScreen
+            onNavigate={(tab: string) => navigate(`/customer/${tab}`)}
+            onAddToCart={addToCart}
+            profile={profile}
+          />
+        } />
+        <Route path="menu" element={<MenuScreen onAddToCart={addToCart} />} />
+        <Route path="bookings" element={<BookingsScreen />} />
+        <Route path="orders" element={<OrdersScreen profile={profile} />} />
+        <Route path="profile" element={<ProfileScreen onLogout={onLogout} profile={profile} />} />
+        <Route path="*" element={<Navigate to="/customer" replace />} />
+      </Routes>
 
       {/* Floating Cart Button */}
       {cartItems.length > 0 && (
@@ -147,9 +158,6 @@ export function CustomerApp({ onLogout, profile }: CustomerAppProps) {
       )}
 
       {/* Cart Drawer */}
-      {/* ... (Cart JSX remains the same) */}
-
-      {/* Cart Drawer/Overlay */}
       {isCartOpen && (
         <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
           <div
@@ -229,27 +237,29 @@ export function CustomerApp({ onLogout, profile }: CustomerAppProps) {
           icon={<Home className="w-6 h-6" />}
           label="Home"
           active={activeTab === 'home'}
-          onClick={() => setActiveTab('home')}
+          onClick={() => navigate('/customer/home')}
         />
         <BottomNavItem
           icon={<Menu className="w-6 h-6" />}
           label="Menu"
           active={activeTab === 'menu'}
-          onClick={() => setActiveTab('menu')}
+          onClick={() => navigate('/customer/menu')}
         />
         <BottomNavItem
           icon={<ShoppingBag className="w-6 h-6" />}
           label="Orders"
           active={activeTab === 'orders'}
-          onClick={() => setActiveTab('orders')}
+          onClick={() => navigate('/customer/orders')}
         />
         <BottomNavItem
           icon={<User className="w-6 h-6" />}
           label="Profile"
           active={activeTab === 'profile'}
-          onClick={() => setActiveTab('profile')}
+          onClick={() => navigate('/customer/profile')}
         />
       </BottomNav>
     </div>
   );
 }
+
+
