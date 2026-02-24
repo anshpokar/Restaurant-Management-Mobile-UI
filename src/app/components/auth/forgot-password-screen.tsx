@@ -42,12 +42,32 @@ export function ForgotPasswordScreen({ onBack, onSuccess }: ForgotPasswordScreen
       setMethod(isEmail ? 'email' : 'phone');
 
       if (isEmail) {
-        const { error } = await supabase.auth.resetPasswordForEmail(identifier);
-        if (error) throw error;
+        // Create timeout promise
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('Request timeout: Sending password reset email took too long. Please check your internet connection.')), 15000); // 15 second timeout
+        });
+        
+        // Create the API call promise
+        const apiPromise = supabase.auth.resetPasswordForEmail(identifier);
+        
+        // Race the promises
+        const result = await Promise.race([apiPromise, timeoutPromise]);
+        
+        if (result.error) throw result.error;
         alert('Password reset code sent to your email!');
       } else {
-        const { error } = await supabase.auth.signInWithOtp({ phone: identifier });
-        if (error) throw error;
+        // Create timeout promise
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('Request timeout: Sending SMS verification took too long. Please check your internet connection.')), 15000); // 15 second timeout
+        });
+        
+        // Create the API call promise
+        const apiPromise = supabase.auth.signInWithOtp({ phone: identifier });
+        
+        // Race the promises
+        const result = await Promise.race([apiPromise, timeoutPromise]);
+        
+        if (result.error) throw result.error;
         alert('Verification code sent to your phone!');
       }
       
@@ -55,7 +75,7 @@ export function ForgotPasswordScreen({ onBack, onSuccess }: ForgotPasswordScreen
       setResendTimer(60); // Start 60s cooldown
     } catch (error: any) {
       console.error('Send OTP Error:', error);
-      alert(error.message || 'Failed to send OTP. Please check your credentials.');
+      alert(error.message || 'Failed to send OTP. Please check your credentials and internet connection.');
     } finally {
       setIsLoading(false);
     }
@@ -74,19 +94,39 @@ export function ForgotPasswordScreen({ onBack, onSuccess }: ForgotPasswordScreen
     
     try {
       if (method === 'email') {
-        const { error } = await supabase.auth.verifyOtp({
+        // Create timeout promise
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('Request timeout: Verifying email OTP took too long. Please check your internet connection.')), 15000); // 15 second timeout
+        });
+        
+        // Create the API call promise
+        const apiPromise = supabase.auth.verifyOtp({
           email: identifier,
           token,
           type: 'recovery'
         });
-        if (error) throw error;
+        
+        // Race the promises
+        const result = await Promise.race([apiPromise, timeoutPromise]);
+        
+        if (result.error) throw result.error;
       } else {
-        const { error } = await supabase.auth.verifyOtp({
+        // Create timeout promise
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('Request timeout: Verifying phone OTP took too long. Please check your internet connection.')), 15000); // 15 second timeout
+        });
+        
+        // Create the API call promise
+        const apiPromise = supabase.auth.verifyOtp({
           phone: identifier,
           token,
           type: 'sms'
         });
-        if (error) throw error;
+        
+        // Race the promises
+        const result = await Promise.race([apiPromise, timeoutPromise]);
+        
+        if (result.error) throw result.error;
       }
       
       setStep('reset');
@@ -122,11 +162,20 @@ export function ForgotPasswordScreen({ onBack, onSuccess }: ForgotPasswordScreen
     setIsLoading(true);
     
     try {
-      const { error } = await supabase.auth.updateUser({
+      // Create timeout promise
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout: Updating password took too long. Please check your internet connection.')), 15000); // 15 second timeout
+      });
+      
+      // Create the API call promise
+      const apiPromise = supabase.auth.updateUser({
         password: newPassword
       });
+      
+      // Race the promises
+      const result = await Promise.race([apiPromise, timeoutPromise]);
 
-      if (error) throw error;
+      if (result.error) throw result.error;
       
       setStep('success');
     } catch (error: any) {
