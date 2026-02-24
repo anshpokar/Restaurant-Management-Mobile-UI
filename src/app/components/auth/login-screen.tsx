@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { Button } from '@/app/components/design-system/button';
 import { Input } from '@/app/components/design-system/input';
 import { Sparkles, Eye, EyeOff } from 'lucide-react';
-import { supabase, type UserRole } from '@/lib/supabase';
+import { supabase, type UserRole, type Profile } from '@/lib/supabase';
 
 interface LoginScreenProps {
-  onLogin: (role: UserRole) => void;
+  onLogin: (role: UserRole, profile?: Profile | null) => void;
   onSignup: () => void;
   onForgotPassword: () => void;
 }
@@ -19,58 +19,80 @@ export function LoginScreen({ onLogin, onSignup, onForgotPassword }: LoginScreen
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
+
     try {
-      console.log('Starting login process with email:', email);
-      
-      let loginEmail = email;
+      const cleanEmail = email.trim();
+      console.log('Login attempt with:', cleanEmail);
 
-      // 1. Resolve email if user entered a username or phone number instead
-      if (!email.includes('@')) {
-        console.log('Resolving username/phone to email:', email);
-        
-        const resolvePromise = supabase
-          .from('profiles')
-          .select('email')
-          .or(`username.eq.${email},phone_number.eq.${email}`)
-          .single();
-        
-        // Create a timeout promise for email resolution
-        const resolveTimeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error('Username/Phone resolution timeout: Could not resolve username or phone number. Please try again.')), 10000); // 10 second timeout
-        });
-        
-        const resolveResult = await Promise.race([resolvePromise, resolveTimeoutPromise]);
-        const { data: profile, error: resolveError } = resolveResult;
+      let loginEmail = cleanEmail;
 
-        if (resolveError) {
-          console.error('Resolve error:', resolveError);
-          throw new Error('User not found with that username or phone number');
+      // Helper for timeout
+      const withTimeout = (promise: Promise<any>, ms: number = 8000) => {
+        return Promise.race([
+          promise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out. Please check your internet connection.')), ms))
+        ]);
+      };
+
+      // 1. Resolve email if user entered a username or phone number
+      if (!cleanEmail.includes('@')) {
+        console.log('Resolving username/phone...');
+
+        try {
+          // Try username first
+          const { data: userByUsername, error: usernameError } = await withTimeout(
+            supabase
+              .from('profiles')
+              .select('email')
+              .eq('username', cleanEmail)
+              .maybeSingle() as any
+          );
+
+          if (usernameError) {
+            console.error('Username check error:', usernameError);
+          }
+
+          if (userByUsername) {
+            loginEmail = userByUsername.email;
+            console.log('Resolved via username to:', loginEmail);
+          } else {
+            // Try phone number
+            console.log('Not found by username, trying phone...');
+            const { data: userByPhone, error: phoneError } = await withTimeout(
+              supabase
+                .from('profiles')
+                .select('email')
+                .eq('phone_number', cleanEmail)
+                .maybeSingle() as any
+            );
+
+            if (phoneError) {
+              console.error('Phone check error:', phoneError);
+            }
+
+            if (userByPhone) {
+              loginEmail = userByPhone.email;
+              console.log('Resolved via phone to:', loginEmail);
+            } else {
+              console.warn('Resolution failed: No profile found for', cleanEmail);
+              throw new Error('User not found with that username or phone number');
+            }
+          }
+        } catch (resolveErr: any) {
+          console.error('Resolution timeout or error:', resolveErr);
+          throw resolveErr;
         }
-        
-        if (!profile) {
-          throw new Error('User not found with that username or phone number');
-        }
-        
-        loginEmail = profile.email;
-        console.log('Resolved to email:', loginEmail);
       }
 
       // 2. Sign in with Supabase Auth
-      console.log('Attempting to sign in with Supabase...');
-      
-      // Set a timeout for the authentication request
-      const authPromise = supabase.auth.signInWithPassword({
-        email: loginEmail,
-        password,
-      });
-      
-      // Create a timeout promise
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Request timeout: Connection to Supabase took too long. Please check your internet connection.')), 10000); // 10 second timeout
-      });
-      
-      const { data: authData, error: authError } = await Promise.race([authPromise, timeoutPromise]) as Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>;
+      console.log('Calling supabase.auth.signInWithPassword for:', loginEmail);
+
+      const { data: authData, error: authError } = await withTimeout(
+        supabase.auth.signInWithPassword({
+          email: loginEmail,
+          password,
+        }) as any
+      );
 
       if (authError) {
         console.error('Auth error:', authError);
@@ -79,33 +101,26 @@ export function LoginScreen({ onLogin, onSignup, onForgotPassword }: LoginScreen
 
       if (authData.user) {
         console.log('Authentication successful, fetching profile...');
-        
-        // 3. Fetch the user's role from the profiles table
-        const profileFetchPromise = supabase
+
+        // 3. Fetch the full profile from the profiles table
+
+        const { data: profileData, error: profileError } = await supabase
           .from('profiles')
-          .select('role')
+          .select('*')
           .eq('id', authData.user.id)
           .single();
-        
-        // Create a timeout promise for profile fetching
-        const profileTimeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error('Profile fetch timeout: Could not retrieve user profile. Please try again.')), 10000); // 10 second timeout
-        });
-        
-        const profileResult = await Promise.race([profileFetchPromise, profileTimeoutPromise]);
-        const { data: profileData, error: profileError } = profileResult;
 
         if (profileError) {
           console.error('Profile fetch error:', profileError);
           throw profileError;
         }
-        
+
         if (profileData) {
           console.log('Login successful, role:', profileData.role);
-          onLogin(profileData.role as UserRole);
+          onLogin(profileData.role as UserRole, profileData as Profile);
         } else {
           console.warn('No profile found, defaulting to customer');
-          onLogin('customer');
+          onLogin('customer', null);
         }
       } else {
         throw new Error('Authentication failed: No user data returned');
@@ -113,9 +128,9 @@ export function LoginScreen({ onLogin, onSignup, onForgotPassword }: LoginScreen
     } catch (error: any) {
       console.error('Login Error Full Object:', error);
       console.log('Error Properties:', Object.getOwnPropertyNames(error));
-      
+
       let message = 'Invalid login credentials';
-      
+
       if (error instanceof Error) {
         message = error.message;
       } else if (typeof error === 'object' && error !== null) {
@@ -128,10 +143,12 @@ export function LoginScreen({ onLogin, onSignup, onForgotPassword }: LoginScreen
         message = 'Connection Error: Could not reach Supabase. Please check your internet and restart the server.';
       }
 
+      // Reset loading state BEFORE blocking alert
+      setIsLoading(false);
       alert(message);
     } finally {
       setIsLoading(false);
-      console.log('Login process completed, loading state set to false');
+      console.log('Login process completed');
     }
   };
 
@@ -197,51 +214,6 @@ export function LoginScreen({ onLogin, onSignup, onForgotPassword }: LoginScreen
           </div>
         </form>
 
-        {/* Divider */}
-        <div className="flex items-center gap-4 my-6">
-          <div className="flex-1 h-px bg-divider"></div>
-          <span className="text-sm text-muted-foreground">or</span>
-          <div className="flex-1 h-px bg-divider"></div>
-        </div>
-
-        {/* Demo Access Buttons */}
-        <div className="space-y-3">
-          <Button 
-            variant="outline" 
-            className="w-full" 
-            onClick={() => onLogin('customer')}
-          >
-            Continue as Customer (Demo)
-          </Button>
-          <Button 
-            variant="outline" 
-            className="w-full" 
-            onClick={() => onLogin('admin')}
-          >
-            Continue as Admin (Demo)
-          </Button>
-          <Button 
-            variant="outline" 
-            className="w-full" 
-            onClick={() => onLogin('delivery')}
-          >
-            Continue as Delivery Person (Demo)
-          </Button>
-          <Button 
-            variant="outline" 
-            className="w-full" 
-            onClick={() => onLogin('waiter')}
-          >
-            Continue as Waiter (Demo)
-          </Button>
-          <Button 
-            variant="outline" 
-            className="w-full" 
-            onClick={() => onLogin('chef')}
-          >
-            Continue as Chef (Demo)
-          </Button>
-        </div>
       </div>
 
       {/* Footer */}

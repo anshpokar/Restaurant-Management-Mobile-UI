@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { AppHeader } from '@/app/components/design-system/app-header';
 import { Card, CardBody } from '@/app/components/design-system/card';
 import { Button } from '@/app/components/design-system/button';
@@ -11,7 +11,7 @@ export function AdminOrders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [deliveryStaff, setDeliveryStaff] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(false);
-  const [assigningId, setAssigningId] = useState<string | null>(null);
+
 
   const statuses: Order['status'][] = ['placed', 'preparing', 'cooking', 'prepared', 'out_for_delivery', 'delivered'];
 
@@ -22,7 +22,7 @@ export function AdminOrders() {
     const subscription = supabase
       .channel('admin-orders')
       .on('postgres_changes' as any, { event: '*', table: 'orders' }, () => {
-        fetchOrders();
+        fetchOrders(true);
       })
       .subscribe();
 
@@ -31,8 +31,8 @@ export function AdminOrders() {
     };
   }, []);
 
-  const fetchOrders = async () => {
-    setLoading(true);
+  const fetchOrders = async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
     try {
       const { data, error } = await supabase
         .from('orders')
@@ -49,7 +49,7 @@ export function AdminOrders() {
     } catch (error) {
       console.error('Error fetching orders:', error);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 
@@ -66,19 +66,33 @@ export function AdminOrders() {
     }
   };
 
+  const updateOrderStatus = async (orderId: string, status: Order['status']) => {
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status })
+        .eq('id', orderId);
+
+      if (error) throw error;
+      fetchOrders(true);
+    } catch (error) {
+      console.error('Error updating status:', error);
+      alert('Failed to update status');
+    }
+  };
+
   const assignDeliveryPerson = async (orderId: string, staffId: string) => {
     try {
       const { error } = await supabase
         .from('orders')
-        .update({ 
+        .update({
           delivery_person_id: staffId,
           status: 'out_for_delivery'
         })
         .eq('id', orderId);
 
       if (error) throw error;
-      setAssigningId(null);
-      fetchOrders();
+      fetchOrders(true);
     } catch (error) {
       console.error('Error assigning staff:', error);
       alert('Failed to assign delivery person');
@@ -87,10 +101,10 @@ export function AdminOrders() {
 
   return (
     <div className="min-h-screen bg-muted/10 pb-20">
-      <AppHeader 
-        title="Order Management" 
+      <AppHeader
+        title="Order Management"
         actions={
-          <button onClick={fetchOrders} className="p-2 hover:bg-muted rounded-full transition-colors">
+          <button onClick={() => fetchOrders(false)} className="p-2 hover:bg-muted rounded-full transition-colors">
             <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
           </button>
         }
@@ -103,11 +117,10 @@ export function AdminOrders() {
             <button
               key={status}
               onClick={() => setActiveTab(status)}
-              className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all ${
-                activeTab === status
-                  ? 'bg-primary text-white shadow-lg shadow-primary/20'
-                  : 'bg-card text-muted-foreground hover:bg-muted'
-              }`}
+              className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all ${activeTab === status
+                ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                : 'bg-card text-muted-foreground hover:bg-muted'
+                }`}
             >
               {status.replace(/_/g, ' ').toUpperCase()}
             </button>
@@ -154,6 +167,33 @@ export function AdminOrders() {
 
                   {/* Actions */}
                   <div className="pt-2">
+                    {order.status === 'placed' && (
+                      <Button
+                        className="w-full bg-orange-400 hover:bg-orange-500"
+                        onClick={() => updateOrderStatus(order.id, 'preparing')}
+                      >
+                        Start Preparing
+                      </Button>
+                    )}
+
+                    {order.status === 'preparing' && (
+                      <Button
+                        className="w-full bg-orange-600 hover:bg-orange-700"
+                        onClick={() => updateOrderStatus(order.id, 'cooking')}
+                      >
+                        Start Cooking
+                      </Button>
+                    )}
+
+                    {order.status === 'cooking' && (
+                      <Button
+                        className="w-full bg-green-500 hover:bg-green-600"
+                        onClick={() => updateOrderStatus(order.id, 'prepared')}
+                      >
+                        Mark as Prepared
+                      </Button>
+                    )}
+
                     {order.status === 'prepared' && (
                       <div className="space-y-3">
                         <p className="text-xs font-black text-muted-foreground uppercase flex items-center gap-2">
@@ -192,6 +232,14 @@ export function AdminOrders() {
                           <p className="text-xs font-black text-secondary uppercase">Assigned To</p>
                           <p className="font-bold text-sm">{(order.delivery_person as any).full_name}</p>
                         </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="ml-auto"
+                          onClick={() => updateOrderStatus(order.id, 'delivered')}
+                        >
+                          Complete
+                        </Button>
                       </div>
                     )}
 

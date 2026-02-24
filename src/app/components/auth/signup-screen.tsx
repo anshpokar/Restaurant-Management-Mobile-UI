@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { Button } from '../design-system/button';
 import { Input } from '../design-system/input';
-import { Sparkles, Eye, EyeOff, ArrowLeft, UserCircle } from 'lucide-react';
-import { supabase, type UserRole } from '@/lib/supabase';
+import { Sparkles, Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import { supabase, type UserRole, type Profile } from '@/lib/supabase';
 
 interface SignupScreenProps {
   onLogin: () => void;
-  onSignupSuccess: (role: UserRole) => void;
+  onSignupSuccess: (role: UserRole, profile: Profile) => void;
 }
 
 export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
@@ -33,7 +33,7 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
     // Password validation
     const hasNumber = /\d/.test(password);
     const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
-    
+
     if (password.length < 8) {
       newErrors.password = 'Password must be at least 8 characters long';
       isValid = false;
@@ -48,13 +48,13 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
 
     setIsLoading(true);
-    
+
     try {
       // 0. Check if username is unique
       const { data: existingUser, error: checkError } = await supabase
@@ -88,20 +88,29 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
       if (authError) throw authError;
 
       if (data.user) {
+        // Note: Profile creation is now handled by a Database Trigger for security (RLS)
+
         // If email confirmation is ON, tell the user to check their mail
         if (!data.session) {
           alert('Signup successful! Please check your email for the verification link.');
           onLogin();
         } else {
-          onSignupSuccess('customer');
+          onSignupSuccess('customer', {
+            id: data.user.id,
+            full_name: name,
+            username: username,
+            phone_number: phoneNumber,
+            role: 'customer',
+            email: email
+          });
         }
       }
     } catch (error: any) {
       console.error('Signup Error Full Object:', error);
       console.log('Error Properties:', Object.getOwnPropertyNames(error));
-      
+
       let message = 'An error occurred during signup';
-      
+
       if (error instanceof Error) {
         message = error.message;
       } else if (typeof error === 'object' && error !== null) {
@@ -124,14 +133,14 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
     <div className="flex flex-col min-h-screen bg-background">
       {/* Header */}
       <div className="px-8 pt-16 pb-8">
-        <button 
+        <button
           type="button"
           onClick={onLogin}
           className="mb-6 p-2 -ml-2 text-muted-foreground hover:text-foreground rounded-full hover:bg-muted/20 transition-colors"
         >
           <ArrowLeft className="w-6 h-6" />
         </button>
-        
+
         <div className="flex items-center justify-center w-16 h-16 mb-6 bg-primary rounded-2xl">
           <Sparkles className="w-8 h-8 text-white" />
         </div>
@@ -211,7 +220,7 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
               {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
           </div>
-          
+
           {/* Password requirements hint */}
           <div className="text-xs text-muted-foreground space-y-1">
             <p className={password.length >= 8 ? "text-green-600" : ""}>• At least 8 characters</p>

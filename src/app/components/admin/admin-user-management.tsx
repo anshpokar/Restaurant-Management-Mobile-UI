@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { AppHeader } from '@/app/components/design-system/app-header';
 import { Card, CardBody } from '@/app/components/design-system/card';
 import { Button } from '@/app/components/design-system/button';
 import { Badge } from '@/app/components/design-system/badge';
-import { User, Shield, Truck, Search, Loader2 } from 'lucide-react';
+import { User, Search, Loader2 } from 'lucide-react';
 import { supabase, type UserRole, type Profile } from '@/lib/supabase';
 
 export function AdminUserManagement() {
@@ -43,7 +43,7 @@ export function AdminUserManagement() {
         .eq('id', userId);
 
       if (error) throw error;
-      
+
       setUsers(users.map(u => u.id === userId ? { ...u, role: newRole } : u));
     } catch (error: any) {
       console.error('Update Role Error:', error);
@@ -53,7 +53,7 @@ export function AdminUserManagement() {
     }
   };
 
-  const filteredUsers = users.filter(u => 
+  const filteredUsers = users.filter(u =>
     u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     u.email?.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -114,17 +114,47 @@ export function AdminUserManagement() {
                       isLoading={updatingId === user.id}
                       disabled={user.role === 'customer'}
                     >
-                      Set as Customer
+                      Customer
+                    </Button>
+                    <Button
+                      variant={user.role === 'chef' ? 'secondary' : 'outline'}
+                      size="sm"
+                      className="text-xs font-bold"
+                      onClick={() => updateUserRole(user.id, 'chef')}
+                      isLoading={updatingId === user.id}
+                      disabled={user.role === 'chef'}
+                    >
+                      🍳 Chef
+                    </Button>
+                    <Button
+                      variant={user.role === 'waiter' ? 'secondary' : 'outline'}
+                      size="sm"
+                      className="text-xs font-bold"
+                      onClick={() => updateUserRole(user.id, 'waiter')}
+                      isLoading={updatingId === user.id}
+                      disabled={user.role === 'waiter'}
+                    >
+                      🤵 Waiter
                     </Button>
                     <Button
                       variant={user.role === 'delivery' ? 'secondary' : 'outline'}
                       size="sm"
-                      className="text-xs"
+                      className="text-xs font-bold"
                       onClick={() => updateUserRole(user.id, 'delivery')}
                       isLoading={updatingId === user.id}
                       disabled={user.role === 'delivery'}
                     >
-                      <Truck className="w-3 h-3 mr-1" /> Set as Delivery
+                      🚚 Delivery
+                    </Button>
+                    <Button
+                      variant={user.role === 'admin' ? 'primary' : 'outline'}
+                      size="sm"
+                      className="text-xs font-bold"
+                      onClick={() => updateUserRole(user.id, 'admin')}
+                      isLoading={updatingId === user.id}
+                      disabled={user.role === 'admin'}
+                    >
+                      🛡️ Admin
                     </Button>
                   </div>
                 </CardBody>

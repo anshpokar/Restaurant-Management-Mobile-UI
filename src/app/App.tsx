@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MobileContainer } from './components/mobile-container';
 import { SplashScreen } from './components/auth/splash-screen';
@@ -53,18 +53,18 @@ export default function App() {
     initializeAuth();
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: any, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
-        const { data: profile } = await supabase
+        const { data: profileData, error: _profileError } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
           .single();
 
-        if (profile) {
-          setUserRole(profile.role);
-          setUserProfile(profile);
-          navigateTo(profile.role as AppScreen);
+        if (profileData) {
+          setUserRole(profileData.role);
+          setUserProfile(profileData);
+          navigateTo(profileData.role as AppScreen);
         }
       } else if (event === 'SIGNED_OUT') {
         setUserRole(null);
@@ -128,19 +128,18 @@ export default function App() {
     }
   }, [currentScreen, isInitializing, userRole]);
 
-  const handleLogin = async (role: UserRole) => {
+  const handleLogin = async (role: UserRole, profile?: Profile | null) => {
     setUserRole(role);
 
-    // Set a mock profile for demo mode
-    const mockProfiles: Record<UserRole, Profile> = {
-      customer: { id: '00000000-0000-0000-0000-000000000001', full_name: 'Demo Customer', username: 'customer_demo', phone_number: '1234567890', role: 'customer', email: 'customer@demo.com' },
-      admin: { id: '00000000-0000-0000-0000-000000000002', full_name: 'Demo Admin', username: 'admin_demo', phone_number: '1234567890', role: 'admin', email: 'admin@demo.com' },
-      delivery: { id: '00000000-0000-0000-0000-000000000003', full_name: 'Demo Delivery', username: 'delivery_demo', phone_number: '1234567890', role: 'delivery', email: 'delivery@demo.com' },
-      waiter: { id: '00000000-0000-0000-0000-000000000004', full_name: 'Demo Waiter', username: 'waiter_demo', phone_number: '1234567890', role: 'waiter', email: 'waiter@demo.com' },
-      chef: { id: '00000000-0000-0000-0000-000000000005', full_name: 'Demo Chef', username: 'chef_demo', phone_number: '1234567890', role: 'chef', email: 'chef@demo.com' }
-    };
+    if (profile) {
+      setUserProfile(profile);
+    } else {
+      console.error('Login failed: No profile data provided.');
+      // Optionally reset role if profile is missing
+      setUserRole(null);
+      return;
+    }
 
-    setUserProfile(mockProfiles[role]);
     navigateTo(role as AppScreen);
   };
 
@@ -194,7 +193,7 @@ export default function App() {
           {currentScreen === 'signup' && (
             <SignupScreen
               onLogin={() => navigateTo('login')}
-              onSignupSuccess={(role) => handleLogin(role)}
+              onSignupSuccess={(role, profile) => handleLogin(role, profile)}
             />
           )}
 
