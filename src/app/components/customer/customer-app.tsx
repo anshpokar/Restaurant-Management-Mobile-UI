@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { BottomNav, BottomNavItem } from '../design-system/bottom-nav';
 import { Home, Menu, ShoppingBag, User, ShoppingCart, Trash2, Plus, Minus, X } from 'lucide-react';
 import { HomeScreen } from './home-screen';
