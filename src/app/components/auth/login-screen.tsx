@@ -21,13 +21,14 @@ export function LoginScreen({ onLogin, onSignup, onForgotPassword }: LoginScreen
     setIsLoading(true);
 
     try {
+      console.group('Login Process');
       const cleanEmail = email.trim();
-      console.log('Login attempt with:', cleanEmail);
+      console.log('Target:', cleanEmail);
 
       let loginEmail = cleanEmail;
 
       // Helper for timeout
-      const withTimeout = (promise: Promise<any>, ms: number = 8000) => {
+      const withTimeout = (promise: Promise<any>, ms: number = 30000) => {
         return Promise.race([
           promise,
           new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out. Please check your internet connection.')), ms))
@@ -36,7 +37,7 @@ export function LoginScreen({ onLogin, onSignup, onForgotPassword }: LoginScreen
 
       // 1. Resolve email if user entered a username or phone number
       if (!cleanEmail.includes('@')) {
-        console.log('Resolving username/phone...');
+        console.log('Step 1: Resolving username/phone:', cleanEmail);
 
         try {
           // Try username first
@@ -49,7 +50,7 @@ export function LoginScreen({ onLogin, onSignup, onForgotPassword }: LoginScreen
           );
 
           if (usernameError) {
-            console.error('Username check error:', usernameError);
+            console.error('Username check database error:', usernameError);
           }
 
           if (userByUsername) {
@@ -67,7 +68,7 @@ export function LoginScreen({ onLogin, onSignup, onForgotPassword }: LoginScreen
             );
 
             if (phoneError) {
-              console.error('Phone check error:', phoneError);
+              console.error('Phone check database error:', phoneError);
             }
 
             if (userByPhone) {
@@ -79,13 +80,13 @@ export function LoginScreen({ onLogin, onSignup, onForgotPassword }: LoginScreen
             }
           }
         } catch (resolveErr: any) {
-          console.error('Resolution timeout or error:', resolveErr);
+          console.error('Resolution failed:', resolveErr);
           throw resolveErr;
         }
       }
 
       // 2. Sign in with Supabase Auth
-      console.log('Calling supabase.auth.signInWithPassword for:', loginEmail);
+      console.log('Step 2: Authenticating with:', loginEmail);
 
       const { data: authData, error: authError } = await withTimeout(
         supabase.auth.signInWithPassword({
@@ -100,9 +101,7 @@ export function LoginScreen({ onLogin, onSignup, onForgotPassword }: LoginScreen
       }
 
       if (authData.user) {
-        console.log('Authentication successful, fetching profile...');
-
-        // 3. Fetch the full profile from the profiles table
+        console.log('Step 3: Auth success, ID:', authData.user.id);
 
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
@@ -116,7 +115,7 @@ export function LoginScreen({ onLogin, onSignup, onForgotPassword }: LoginScreen
         }
 
         if (profileData) {
-          console.log('Login successful, role:', profileData.role);
+          console.log('Step 4: Profile found, role:', profileData.role);
           onLogin(profileData.role as UserRole, profileData as Profile);
         } else {
           console.warn('No profile found, defaulting to customer');
@@ -126,7 +125,7 @@ export function LoginScreen({ onLogin, onSignup, onForgotPassword }: LoginScreen
         throw new Error('Authentication failed: No user data returned');
       }
     } catch (error: any) {
-      console.error('Login Error Full Object:', error);
+      console.error('Critical Login Error:', error);
       console.log('Error Properties:', Object.getOwnPropertyNames(error));
 
       let message = 'Invalid login credentials';
@@ -140,14 +139,14 @@ export function LoginScreen({ onLogin, onSignup, onForgotPassword }: LoginScreen
       }
 
       if (message === '{}' || !message) {
-        message = 'Connection Error: Could not reach Supabase. Please check your internet and restart the server.';
+        message = 'Connection Error: Could not reach Supabase. Please check your internet.';
       }
 
-      // Reset loading state BEFORE blocking alert
       setIsLoading(false);
       alert(message);
     } finally {
       setIsLoading(false);
+      console.groupEnd();
       console.log('Login process completed');
     }
   };
