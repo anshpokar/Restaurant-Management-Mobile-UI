@@ -3,7 +3,7 @@ import { AppHeader } from '@/components/design-system/app-header';
 import { Card, CardBody } from '@/components/design-system/card';
 import { Badge } from '@/components/design-system/badge';
 import { Package, Clock, CheckCircle2, Truck, Phone } from 'lucide-react';
-import { supabase, type Order, type Profile } from '@/lib/supabase';
+import { supabase, type Order, type Profile, getStoredUser } from '@/lib/supabase';
 import { useOutletContext } from 'react-router-dom';
 
 export function OrdersScreen() {
@@ -12,8 +12,13 @@ export function OrdersScreen() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Get userId from profile or stored data
+  const userId = profile?.id || getStoredUser()?.id;
+
   useEffect(() => {
-    fetchMyOrders();
+    if (userId) {
+      fetchMyOrders();
+    }
 
     const subscription = supabase
       .channel('my-orders')
@@ -25,25 +30,33 @@ export function OrdersScreen() {
     return () => {
       subscription.unsubscribe();
     };
-  }, [profile?.id]);
+  }, [userId]);
 
   const fetchMyOrders = async () => {
     setLoading(true);
     try {
-      const userId = profile?.id;
-      if (!userId) return;
+      if (!userId) {
+        console.log('No userId available for fetching orders');
+        return;
+      }
+
+      console.log('Fetching orders for userId:', userId);
 
       const { data, error } = await supabase
         .from('orders')
         .select(`
           *,
-          delivery_person:profiles!delivery_person_id (full_name, phone_number),
           order_items (*)
         `)
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching orders:', error);
+        throw error;
+      }
+      
+      console.log('Fetched orders:', data);
       setOrders(data || []);
     } catch (error) {
       console.error('Error fetching orders:', error);
