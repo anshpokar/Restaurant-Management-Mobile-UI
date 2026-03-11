@@ -25,6 +25,7 @@ import { AdminMenu } from '@/pages/admin/admin-menu';
 import { AdminTables } from '@/pages/admin/admin-tables';
 import { AdminReports } from '@/pages/admin/admin-reports';
 import { AdminUserManagement } from '@/pages/admin/admin-user-management';
+import { DeliveryAssignmentScreen } from '@/pages/admin/delivery-assignment-screen';
 
 // Chef Screens
 import { ChefApp } from '@/pages/chef/chef-app';
@@ -43,6 +44,7 @@ import { DeliveryApp } from '@/pages/delivery/delivery-app';
 import { DeliveryTasks } from '@/pages/delivery/tasks-screen';
 import { DeliveryHistory } from '@/pages/delivery/history-screen';
 import { DeliveryProfile } from '@/pages/delivery/profile-screen';
+import { AddressPickerScreen } from '@/pages/delivery/address-picker-screen';
 
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { Profile, UserRole } from '@/lib/supabase';
@@ -100,6 +102,7 @@ export function AppRoutes({ userRole, userProfile, isLoadingAuth, handleLogout }
                 <Route path="orders" element={<OrdersScreen />} />
                 <Route path="profile" element={<ProfileScreen />} />
                 <Route path="addresses" element={<SavedAddressesScreen />} />
+                <Route path="delivery-address" element={<AddressPickerScreen />} />
                 <Route path="favorites" element={<FavoritesScreen />} />
                 <Route path="notifications" element={<NotificationsScreen />} />
                 <Route path="help-support" element={<HelpSupportScreen />} />
@@ -118,6 +121,7 @@ export function AppRoutes({ userRole, userProfile, isLoadingAuth, handleLogout }
                 <Route path="tables" element={<AdminTables />} />
                 <Route path="reports" element={<AdminReports />} />
                 <Route path="users" element={<AdminUserManagement />} />
+                <Route path="delivery-assignment" element={<DeliveryAssignmentScreen />} />
             </Route>
 
             {/* Waiter Routes */}
