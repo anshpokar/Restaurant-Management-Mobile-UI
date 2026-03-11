@@ -1,19 +1,28 @@
-import { useState } from 'react';
-import { supabase, type SupportTicket } from '@/lib/supabase';
+import { useState, useEffect } from 'react';
+import { supabase, type SupportTicket, getStoredUser } from '@/lib/supabase';
 
 export function useSupportTickets(userId: string | null) {
     const [tickets, setTickets] = useState<SupportTicket[]>([]);
     const [loading, setLoading] = useState(false);
 
+    // Get userId from stored data if not provided
+    const effectiveUserId = userId || getStoredUser()?.id || null;
+
+    useEffect(() => {
+        if (effectiveUserId) {
+            fetchTickets();
+        }
+    }, [effectiveUserId]);
+
     const fetchTickets = async () => {
-        if (!userId) return;
+        if (!effectiveUserId) return;
         
         setLoading(true);
         try {
             const { data, error } = await supabase
                 .from('support_tickets')
                 .select('*')
-                .eq('user_id', userId)
+                .eq('user_id', effectiveUserId)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -26,12 +35,12 @@ export function useSupportTickets(userId: string | null) {
     };
 
     const createTicket = async (ticket: Omit<SupportTicket, 'id' | 'created_at' | 'updated_at'>) => {
-        if (!userId) return;
+        if (!effectiveUserId) return;
 
         try {
             const { data, error } = await supabase
                 .from('support_tickets')
-                .insert([{ ...ticket, user_id: userId }])
+                .insert([{ ...ticket, user_id: effectiveUserId }])
                 .select()
                 .single();
 

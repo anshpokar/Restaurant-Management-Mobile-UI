@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase, type MenuItem, type Profile } from '@/lib/supabase';
+import { supabase, type MenuItem, type Profile, getStoredUser } from '@/lib/supabase';
 
 export interface CartItem extends MenuItem {
     quantity: number;
@@ -47,11 +47,17 @@ export function useCart(profile: Profile | null) {
 
     const handlePlaceOrder = async () => {
         try {
-            const userId = profile?.id;
+            // Get userId from profile or stored data
+            const userId = profile?.id || getStoredUser()?.id;
+            
             if (!userId) {
                 alert('Please login to place an order');
                 return;
             }
+
+            console.log('Placing order for userId:', userId);
+            console.log('Cart items:', cartItems);
+            console.log('Total amount:', totalAmount);
 
             const { data: order, error: orderError } = await supabase
                 .from('orders')
@@ -59,12 +65,17 @@ export function useCart(profile: Profile | null) {
                     user_id: userId,
                     total_amount: totalAmount,
                     status: 'placed',
-                    delivery_address: 'Home - Connaught Place'
+                    delivery_address: 'Default Address'
                 })
                 .select()
                 .single();
 
-            if (orderError) throw orderError;
+            if (orderError) {
+                console.error('Order creation error:', orderError);
+                throw orderError;
+            }
+
+            console.log('Order created:', order);
 
             const orderItemsData = cartItems.map(item => ({
                 order_id: order.id,
@@ -75,11 +86,16 @@ export function useCart(profile: Profile | null) {
                 image: item.image
             }));
 
+            console.log('Order items to insert:', orderItemsData);
+
             const { error: itemsError } = await supabase
                 .from('order_items')
                 .insert(orderItemsData);
 
-            if (itemsError) throw itemsError;
+            if (itemsError) {
+                console.error('Order items creation error:', itemsError);
+                throw itemsError;
+            }
 
             alert('Order placed successfully! The chef is now viewing your order.');
             setCartItems([]);
@@ -87,7 +103,7 @@ export function useCart(profile: Profile | null) {
             navigate('/customer/orders');
         } catch (error: any) {
             console.error('Error placing order:', error);
-            alert('Failed to place order: ' + error.message);
+            alert('Failed to place order: ' + (error.message || 'Unknown error'));
         }
     };
 
