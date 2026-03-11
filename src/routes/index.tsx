@@ -54,7 +54,14 @@ export function AppRoutes({ userRole, userProfile, isLoadingAuth, handleLogout }
     return (
         <Routes location={location}>
             {/* Public Routes */}
-            <Route path="/" element={<SplashScreen onTimeout={() => navigate('/onboarding')} />} />
+            <Route
+                path="/"
+                element={
+                    userRole ?
+                        <Navigate to={`/${userRole}`} replace /> :
+                        <SplashScreen onTimeout={() => navigate('/onboarding')} />
+                }
+            />
             <Route path="/onboarding" element={<OnboardingScreen onComplete={() => navigate('/login')} />} />
             <Route
                 path="/login"
