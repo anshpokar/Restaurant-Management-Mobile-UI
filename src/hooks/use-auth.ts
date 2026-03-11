@@ -79,7 +79,9 @@ export function useAuth() {
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             console.log("Auth event:", event);
-            if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
+
+            if (event === 'SIGNED_IN' && session?.user) {
+                console.log("User signed in, fetching profile...");
                 const profile = await fetchAndSetProfile(
                     session.user.id,
                     session.user.email,
@@ -87,12 +89,22 @@ export function useAuth() {
                 );
 
                 if (profile) {
-                    navigate(`/${profile.role}`, { replace: true });
+                    console.log("Profile resolved, navigating to:", profile.role);
+                    // Only navigate if we are on an auth page
+                    if (['/login', '/signup', '/forgot-password', '/'].includes(location.pathname)) {
+                        navigate(`/${profile.role}`, { replace: true });
+                    }
                 }
             } else if (event === 'SIGNED_OUT') {
+                console.log("User signed out, clearing state.");
                 setUserRole(null);
                 setUserProfile(null);
-                navigate('/login', { replace: true });
+                if (!['/login', '/signup', '/forgot-password'].includes(location.pathname)) {
+                    navigate('/login', { replace: true });
+                }
+            } else if (event === 'INITIAL_SESSION' && session?.user) {
+                console.log("Initial session detected.");
+                // Profile and redirection are handled by initializeAuth()
             }
         });
 
