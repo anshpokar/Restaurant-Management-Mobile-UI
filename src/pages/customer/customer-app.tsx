@@ -30,7 +30,11 @@ export function CustomerApp({ onLogout, profile }: CustomerAppProps) {
     if (path.includes('/customer/menu')) return 'menu';
     if (path.includes('/customer/bookings')) return 'bookings';
     if (path.includes('/customer/orders')) return 'orders';
-    if (path.includes('/customer/profile')) return 'profile';
+    if (path.includes('/customer/profile') || 
+        path.includes('/customer/addresses') || 
+        path.includes('/customer/favorites') || 
+        path.includes('/customer/notifications') || 
+        path.includes('/customer/help-support')) return 'profile';
     return 'home';
   };
 

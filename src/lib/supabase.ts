@@ -104,3 +104,61 @@ export interface OrderItem {
   price: number;
   image: string;
 }
+
+// Additional interfaces for complete database integration
+export interface Address {
+  id: string;
+  user_id: string;
+  address_label: string; // e.g., "Home", "Work"
+  address_line1: string;
+  address_line2?: string;
+  city: string;
+  state: string;
+  pincode: string;
+  phone_number: string;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Input type for creating an address (without user_id)
+export interface AddressInput {
+  address_label: string;
+  address_line1: string;
+  address_line2?: string;
+  city: string;
+  state: string;
+  pincode: string;
+  phone_number: string;
+  is_default: boolean;
+}
+
+export interface Favorite {
+  id: string;
+  user_id: string;
+  menu_item_id: number;
+  created_at: string;
+}
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  title: string;
+  message: string;
+  type: 'order' | 'booking' | 'promotion' | 'system';
+  is_read: boolean;
+  created_at: string;
+}
+
+export interface SupportTicket {
+  id: string;
+  user_id: string;
+  subject: string;
+  description: string;
+  status: 'open' | 'in_progress' | 'resolved' | 'closed';
+  priority: 'low' | 'normal' | 'high' | 'urgent';
+  admin_response?: string;
+  resolved_at?: string;
+  created_at: string;
+  updated_at: string;
+}

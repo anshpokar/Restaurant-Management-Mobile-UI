@@ -12,6 +12,10 @@ import { MenuScreen } from '@/pages/customer/menu-screen';
 import { BookingsScreen } from '@/pages/customer/bookings-screen';
 import { OrdersScreen } from '@/pages/customer/orders-screen';
 import { ProfileScreen } from '@/pages/customer/profile-screen';
+import { SavedAddressesScreen } from '@/pages/customer/saved-addresses-screen';
+import { FavoritesScreen } from '@/pages/customer/favorites-screen';
+import { NotificationsScreen } from '@/pages/customer/notifications-screen';
+import { HelpSupportScreen } from '@/pages/customer/help-support-screen';
 
 // Admin Screens
 import { AdminApp } from '@/pages/admin/admin-app';
@@ -92,6 +96,10 @@ export function AppRoutes({ userRole, userProfile, isLoadingAuth, handleLogout }
                 <Route path="bookings" element={<BookingsScreen />} />
                 <Route path="orders" element={<OrdersScreen />} />
                 <Route path="profile" element={<ProfileScreen />} />
+                <Route path="addresses" element={<SavedAddressesScreen />} />
+                <Route path="favorites" element={<FavoritesScreen />} />
+                <Route path="notifications" element={<NotificationsScreen />} />
+                <Route path="help-support" element={<HelpSupportScreen />} />
             </Route>
 
             {/* Admin Routes */}

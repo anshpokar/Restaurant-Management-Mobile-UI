@@ -1,18 +1,40 @@
+import { useNavigate } from 'react-router-dom';
 import { AppHeader } from '@/components/design-system/app-header';
 import { Card, CardBody } from '@/components/design-system/card';
 import { Button } from '@/components/design-system/button';
 import { User, MapPin, Bell, Heart, HelpCircle, LogOut, ChevronRight } from 'lucide-react';
 import { type Profile } from '@/lib/supabase';
 import { useOutletContext } from 'react-router-dom';
+import { useNotifications } from '@/hooks/use-notifications';
 
 export function ProfileScreen() {
+  const navigate = useNavigate();
   const { onLogout, profile } = useOutletContext<{ onLogout: () => void, profile: Profile | null }>();
+  const { unreadCount } = useNotifications(profile?.id || null);
+  
   const menuItems = [
-    { icon: User, label: 'Edit Profile', action: () => { } },
-    { icon: MapPin, label: 'Saved Addresses', action: () => { } },
-    { icon: Bell, label: 'Notifications', action: () => { } },
-    { icon: Heart, label: 'Favorites', action: () => { } },
-    { icon: HelpCircle, label: 'Help & Support', action: () => { } },
+    { icon: User, label: 'Edit Profile', action: () => {} },
+    { 
+      icon: MapPin, 
+      label: 'Saved Addresses', 
+      action: () => navigate('/customer/addresses') 
+    },
+    { 
+      icon: Bell, 
+      label: 'Notifications', 
+      action: () => navigate('/customer/notifications'),
+      badge: unreadCount > 0 ? unreadCount : undefined
+    },
+    { 
+      icon: Heart, 
+      label: 'Favorites', 
+      action: () => navigate('/customer/favorites') 
+    },
+    { 
+      icon: HelpCircle, 
+      label: 'Help & Support', 
+      action: () => navigate('/customer/help-support') 
+    },
   ];
 
   return (
@@ -52,7 +74,7 @@ export function ProfileScreen() {
                 <button
                   key={index}
                   onClick={item.action}
-                  className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/50 transition-colors first:rounded-t-2xl last:rounded-b-2xl"
+                  className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/50 transition-colors first:rounded-t-2xl last:rounded-b-2xl relative"
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-muted rounded-xl flex items-center justify-center">
@@ -60,7 +82,14 @@ export function ProfileScreen() {
                     </div>
                     <span className="font-medium text-foreground">{item.label}</span>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                  <div className="flex items-center gap-2">
+                    {item.badge && item.badge > 0 && (
+                      <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
+                        {item.badge}
+                      </span>
+                    )}
+                    <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                  </div>
                 </button>
               );
             })}
