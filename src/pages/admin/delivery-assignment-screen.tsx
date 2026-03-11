@@ -89,22 +89,29 @@ export function DeliveryAssignmentScreen() {
           full_name,
           phone,
           is_available,
-          is_on_duty,
-          current_order_count:delivery_assignments(count).filter(status.eq.active)
+          is_on_duty
         `)
         .eq('role', 'delivery');
 
       if (error) throw error;
       
-      // Transform data to handle the nested count
-      const transformedData = data?.map(person => ({
-        ...person,
-        current_order_count: Array.isArray(person.current_order_count) 
-          ? person.current_order_count[0]?.count || 0 
-          : 0
-      })) || [];
+      // Get active order counts separately
+      const enhancedData = await Promise.all(
+        (data || []).map(async (person) => {
+          const { count } = await supabase
+            .from('delivery_assignments')
+            .select('*', { count: 'exact', head: true })
+            .eq('delivery_person_id', person.id)
+            .eq('status', 'assigned');
+          
+          return {
+            ...person,
+            current_order_count: count || 0
+          } as DeliveryPerson;
+        })
+      );
       
-      setDeliveryPersons(transformedData as DeliveryPerson[]);
+      setDeliveryPersons(enhancedData);
     } catch (error) {
       console.error('Error loading delivery persons:', error);
     }
@@ -150,6 +157,42 @@ export function DeliveryAssignmentScreen() {
     } catch (error) {
       console.error('Error assigning delivery:', error);
       alert('Failed to assign delivery. Please try again.');
+    } finally {
+      setAssigningOrder(null);
+    }
+  }
+
+  async function handleAutoAssignDelivery(orderId: string) {
+    try {
+      setAssigningOrder(orderId);
+
+      // Get order details
+      const order = pendingOrders.find(o => o.id === orderId);
+      if (!order || !order.delivery_latitude || !order.delivery_longitude) {
+        alert('Order coordinates not available for auto-assignment.');
+        return;
+      }
+
+      // Call auto-assign function
+      const { data, error } = await supabase.rpc('auto_assign_delivery_smart', {
+        order_id: orderId
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        alert('Order automatically assigned to nearest available delivery person!');
+        await loadPendingOrders();
+        await loadDeliveryPersons();
+      } else {
+        alert(`Auto-assignment failed: ${data?.error || 'Unknown error'}`);
+        // Fallback to manual assignment
+        setSelectedOrder(order);
+        setShowAssignModal(true);
+      }
+    } catch (error) {
+      console.error('Error in auto-assignment:', error);
+      alert('Failed to auto-assign. Please assign manually.');
     } finally {
       setAssigningOrder(null);
     }
@@ -292,17 +335,27 @@ export function DeliveryAssignmentScreen() {
                     
                     <div className="flex gap-2">
                       {order.delivery_status === 'pending' && (
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedOrder(order);
-                            setShowAssignModal(true);
-                          }}
-                          disabled={assigningOrder === order.id}
-                        >
-                          Assign Rider
-                        </Button>
+                        <>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => handleAutoAssignDelivery(order.id)}
+                            disabled={assigningOrder === order.id}
+                          >
+                            Auto Assign
+                          </Button>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedOrder(order);
+                              setShowAssignModal(true);
+                            }}
+                            disabled={assigningOrder === order.id}
+                          >
+                            Assign Rider
+                          </Button>
+                        </>
                       )}
                       
                       {order.delivery_status === 'assigned' && (

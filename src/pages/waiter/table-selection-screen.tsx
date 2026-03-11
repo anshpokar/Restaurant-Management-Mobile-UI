@@ -6,7 +6,7 @@ import { Button } from '@/components/design-system/button';
 import { Badge } from '@/components/design-system/badge';
 import { supabase, type Profile, getStoredUser } from '@/lib/supabase';
 import { useOutletContext } from 'react-router-dom';
-import { Chair, Users, Clock, CheckCircle2 } from 'lucide-react';
+import { Armchair, Users, Clock, CheckCircle2 } from 'lucide-react';
 
 export function WaiterTableSelectionScreen() {
   const navigate = useNavigate();
@@ -79,8 +79,10 @@ export function WaiterTableSelectionScreen() {
         return 'error';
       case 'reserved':
         return 'warning';
+      case 'maintenance':
+        return 'info';
       default:
-        return 'default';
+        return 'info';
     }
   };
 
@@ -125,7 +127,7 @@ export function WaiterTableSelectionScreen() {
           <div className="text-center py-10 text-muted-foreground">Loading tables...</div>
         ) : tables.length === 0 ? (
           <div className="text-center py-10 bg-surface rounded-2xl border border-dashed">
-            <Chair className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-20" />
+            <Armchair className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-20" />
             <p className="text-sm font-medium text-foreground">No tables found</p>
             <p className="text-xs text-muted-foreground mt-1">Add tables from admin panel</p>
           </div>
@@ -155,7 +157,7 @@ export function WaiterTableSelectionScreen() {
                         ? 'bg-green-500 text-white' 
                         : 'bg-red-500 text-white'
                     }`}>
-                      <Chair className="w-6 h-6" />
+                      <Armchair className="w-6 h-6" />
                     </div>
                     <div className="text-left">
                       <p className="text-lg font-bold text-foreground">Table {table.table_number}</p>

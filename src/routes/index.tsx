@@ -29,7 +29,7 @@ import { DeliveryAssignmentScreen } from '@/pages/admin/delivery-assignment-scre
 
 // Chef Screens
 import { ChefApp } from '@/pages/chef/chef-app';
-import { ChefDashboard } from '@/pages/chef/chef-dashboard';
+import { ChefDashboardScreen } from '@/pages/chef/chef-dashboard';
 
 // Waiter Screens
 import { WaiterApp } from '@/pages/waiter/waiter-app';
@@ -41,10 +41,11 @@ import { WaiterTakeOrderScreen } from '@/pages/waiter/take-order-screen';
 
 // Delivery Screens
 import { DeliveryApp } from '@/pages/delivery/delivery-app';
-import { DeliveryTasks } from '@/pages/delivery/tasks-screen';
+import { DeliveryTasksScreen } from '@/pages/delivery/tasks-screen';
 import { DeliveryHistory } from '@/pages/delivery/history-screen';
 import { DeliveryProfile } from '@/pages/delivery/profile-screen';
 import { AddressPickerScreen } from '@/pages/delivery/address-picker-screen';
+import { GoogleMapsAddressPicker } from '@/pages/delivery/google-maps-address-picker';
 
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { Profile, UserRole } from '@/lib/supabase';
@@ -103,6 +104,7 @@ export function AppRoutes({ userRole, userProfile, isLoadingAuth, handleLogout }
                 <Route path="profile" element={<ProfileScreen />} />
                 <Route path="addresses" element={<SavedAddressesScreen />} />
                 <Route path="delivery-address" element={<AddressPickerScreen />} />
+                <Route path="delivery-address-map" element={<GoogleMapsAddressPicker />} />
                 <Route path="favorites" element={<FavoritesScreen />} />
                 <Route path="notifications" element={<NotificationsScreen />} />
                 <Route path="help-support" element={<HelpSupportScreen />} />
@@ -145,7 +147,7 @@ export function AppRoutes({ userRole, userProfile, isLoadingAuth, handleLogout }
                 </ProtectedRoute>
             }>
                 <Route index element={<Navigate to="/chef/dashboard" replace />} />
-                <Route path="dashboard" element={<ChefDashboard />} />
+                <Route path="dashboard" element={<ChefDashboardScreen />} />
             </Route>
 
             {/* Delivery Routes */}
@@ -155,7 +157,7 @@ export function AppRoutes({ userRole, userProfile, isLoadingAuth, handleLogout }
                 </ProtectedRoute>
             }>
                 <Route index element={<Navigate to="/delivery/tasks" replace />} />
-                <Route path="tasks" element={<DeliveryTasks />} />
+                <Route path="tasks" element={<DeliveryTasksScreen />} />
                 <Route path="history" element={<DeliveryHistory />} />
                 <Route path="profile" element={<DeliveryProfile />} />
             </Route>

@@ -1,11 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { LoadScript, GoogleMap, Marker } from '@react-google-maps/api';
 import { supabase } from '../../lib/supabase';
 import { AppHeader } from '../../components/design-system/app-header';
 import { Button } from '../../components/design-system/button';
 import { Card } from '../../components/design-system/card';
 import { MobileContainer } from '../../components/MobileContainer';
-import { Package, MapPin, Phone, Navigation, Clock, DollarSign, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Package, MapPin, Phone, Navigation, Clock, DollarSign, CheckCircle, XCircle, AlertCircle, Crosshair } from 'lucide-react';
+
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
+
+const mapContainerStyle = {
+  width: '100%',
+  height: '250px',
+  borderRadius: '8px'
+};
+
+const defaultCenter = {
+  lat: 28.6139, // Connaught Place, New Delhi
+  lng: 77.2090
+};
 
 interface DeliveryOrder {
   id: string;
@@ -32,10 +46,18 @@ export function DeliveryTasksScreen() {
   const [isAvailable, setIsAvailable] = useState(true);
   const [isOnDuty, setIsOnDuty] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
+  
+  // GPS Tracking
+  const [currentLocation, setCurrentLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [trackingInterval, setTrackingInterval] = useState<NodeJS.Timeout | null>(null);
+  const watchId = useRef<number | null>(null);
 
   useEffect(() => {
     loadDeliveryProfile();
     loadAssignedOrders();
+    
+    // Start GPS tracking when component mounts
+    startGPSTracking();
     
     // Real-time updates
     const channel = supabase.channel('delivery_tasks')
@@ -49,8 +71,78 @@ export function DeliveryTasksScreen() {
 
     return () => {
       supabase.removeChannel(channel);
+      stopGPSTracking();
     };
   }, []);
+
+  async function startGPSTracking() {
+    if (!navigator.geolocation) {
+      console.warn('Geolocation not supported');
+      return;
+    }
+
+    // Clear any existing tracking
+    if (watchId.current !== null) {
+      navigator.geolocation.clearWatch(watchId.current);
+    }
+
+    // Watch position and update every 10 seconds
+    watchId.current = navigator.geolocation.watchPosition(
+      async (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        const accuracy = position.coords.accuracy;
+        const speed = position.coords.speed;
+        
+        setCurrentLocation({ lat, lng });
+        
+        // Update location in database
+        await updateLocationInDatabase(lat, lng, accuracy, speed);
+      },
+      (error) => {
+        console.error('GPS Error:', error);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
+  }
+
+  function stopGPSTracking() {
+    if (watchId.current !== null) {
+      navigator.geolocation.clearWatch(watchId.current);
+      watchId.current = null;
+    }
+    if (trackingInterval) {
+      clearInterval(trackingInterval);
+      setTrackingInterval(null);
+    }
+  }
+
+  async function updateLocationInDatabase(
+    lat: number, 
+    lng: number, 
+    accuracy?: number, 
+    speed?: number | null
+  ) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Update current location in profiles
+      await supabase.rpc('update_delivery_location', {
+        p_delivery_person_id: user.id,
+        p_latitude: lat,
+        p_longitude: lng,
+        p_accuracy: accuracy || null,
+        p_speed: speed ? (speed * 3.6) : null // Convert m/s to km/h
+      });
+    } catch (error) {
+      console.error('Error updating location:', error);
+    }
+  }
 
   async function loadDeliveryProfile() {
     try {
@@ -308,6 +400,45 @@ export function DeliveryTasksScreen() {
             </Button>
           </div>
         </Card>
+
+        {/* Live GPS Tracking Map */}
+        {activeOrders.length > 0 && (
+          <Card className="overflow-hidden">
+            <div className="flex items-center justify-between mb-3 px-4 pt-4">
+              <h3 className="font-semibold text-gray-900">Your Location</h3>
+              <span className="text-xs text-green-600 flex items-center gap-1">
+                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                Live Tracking
+              </span>
+            </div>
+            
+            <LoadScript googleMapsApiKey={GOOGLE_MAPS_API_KEY}>
+              <GoogleMap
+                mapContainerStyle={mapContainerStyle}
+                center={currentLocation || defaultCenter}
+                zoom={15}
+              >
+                {currentLocation && (
+                  <Marker
+                    position={currentLocation}
+                    icon={{
+                      url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+                      scaledSize: { width: 32, height: 32 } as any
+                    }}
+                  />
+                )}
+              </GoogleMap>
+            </LoadScript>
+            
+            <div className="px-4 py-3 bg-gray-50">
+              <p className="text-sm text-gray-600">
+                {currentLocation 
+                  ? `Last updated: ${new Date().toLocaleTimeString()}`
+                  : 'Getting your location...'}
+              </p>
+            </div>
+          </Card>
+        )}
 
         {/* Active Orders */}
         <div>

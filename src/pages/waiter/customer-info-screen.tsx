@@ -134,7 +134,7 @@ export function WaiterCustomerInfoScreen() {
 
     try {
       // If creating account for new customer
-      if (createAccount && customerEmail && !otpData?.existingCustomer) {
+      if (createAccount && customerEmail) {
         // Create quick account
         const tempPassword = Math.random().toString(36).slice(-8);
         
