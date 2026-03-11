@@ -1,14 +1,11 @@
-import React from 'react';
-import { AppHeader } from '@/app/components/design-system/app-header';
-import { Card, CardBody } from '@/app/components/design-system/card';
-import { Button } from '@/app/components/design-system/button';
+import { useOutletContext } from 'react-router-dom';
+import { AppHeader } from '@/components/design-system/app-header';
+import { Card, CardBody } from '@/components/design-system/card';
+import { Button } from '@/components/design-system/button';
 import { Download, LogOut, TrendingUp, Calendar } from 'lucide-react';
 
-interface AdminReportsProps {
-  onLogout: () => void;
-}
-
-export function AdminReports({ onLogout }: AdminReportsProps) {
+export function AdminReports() {
+  const { onLogout } = useOutletContext<{ onLogout: () => void }>();
   return (
     <div className="min-h-screen bg-background pb-4">
       <AppHeader title="Reports & Settings" />

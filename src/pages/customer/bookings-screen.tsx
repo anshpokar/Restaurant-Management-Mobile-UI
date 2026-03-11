@@ -1,22 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { AppHeader } from '@/app/components/design-system/app-header';
-import { Card, CardBody } from '@/app/components/design-system/card';
-import { Button } from '@/app/components/design-system/button';
-import { Calendar, Users, Clock, CheckCircle2, XCircle, Info } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { AppHeader } from '@/components/design-system/app-header';
+import { Card, CardBody } from '@/components/design-system/card';
+import { Button } from '@/components/design-system/button';
+import { Calendar, Users, Clock, CheckCircle2, XCircle } from 'lucide-react';
 import { supabase, type RestaurantTable, type TableBooking } from '@/lib/supabase';
-import { Badge } from '@/app/components/design-system/badge';
+import { Badge } from '@/components/design-system/badge';
 
-interface BookingsScreenProps {
-  hideHeader?: boolean;
-}
-
-export function BookingsScreen({ hideHeader = false }: BookingsScreenProps) {
+export function BookingsScreen({ hideHeader = false }: { hideHeader?: boolean }) {
   const [view, setView] = useState<'book' | 'my-bookings'>('book');
   const [tables, setTables] = useState<RestaurantTable[]>([]);
   const [myBookings, setMyBookings] = useState<TableBooking[]>([]);
   const [loading, setLoading] = useState(false);
   const [bookingLoading, setBookingLoading] = useState(false);
-  
+
   // Form State
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [time, setTime] = useState('11:00');
@@ -73,12 +69,12 @@ export function BookingsScreen({ hideHeader = false }: BookingsScreenProps) {
 
   const getFilteredTables = () => {
     const availableTables = tables.filter(t => t.status === 'available' && t.capacity >= guests);
-    
+
     if (availableTables.length === 0) return [];
 
     // Find the smallest capacity that can accommodate the guests
     const minCapacity = Math.min(...availableTables.map(t => t.capacity));
-    
+
     // Return tables that match this minimum capacity
     return availableTables.filter(t => t.capacity === minCapacity);
   };
@@ -154,17 +150,15 @@ export function BookingsScreen({ hideHeader = false }: BookingsScreenProps) {
         <div className="flex gap-2 p-1 bg-muted rounded-2xl">
           <button
             onClick={() => setView('book')}
-            className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${
-              view === 'book' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
-            }`}
+            className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${view === 'book' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+              }`}
           >
             New Booking
           </button>
           <button
             onClick={() => setView('my-bookings')}
-            className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${
-              view === 'my-bookings' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
-            }`}
+            className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${view === 'my-bookings' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+              }`}
           >
             My Bookings
           </button>
@@ -209,7 +203,7 @@ export function BookingsScreen({ hideHeader = false }: BookingsScreenProps) {
                     <Users className="w-4 h-4 text-primary" />
                     Number of Guests
                   </label>
-                  <select 
+                  <select
                     className="w-full px-3 py-2 bg-surface border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none"
                     value={guests}
                     onChange={(e) => setGuests(Number(e.target.value))}
@@ -235,7 +229,7 @@ export function BookingsScreen({ hideHeader = false }: BookingsScreenProps) {
                 </div>
                 <button onClick={fetchTables} className="text-xs text-primary hover:underline">Refresh</button>
               </div>
-              
+
               {loading ? (
                 <div className="grid grid-cols-2 gap-3 animate-pulse">
                   {[1, 2, 3, 4].map(i => <div key={i} className="h-32 bg-muted rounded-2xl"></div>)}
@@ -258,13 +252,12 @@ export function BookingsScreen({ hideHeader = false }: BookingsScreenProps) {
                       <Card
                         key={table.id}
                         onClick={() => isAvailable && setSelectedTableId(table.id)}
-                        className={`transition-all duration-200 ${
-                          isSelected 
-                            ? 'ring-2 ring-primary border-primary shadow-md transform scale-[1.02]' 
-                            : isAvailable 
-                            ? 'hover:border-primary/50 cursor-pointer' 
-                            : 'opacity-50 grayscale cursor-not-allowed'
-                        }`}
+                        className={`transition-all duration-200 ${isSelected
+                            ? 'ring-2 ring-primary border-primary shadow-md transform scale-[1.02]'
+                            : isAvailable
+                              ? 'hover:border-primary/50 cursor-pointer'
+                              : 'opacity-50 grayscale cursor-not-allowed'
+                          }`}
                       >
                         <CardBody className="p-4 text-center relative">
                           {isSelected && (
@@ -288,9 +281,9 @@ export function BookingsScreen({ hideHeader = false }: BookingsScreenProps) {
               )}
             </div>
 
-            <Button 
-              className="w-full" 
-              size="lg" 
+            <Button
+              className="w-full"
+              size="lg"
               onClick={handleBooking}
               isLoading={bookingLoading}
               disabled={!selectedTableId}
@@ -309,9 +302,9 @@ export function BookingsScreen({ hideHeader = false }: BookingsScreenProps) {
               <div className="text-center py-12">
                 <Calendar className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-20" />
                 <p className="text-muted-foreground font-medium">No bookings found</p>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   className="mt-4"
                   onClick={() => setView('book')}
                 >
@@ -323,11 +316,10 @@ export function BookingsScreen({ hideHeader = false }: BookingsScreenProps) {
                 <Card key={booking.id} className="overflow-hidden">
                   <CardBody className="p-0">
                     <div className="flex">
-                      <div className={`w-2 ${
-                        booking.status === 'confirmed' ? 'bg-green-500' :
-                        booking.status === 'pending' ? 'bg-yellow-500' :
-                        booking.status === 'cancelled' ? 'bg-red-500' : 'bg-blue-500'
-                      }`} />
+                      <div className={`w-2 ${booking.status === 'confirmed' ? 'bg-green-500' :
+                          booking.status === 'pending' ? 'bg-yellow-500' :
+                            booking.status === 'cancelled' ? 'bg-red-500' : 'bg-blue-500'
+                        }`} />
                       <div className="flex-1 p-4">
                         <div className="flex justify-between items-start mb-2">
                           <div>
@@ -338,19 +330,19 @@ export function BookingsScreen({ hideHeader = false }: BookingsScreenProps) {
                           </div>
                           <Badge variant={
                             booking.status === 'confirmed' ? 'success' :
-                            booking.status === 'pending' ? 'warning' :
-                            booking.status === 'cancelled' ? 'error' : 'info'
+                              booking.status === 'pending' ? 'warning' :
+                                booking.status === 'cancelled' ? 'error' : 'info'
                           }>
                             {booking.status.toUpperCase()}
                           </Badge>
                         </div>
-                        
+
                         <div className="flex items-center gap-4 text-sm text-muted-foreground mt-3 pt-3 border-t border-divider">
                           <span className="flex items-center gap-1">
                             <Users className="w-4 h-4" /> {booking.guests_count} Guests
                           </span>
                           {booking.status === 'pending' && (
-                            <button 
+                            <button
                               onClick={() => cancelBooking(booking.id)}
                               className="ml-auto text-red-500 font-medium text-xs flex items-center gap-1 hover:underline"
                             >

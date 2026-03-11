@@ -1,12 +1,6 @@
-import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { BottomNav, BottomNavItem } from '@/app/components/design-system/bottom-nav';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { BottomNav, BottomNavItem } from '@/components/design-system/bottom-nav';
 import { LayoutDashboard, ShoppingBag, Menu, Table, BarChart3, Users, LogOut } from 'lucide-react';
-import { AdminDashboard } from './admin-dashboard';
-import { AdminOrders } from './admin-orders';
-import { AdminMenu } from './admin-menu';
-import { AdminTables } from './admin-tables';
-import { AdminReports } from './admin-reports';
-import { AdminUserManagement } from './admin-user-management';
 
 interface AdminAppProps {
   onLogout: () => void;
@@ -91,16 +85,7 @@ export function AdminApp({ onLogout }: AdminAppProps) {
       {/* Main Content Area */}
       <main className="flex-1 relative overflow-y-auto">
         <div className="pb-16 lg:pb-0">
-          <Routes>
-            <Route index element={<AdminDashboard />} />
-            <Route path="dashboard" element={<AdminDashboard />} />
-            <Route path="orders" element={<AdminOrders />} />
-            <Route path="menu" element={<AdminMenu />} />
-            <Route path="tables" element={<AdminTables />} />
-            <Route path="reports" element={<AdminReports onLogout={onLogout} />} />
-            <Route path="users" element={<AdminUserManagement />} />
-            <Route path="*" element={<Navigate to="/admin" replace />} />
-          </Routes>
+          <Outlet context={{ onLogout }} />
         </div>
 
         {/* Mobile Bottom Navigation */}
@@ -154,8 +139,8 @@ function SidebarItem({ icon, label, active, onClick }: { icon: React.ReactNode, 
     <button
       onClick={onClick}
       className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all font-bold text-sm ${active
-          ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]'
-          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+        ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]'
+        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
         }`}
     >
       {icon}

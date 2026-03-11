@@ -1,19 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import { AppHeader } from '@/app/components/design-system/app-header';
-import { Card, CardBody } from '@/app/components/design-system/card';
-import { Badge, VegBadge } from '@/app/components/design-system/badge';
+import { useState, useEffect } from 'react';
+import { useNavigate, useOutletContext } from 'react-router-dom';
+import { AppHeader } from '@/components/design-system/app-header';
+import { Card, CardBody } from '@/components/design-system/card';
+import { Badge, VegBadge } from '@/components/design-system/badge';
 import { motion, AnimatePresence } from 'motion/react';
-import { MapPin, User, UtensilsCrossed, Calendar, Truck, Star, RefreshCw, Tag } from 'lucide-react';
+import { MapPin, User, UtensilsCrossed, Calendar, Truck, Star } from 'lucide-react';
 import { supabase, type MenuItem, type Offer } from '@/lib/supabase';
 import { type Profile } from '@/lib/supabase';
 
-interface HomeScreenProps {
-  onNavigate: (tab: any) => void;
-  onAddToCart?: (item: MenuItem) => void;
-  profile: Profile | null;
-}
+export function HomeScreen() {
+  const navigate = useNavigate();
+  const { addToCart, profile } = useOutletContext<{
+    addToCart: (item: MenuItem) => void,
+    profile: Profile | null
+  }>();
 
-export function HomeScreen({ onNavigate, onAddToCart, profile }: HomeScreenProps) {
+  // Define onNavigate locally or just use navigate
+  const onNavigate = (tab: string) => navigate(`/customer/${tab}`);
   const [bestsellers, setBestsellers] = useState<MenuItem[]>([]);
   const [specials, setSpecials] = useState<MenuItem[]>([]);
   const [offers, setOffers] = useState<Offer[]>([]);
@@ -281,7 +284,7 @@ export function HomeScreen({ onNavigate, onAddToCart, profile }: HomeScreenProps
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            onAddToCart?.(item);
+                            addToCart?.(item);
                           }}
                           className="bg-primary text-white p-2 rounded-lg hover:opacity-90 active:scale-90 transition-all"
                         >

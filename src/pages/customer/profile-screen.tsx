@@ -1,22 +1,18 @@
-import React from 'react';
-import { AppHeader } from '@/app/components/design-system/app-header';
-import { Card, CardBody } from '@/app/components/design-system/card';
-import { Button } from '@/app/components/design-system/button';
+import { AppHeader } from '@/components/design-system/app-header';
+import { Card, CardBody } from '@/components/design-system/card';
+import { Button } from '@/components/design-system/button';
 import { User, MapPin, Bell, Heart, HelpCircle, LogOut, ChevronRight } from 'lucide-react';
 import { type Profile } from '@/lib/supabase';
+import { useOutletContext } from 'react-router-dom';
 
-interface ProfileScreenProps {
-  onLogout: () => void;
-  profile: Profile | null;
-}
-
-export function ProfileScreen({ onLogout, profile }: ProfileScreenProps) {
+export function ProfileScreen() {
+  const { onLogout, profile } = useOutletContext<{ onLogout: () => void, profile: Profile | null }>();
   const menuItems = [
-    { icon: User, label: 'Edit Profile', action: () => {} },
-    { icon: MapPin, label: 'Saved Addresses', action: () => {} },
-    { icon: Bell, label: 'Notifications', action: () => {} },
-    { icon: Heart, label: 'Favorites', action: () => {} },
-    { icon: HelpCircle, label: 'Help & Support', action: () => {} },
+    { icon: User, label: 'Edit Profile', action: () => { } },
+    { icon: MapPin, label: 'Saved Addresses', action: () => { } },
+    { icon: Bell, label: 'Notifications', action: () => { } },
+    { icon: Heart, label: 'Favorites', action: () => { } },
+    { icon: HelpCircle, label: 'Help & Support', action: () => { } },
   ];
 
   return (

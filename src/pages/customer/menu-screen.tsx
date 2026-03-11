@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { AppHeader } from '@/app/components/design-system/app-header';
-import { Card, CardBody } from '@/app/components/design-system/card';
-import { VegBadge } from '@/app/components/design-system/badge';
-import { Input } from '@/app/components/design-system/input';
+import { useState, useEffect } from 'react';
+import { useOutletContext } from 'react-router-dom';
+import { AppHeader } from '@/components/design-system/app-header';
+import { Card, CardBody } from '@/components/design-system/card';
+import { VegBadge } from '@/components/design-system/badge';
 import { Search, SlidersHorizontal, Star, Plus, RefreshCw } from 'lucide-react';
 import { supabase, type MenuItem } from '@/lib/supabase';
 
-export function MenuScreen({ onAddToCart }: { onAddToCart?: (item: MenuItem) => void }) {
+export function MenuScreen() {
+  const { addToCart } = useOutletContext<{ addToCart: (item: MenuItem) => void }>();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -37,8 +38,8 @@ export function MenuScreen({ onAddToCart }: { onAddToCart?: (item: MenuItem) => 
 
   return (
     <div className="min-h-screen bg-background pb-4">
-      <AppHeader 
-        title="Menu" 
+      <AppHeader
+        title="Menu"
         actions={
           <div className="flex gap-1">
             <button onClick={fetchMenu} className="p-2 text-foreground hover:bg-muted rounded-full transition-colors">
@@ -70,11 +71,10 @@ export function MenuScreen({ onAddToCart }: { onAddToCart?: (item: MenuItem) => 
             <button
               key={category}
               onClick={() => setSelectedCategory(category)}
-              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
-                selectedCategory === category
-                  ? 'bg-primary text-white'
-                  : 'bg-muted text-foreground hover:bg-muted/80'
-              }`}
+              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${selectedCategory === category
+                ? 'bg-primary text-white'
+                : 'bg-muted text-foreground hover:bg-muted/80'
+                }`}
             >
               {category}
             </button>
@@ -116,8 +116,8 @@ export function MenuScreen({ onAddToCart }: { onAddToCart?: (item: MenuItem) => 
                         <div className="flex items-center justify-between">
                           <span className="text-lg font-bold text-foreground">₹{item.price}</span>
                           {item.is_available ? (
-                            <button 
-                              onClick={() => onAddToCart?.(item)}
+                            <button
+                              onClick={() => addToCart?.(item)}
                               className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-xl text-sm font-medium hover:opacity-90 active:scale-95 transition-all"
                             >
                               <Plus className="w-4 h-4" />

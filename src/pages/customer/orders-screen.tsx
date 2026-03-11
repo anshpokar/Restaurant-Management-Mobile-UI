@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { AppHeader } from '@/app/components/design-system/app-header';
-import { Card, CardBody } from '@/app/components/design-system/card';
-import { Badge } from '@/app/components/design-system/badge';
-import { Package, Clock, CheckCircle2, Truck, Phone, User } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { AppHeader } from '@/components/design-system/app-header';
+import { Card, CardBody } from '@/components/design-system/card';
+import { Badge } from '@/components/design-system/badge';
+import { Package, Clock, CheckCircle2, Truck, Phone } from 'lucide-react';
 import { supabase, type Order, type Profile } from '@/lib/supabase';
+import { useOutletContext } from 'react-router-dom';
 
-export function OrdersScreen({ profile }: { profile: Profile | null }) {
+export function OrdersScreen() {
+  const { profile } = useOutletContext<{ profile: Profile | null }>();
   const [filter, setFilter] = useState<'all' | 'ongoing' | 'completed'>('all');
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
@@ -23,7 +25,7 @@ export function OrdersScreen({ profile }: { profile: Profile | null }) {
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [profile?.id]);
 
   const fetchMyOrders = async () => {
     setLoading(true);
@@ -62,8 +64,8 @@ export function OrdersScreen({ profile }: { profile: Profile | null }) {
               key={tab}
               onClick={() => setFilter(tab as any)}
               className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${filter === tab
-                  ? 'bg-card text-primary shadow-sm'
-                  : 'text-muted-foreground'
+                ? 'bg-card text-primary shadow-sm'
+                : 'text-muted-foreground'
                 }`}
             >
               {tab.toUpperCase()}
@@ -82,8 +84,8 @@ export function OrdersScreen({ profile }: { profile: Profile | null }) {
             .map((order) => (
               <Card key={order.id} className="border-none shadow-sm overflow-hidden">
                 <div className={`h-1.5 ${order.status === 'delivered' ? 'bg-green-500' :
-                    order.status === 'cancelled' ? 'bg-red-500' :
-                      order.status === 'out_for_delivery' ? 'bg-secondary' : 'bg-primary'
+                  order.status === 'cancelled' ? 'bg-red-500' :
+                    order.status === 'out_for_delivery' ? 'bg-secondary' : 'bg-primary'
                   }`} />
                 <CardBody className="p-4 space-y-4">
                   <div className="flex items-start justify-between">

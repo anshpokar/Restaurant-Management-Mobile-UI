@@ -1,18 +1,9 @@
-import { useState, useEffect } from 'react';
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { BottomNav, BottomNavItem } from '../design-system/bottom-nav';
+import { useNavigate, useLocation, Outlet } from 'react-router-dom';
+import { BottomNav, BottomNavItem } from '@/components/design-system/bottom-nav';
 import { Home, Menu, ShoppingBag, User, ShoppingCart, Trash2, Plus, Minus, X } from 'lucide-react';
-import { HomeScreen } from './home-screen';
-import { MenuScreen } from './menu-screen';
-import { BookingsScreen } from './bookings-screen';
-import { OrdersScreen } from './orders-screen';
-import { ProfileScreen } from './profile-screen';
-import { Button } from '../design-system/button';
-import { Profile, supabase, type MenuItem } from '@/lib/supabase';
-
-export interface CartItem extends MenuItem {
-  quantity: number;
-}
+import { Button } from '@/components/design-system/button';
+import { Profile } from '@/lib/supabase';
+import { useCart } from '@/hooks/use-cart';
 
 interface CustomerAppProps {
   onLogout: () => void;
@@ -21,6 +12,18 @@ interface CustomerAppProps {
 
 export function CustomerApp({ onLogout, profile }: CustomerAppProps) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const {
+    cartItems,
+    isCartOpen,
+    setIsCartOpen,
+    addToCart,
+    removeFromCart,
+    updateQuantity,
+    totalAmount,
+    totalItems,
+    handlePlaceOrder
+  } = useCart(profile);
 
   const getActiveTab = () => {
     const path = location.pathname;
@@ -33,113 +36,11 @@ export function CustomerApp({ onLogout, profile }: CustomerAppProps) {
 
   const activeTab = getActiveTab();
 
-  const [cartItems, setCartItems] = useState<CartItem[]>(() => {
-    const saved = localStorage.getItem('cartItems');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [isCartOpen, setIsCartOpen] = useState(false);
-
-  // Persistence Effects
-  useEffect(() => {
-    localStorage.setItem('cartItems', JSON.stringify(cartItems));
-  }, [cartItems]);
-
-  const addToCart = (item: MenuItem) => {
-    setCartItems(prev => {
-      const existing = prev.find(i => i.id === item.id);
-      if (existing) {
-        return prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i);
-      }
-      return [...prev, { ...item, quantity: 1 }];
-    });
-  };
-
-  const removeFromCart = (id: number) => {
-    setCartItems(prev => prev.filter(i => i.id !== id));
-  };
-
-  const updateQuantity = (id: number, delta: number) => {
-    setCartItems(prev => prev.map(i => {
-      if (i.id === id) {
-        const newQty = Math.max(1, i.quantity + delta);
-        return { ...i, quantity: newQty };
-      }
-      return i;
-    }));
-  };
-
-  const totalAmount = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const totalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
-
-  const handlePlaceOrder = async () => {
-    try {
-      const userId = profile?.id;
-      if (!userId) {
-        alert('Please login to place an order');
-        return;
-      }
-
-      const { data: order, error: orderError } = await supabase
-        .from('orders')
-        .insert({
-          user_id: userId,
-          total_amount: totalAmount,
-          status: 'placed',
-          delivery_address: 'Home - Connaught Place'
-        })
-        .select()
-        .single();
-
-      if (orderError) throw orderError;
-
-      const orderItemsData = cartItems.map(item => ({
-        order_id: order.id,
-        menu_item_id: item.id,
-        name: item.name,
-        quantity: item.quantity,
-        price: item.price,
-        image: item.image
-      }));
-
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .insert(orderItemsData);
-
-      if (itemsError) throw itemsError;
-
-      alert('Order placed successfully! The chef is now viewing your order.');
-      setCartItems([]);
-      setIsCartOpen(false);
-      navigate('/customer/orders');
-    } catch (error: any) {
-      console.error('Error placing order:', error);
-      alert('Failed to place order: ' + error.message);
-    }
-  };
-
   return (
     <div className="relative min-h-screen bg-background pb-16">
-      <Routes>
-        <Route index element={
-          <HomeScreen
-            onNavigate={(tab: string) => navigate(`/customer/${tab}`)}
-            onAddToCart={addToCart}
-            profile={profile}
-          />
-        } />
-        <Route path="home" element={
-          <HomeScreen
-            onNavigate={(tab: string) => navigate(`/customer/${tab}`)}
-            onAddToCart={addToCart}
-            profile={profile}
-          />
-        } />
-        <Route path="menu" element={<MenuScreen onAddToCart={addToCart} />} />
-        <Route path="bookings" element={<BookingsScreen />} />
-        <Route path="orders" element={<OrdersScreen profile={profile} />} />
-        <Route path="profile" element={<ProfileScreen onLogout={onLogout} profile={profile} />} />
-        <Route path="*" element={<Navigate to="/customer" replace />} />
-      </Routes>
+      <div className="flex-1">
+        <Outlet context={{ addToCart, cartItems, totalItems, totalAmount, onLogout }} />
+      </div>
 
       {/* Floating Cart Button */}
       {cartItems.length > 0 && (
@@ -260,5 +161,3 @@ export function CustomerApp({ onLogout, profile }: CustomerAppProps) {
     </div>
   );
 }
-
-
