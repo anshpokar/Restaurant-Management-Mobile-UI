@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Button } from '@/app/components/design-system/button';
+import { Button } from '@/components/design-system/button';
 import { Menu, Calendar, MapPin } from 'lucide-react';
 
 interface OnboardingScreenProps {
@@ -105,8 +105,8 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
             <div
               key={index}
               className={`h-2 rounded-full transition-all ${index === currentSlide
-                  ? 'w-8 bg-primary'
-                  : 'w-2 bg-muted'
+                ? 'w-8 bg-primary'
+                : 'w-2 bg-muted'
                 }`}
             />
           ))}

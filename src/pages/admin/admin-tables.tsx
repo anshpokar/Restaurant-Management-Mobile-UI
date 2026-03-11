@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { AppHeader } from '@/app/components/design-system/app-header';
-import { Card, CardBody } from '@/app/components/design-system/card';
-import { Badge } from '@/app/components/design-system/badge';
+import { AppHeader } from '@/components/design-system/app-header';
+import { Card, CardBody } from '@/components/design-system/card';
+import { Badge } from '@/components/design-system/badge';
 import { Users, Clock, DollarSign, CheckCircle2, RefreshCw } from 'lucide-react';
 import { supabase, type RestaurantTable, type Order } from '@/lib/supabase';
-import { Button } from '../design-system/button';
+import { Button } from '@/components/design-system/button';
 
 export function AdminTables() {
   const [tables, setTables] = useState<RestaurantTable[]>([]);
@@ -23,7 +23,7 @@ export function AdminTables() {
         .from('restaurant_tables')
         .select('*')
         .order('table_number', { ascending: true });
-      
+
       setTables(tableData || []);
 
       // 2. Fetch all unpaid orders with their items and customer profiles
@@ -70,8 +70,8 @@ export function AdminTables() {
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      <AppHeader 
-        title="Table Management" 
+      <AppHeader
+        title="Table Management"
         actions={
           <button onClick={fetchData} className="p-2 hover:bg-muted rounded-full">
             <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
@@ -115,13 +115,12 @@ export function AdminTables() {
             return (
               <Card
                 key={table.id}
-                className={`transition-all border-2 ${
-                  table.status === 'available' 
-                    ? 'border-green-100 hover:border-green-300' 
+                className={`transition-all border-2 ${table.status === 'available'
+                    ? 'border-green-100 hover:border-green-300'
                     : table.status === 'occupied'
-                    ? 'border-red-100 bg-red-50/10'
-                    : 'border-orange-100'
-                }`}
+                      ? 'border-red-100 bg-red-50/10'
+                      : 'border-orange-100'
+                  }`}
               >
                 <CardBody className="p-4">
                   <div className="flex items-start justify-between mb-4">
@@ -134,10 +133,10 @@ export function AdminTables() {
                         </div>
                       </div>
                     </div>
-                    <Badge 
+                    <Badge
                       variant={
                         table.status === 'available' ? 'success' :
-                        table.status === 'occupied' ? 'occupied' : 'warning'
+                          table.status === 'occupied' ? 'occupied' : 'warning'
                       }
                     >
                       {table.status.toUpperCase()}
@@ -168,9 +167,9 @@ export function AdminTables() {
                           <span className="text-lg font-black text-primary">₹{activeOrder.total_amount}</span>
                         </div>
                       </div>
-                      
-                      <Button 
-                        size="sm" 
+
+                      <Button
+                        size="sm"
                         className="w-full bg-green-600 hover:bg-green-700"
                         onClick={() => releaseTable(table.id, activeOrder.id)}
                       >
@@ -180,9 +179,9 @@ export function AdminTables() {
                   ) : table.status === 'occupied' ? (
                     <div className="space-y-3">
                       <p className="text-xs text-muted-foreground italic">No active order found for this table.</p>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
+                      <Button
+                        variant="outline"
+                        size="sm"
                         className="w-full border-red-200 text-red-600 hover:bg-red-50"
                         onClick={() => releaseTable(table.id)}
                       >

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { AppHeader } from '@/app/components/design-system/app-header';
-import { Card, CardBody } from '@/app/components/design-system/card';
-import { Button } from '@/app/components/design-system/button';
-import { Badge } from '@/app/components/design-system/badge';
+import { AppHeader } from '@/components/design-system/app-header';
+import { Card, CardBody } from '@/components/design-system/card';
+import { Button } from '@/components/design-system/button';
+import { Badge } from '@/components/design-system/badge';
 import { supabase, type Order, type Profile } from '@/lib/supabase';
 import { RefreshCw, UserPlus, Truck, CheckCircle2 } from 'lucide-react';
 

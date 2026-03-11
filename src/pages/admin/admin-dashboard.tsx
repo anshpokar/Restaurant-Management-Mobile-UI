@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { AppHeader } from '@/app/components/design-system/app-header';
-import { Card, CardBody } from '@/app/components/design-system/card';
-import { Button } from '@/app/components/design-system/button';
+import { AppHeader } from '@/components/design-system/app-header';
+import { Card, CardBody } from '@/components/design-system/card';
+import { Button } from '@/components/design-system/button';
 import { TrendingUp, TrendingDown, ShoppingBag, DollarSign, Users, Calendar, Star, Tag, Plus, Trash2, RefreshCw } from 'lucide-react';
 import { supabase, type MenuItem, type Offer } from '@/lib/supabase';
 
@@ -24,7 +24,7 @@ export function AdminDashboard() {
         .from('menu_items')
         .select('*')
         .eq('is_special', true);
-      
+
       // Fetch Offers
       const { data: offersData } = await supabase
         .from('offers')
@@ -139,7 +139,7 @@ export function AdminDashboard() {
                         <p className="text-xs text-muted-foreground">₹{item.price}</p>
                       </div>
                     </div>
-                    <button 
+                    <button
                       onClick={() => toggleSpecial(item)}
                       className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
                     >
@@ -165,7 +165,7 @@ export function AdminDashboard() {
               <Plus className="w-4 h-4 mr-1" /> New
             </Button>
           </div>
-          
+
           <div className="space-y-3">
             {offers.map(offer => (
               <Card key={offer.id} className="border-dashed border-2 border-primary/20 bg-primary/5">
@@ -177,7 +177,7 @@ export function AdminDashboard() {
                       CODE: {offer.discount_code}
                     </div>
                   </div>
-                  <button 
+                  <button
                     onClick={() => deleteOffer(offer.id)}
                     className="p-2 text-muted-foreground hover:text-red-500 hover:bg-red-50 rounded-lg"
                   >
@@ -198,31 +198,31 @@ export function AdminDashboard() {
                 <form onSubmit={handleAddOffer} className="space-y-4">
                   <div className="space-y-1">
                     <label className="text-xs font-bold uppercase text-muted-foreground">Title</label>
-                    <input 
+                    <input
                       required
                       className="w-full p-3 bg-muted rounded-xl border-none outline-none focus:ring-2 focus:ring-primary"
                       value={newOffer.title}
-                      onChange={e => setNewOffer({...newOffer, title: e.target.value})}
+                      onChange={e => setNewOffer({ ...newOffer, title: e.target.value })}
                       placeholder="e.g. FLAT 30% OFF"
                     />
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-bold uppercase text-muted-foreground">Description</label>
-                    <input 
+                    <input
                       required
                       className="w-full p-3 bg-muted rounded-xl border-none outline-none focus:ring-2 focus:ring-primary"
                       value={newOffer.description}
-                      onChange={e => setNewOffer({...newOffer, description: e.target.value})}
+                      onChange={e => setNewOffer({ ...newOffer, description: e.target.value })}
                       placeholder="e.g. On orders above ₹499"
                     />
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-bold uppercase text-muted-foreground">Discount Code</label>
-                    <input 
+                    <input
                       required
                       className="w-full p-3 bg-muted rounded-xl border-none outline-none focus:ring-2 focus:ring-primary"
                       value={newOffer.discount_code}
-                      onChange={e => setNewOffer({...newOffer, discount_code: e.target.value.toUpperCase()})}
+                      onChange={e => setNewOffer({ ...newOffer, discount_code: e.target.value.toUpperCase() })}
                       placeholder="e.g. NAV30"
                     />
                   </div>

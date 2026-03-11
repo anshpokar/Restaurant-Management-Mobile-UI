@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Button } from '../design-system/button';
-import { Input } from '../design-system/input';
+import { Button } from '@/components/design-system/button';
+import { Input } from '@/components/design-system/input';
 import { Sparkles, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { supabase, type UserRole, type Profile } from '@/lib/supabase';
 

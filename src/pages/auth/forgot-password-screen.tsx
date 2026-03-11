@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Button } from '@/app/components/design-system/button';
-import { Input } from '@/app/components/design-system/input';
-import { AppHeader } from '@/app/components/design-system/app-header';
+import { Button } from '@/components/design-system/button';
+import { Input } from '@/components/design-system/input';
+import { AppHeader } from '@/components/design-system/app-header';
 import { KeyRound, Mail, Phone, CheckCircle2, ArrowRight } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
@@ -36,7 +36,7 @@ export function ForgotPasswordScreen({ onBack, onSuccess }: ForgotPasswordScreen
   const handleSendOtp = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setIsLoading(true);
-    
+
     try {
       const isEmail = identifier.includes('@');
       setMethod(isEmail ? 'email' : 'phone');
@@ -46,13 +46,13 @@ export function ForgotPasswordScreen({ onBack, onSuccess }: ForgotPasswordScreen
         const timeoutPromise = new Promise<never>((_, reject) => {
           setTimeout(() => reject(new Error('Request timeout: Sending password reset email took too long. Please check your internet connection.')), 15000); // 15 second timeout
         });
-        
+
         // Create the API call promise
         const apiPromise = supabase.auth.resetPasswordForEmail(identifier);
-        
+
         // Race the promises
         const result = await Promise.race([apiPromise, timeoutPromise]);
-        
+
         if (result.error) throw result.error;
         alert('Password reset code sent to your email!');
       } else {
@@ -60,17 +60,17 @@ export function ForgotPasswordScreen({ onBack, onSuccess }: ForgotPasswordScreen
         const timeoutPromise = new Promise<never>((_, reject) => {
           setTimeout(() => reject(new Error('Request timeout: Sending SMS verification took too long. Please check your internet connection.')), 15000); // 15 second timeout
         });
-        
+
         // Create the API call promise
         const apiPromise = supabase.auth.signInWithOtp({ phone: identifier });
-        
+
         // Race the promises
         const result = await Promise.race([apiPromise, timeoutPromise]);
-        
+
         if (result.error) throw result.error;
         alert('Verification code sent to your phone!');
       }
-      
+
       setStep('otp');
       setResendTimer(60); // Start 60s cooldown
     } catch (error: any) {
@@ -89,46 +89,46 @@ export function ForgotPasswordScreen({ onBack, onSuccess }: ForgotPasswordScreen
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
+
     const token = otp.join('');
-    
+
     try {
       if (method === 'email') {
         // Create timeout promise
         const timeoutPromise = new Promise<never>((_, reject) => {
           setTimeout(() => reject(new Error('Request timeout: Verifying email OTP took too long. Please check your internet connection.')), 15000); // 15 second timeout
         });
-        
+
         // Create the API call promise
         const apiPromise = supabase.auth.verifyOtp({
           email: identifier,
           token,
           type: 'recovery'
         });
-        
+
         // Race the promises
         const result = await Promise.race([apiPromise, timeoutPromise]);
-        
+
         if (result.error) throw result.error;
       } else {
         // Create timeout promise
         const timeoutPromise = new Promise<never>((_, reject) => {
           setTimeout(() => reject(new Error('Request timeout: Verifying phone OTP took too long. Please check your internet connection.')), 15000); // 15 second timeout
         });
-        
+
         // Create the API call promise
         const apiPromise = supabase.auth.verifyOtp({
           phone: identifier,
           token,
           type: 'sms'
         });
-        
+
         // Race the promises
         const result = await Promise.race([apiPromise, timeoutPromise]);
-        
+
         if (result.error) throw result.error;
       }
-      
+
       setStep('reset');
     } catch (error: any) {
       console.error('Verify OTP Error:', error);
@@ -140,11 +140,11 @@ export function ForgotPasswordScreen({ onBack, onSuccess }: ForgotPasswordScreen
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Password validation
     const hasNumber = /\d/.test(newPassword);
     const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(newPassword);
-    
+
     if (newPassword.length < 8) {
       setPasswordError('Password must be at least 8 characters long');
       return;
@@ -157,26 +157,26 @@ export function ForgotPasswordScreen({ onBack, onSuccess }: ForgotPasswordScreen
       setPasswordError("Passwords don't match");
       return;
     }
-    
+
     setPasswordError(undefined);
     setIsLoading(true);
-    
+
     try {
       // Create timeout promise
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => reject(new Error('Request timeout: Updating password took too long. Please check your internet connection.')), 15000); // 15 second timeout
       });
-      
+
       // Create the API call promise
       const apiPromise = supabase.auth.updateUser({
         password: newPassword
       });
-      
+
       // Race the promises
       const result = await Promise.race([apiPromise, timeoutPromise]);
 
       if (result.error) throw result.error;
-      
+
       setStep('success');
     } catch (error: any) {
       console.error('Reset Password Error:', error);
@@ -191,7 +191,7 @@ export function ForgotPasswordScreen({ onBack, onSuccess }: ForgotPasswordScreen
     const newOtp = [...otp];
     newOtp[index] = value;
     setOtp(newOtp);
-    
+
     // Auto-focus next input
     if (value && index < 5) {
       const nextInput = document.getElementById(`otp-${index + 1}`);
@@ -201,10 +201,10 @@ export function ForgotPasswordScreen({ onBack, onSuccess }: ForgotPasswordScreen
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
-      <AppHeader 
-        title="Forgot Password" 
-        showBack 
-        onBack={step === 'success' ? onSuccess : onBack} 
+      <AppHeader
+        title="Forgot Password"
+        showBack
+        onBack={step === 'success' ? onSuccess : onBack}
       />
 
       <div className="flex-1 px-8 py-8">
@@ -269,7 +269,7 @@ export function ForgotPasswordScreen({ onBack, onSuccess }: ForgotPasswordScreen
                 <Button type="submit" className="w-full" size="lg" isLoading={isLoading}>
                   Verify & Continue
                 </Button>
-                <button 
+                <button
                   type="button"
                   className={`w-full text-sm font-medium hover:underline ${resendTimer > 0 ? 'text-muted-foreground cursor-not-allowed' : 'text-primary'}`}
                   onClick={handleResendOtp}
@@ -303,7 +303,7 @@ export function ForgotPasswordScreen({ onBack, onSuccess }: ForgotPasswordScreen
                 error={passwordError}
                 required
               />
-              
+
               {/* Password requirements hint */}
               <div className="text-xs text-muted-foreground space-y-1 mb-4">
                 <p className={newPassword.length >= 8 ? "text-green-600" : ""}>• At least 8 characters</p>
@@ -339,9 +339,9 @@ export function ForgotPasswordScreen({ onBack, onSuccess }: ForgotPasswordScreen
                 Your password has been successfully reset. You can now login with your new password.
               </p>
             </div>
-            <Button 
-              onClick={onSuccess} 
-              className="w-full" 
+            <Button
+              onClick={onSuccess}
+              className="w-full"
               size="lg"
             >
               Go to Login <ArrowRight className="ml-2 w-5 h-5" />

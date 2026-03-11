@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { AppHeader } from '@/app/components/design-system/app-header';
-import { Card, CardBody } from '@/app/components/design-system/card';
-import { Button } from '@/app/components/design-system/button';
-import { VegBadge } from '@/app/components/design-system/badge';
+import { AppHeader } from '@/components/design-system/app-header';
+import { Card, CardBody } from '@/components/design-system/card';
+import { Button } from '@/components/design-system/button';
+import { VegBadge } from '@/components/design-system/badge';
 import { Plus, Edit, Trash2, ToggleLeft, ToggleRight, RefreshCw, X, Image as ImageIcon, Star } from 'lucide-react';
 import { supabase, type MenuItem } from '@/lib/supabase';
 
@@ -12,7 +12,7 @@ export function AdminMenu() {
   const [isAdding, setIsAdding] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [showOnlyAvailable, setShowOnlyAvailable] = useState(false);
-  
+
   // New Item Form State
   const [newItem, setNewItem] = useState({
     name: '',
@@ -117,7 +117,7 @@ export function AdminMenu() {
 
   return (
     <div className="min-h-screen bg-muted/5 pb-24">
-      <AppHeader 
+      <AppHeader
         title="Menu Management"
         actions={
           <div className="flex gap-2">
@@ -136,7 +136,7 @@ export function AdminMenu() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-xs font-black text-muted-foreground uppercase tracking-widest">Filters</p>
-            <button 
+            <button
               onClick={() => setShowOnlyAvailable(!showOnlyAvailable)}
               className="flex items-center gap-2 text-xs font-bold text-foreground"
             >
@@ -149,11 +149,10 @@ export function AdminMenu() {
               <button
                 key={category}
                 onClick={() => setSelectedCategory(category)}
-                className={`px-4 py-2 rounded-xl text-xs font-black whitespace-nowrap transition-all border-2 ${
-                  selectedCategory === category
+                className={`px-4 py-2 rounded-xl text-xs font-black whitespace-nowrap transition-all border-2 ${selectedCategory === category
                     ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20'
                     : 'bg-card border-transparent text-muted-foreground hover:border-muted'
-                }`}
+                  }`}
               >
                 {category.toUpperCase()}
               </button>
@@ -176,11 +175,11 @@ export function AdminMenu() {
                 <form onSubmit={handleAddItem} className="space-y-4">
                   <div className="space-y-1">
                     <label className="text-xs font-black text-muted-foreground uppercase">Dish Name</label>
-                    <input 
+                    <input
                       required
                       className="w-full px-4 py-3 bg-muted border-none rounded-xl focus:ring-2 focus:ring-primary outline-none"
                       value={newItem.name}
-                      onChange={e => setNewItem({...newItem, name: e.target.value})}
+                      onChange={e => setNewItem({ ...newItem, name: e.target.value })}
                       placeholder="e.g. Paneer Butter Masala"
                     />
                   </div>
@@ -188,33 +187,33 @@ export function AdminMenu() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <label className="text-xs font-black text-muted-foreground uppercase">Price (₹)</label>
-                      <input 
+                      <input
                         required
                         type="number"
                         className="w-full px-4 py-3 bg-muted border-none rounded-xl focus:ring-2 focus:ring-primary outline-none"
                         value={newItem.price}
-                        onChange={e => setNewItem({...newItem, price: e.target.value})}
+                        onChange={e => setNewItem({ ...newItem, price: e.target.value })}
                         placeholder="299"
                       />
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs font-black text-muted-foreground uppercase">Icon/Emoji</label>
-                      <input 
+                      <input
                         required
                         className="w-full px-4 py-3 bg-muted border-none rounded-xl text-center text-xl focus:ring-2 focus:ring-primary outline-none"
                         value={newItem.image}
-                        onChange={e => setNewItem({...newItem, image: e.target.value})}
+                        onChange={e => setNewItem({ ...newItem, image: e.target.value })}
                       />
                     </div>
                   </div>
 
                   <div className="space-y-1">
                     <label className="text-xs font-black text-muted-foreground uppercase">Category</label>
-                    <select 
+                    <select
                       required
                       className="w-full px-4 py-3 bg-muted border-none rounded-xl focus:ring-2 focus:ring-primary outline-none"
                       value={newItem.category}
-                      onChange={e => setNewItem({...newItem, category: e.target.value})}
+                      onChange={e => setNewItem({ ...newItem, category: e.target.value })}
                     >
                       {formCategories.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
@@ -222,9 +221,9 @@ export function AdminMenu() {
 
                   <div className="flex items-center justify-between p-3 bg-muted rounded-xl">
                     <span className="font-bold text-sm">Vegetarian</span>
-                    <button 
+                    <button
                       type="button"
-                      onClick={() => setNewItem({...newItem, veg: !newItem.veg})}
+                      onClick={() => setNewItem({ ...newItem, veg: !newItem.veg })}
                       className="transition-all"
                     >
                       {newItem.veg ? <ToggleRight className="w-8 h-8 text-primary" /> : <ToggleLeft className="w-8 h-8 text-muted-foreground" />}
@@ -251,62 +250,61 @@ export function AdminMenu() {
             .filter(item => selectedCategory === 'All' || item.category === selectedCategory)
             .filter(item => !showOnlyAvailable || item.is_available)
             .map((item) => (
-            <Card key={item.id} className={`${!item.is_available ? 'opacity-60 bg-muted/30' : ''} border-none shadow-sm`}>
-              <CardBody className="p-4">
-                <div className="flex gap-4">
-                  <div className="text-5xl drop-shadow-sm">{item.image}</div>
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between mb-1">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className="font-black text-foreground">{item.name}</h4>
-                          {item.veg ? <VegBadge /> : <div className="inline-flex items-center justify-center w-5 h-5 border-2 border-red-600 rounded"><div className="w-2 h-2 bg-red-600 rounded-full"></div></div>}
+              <Card key={item.id} className={`${!item.is_available ? 'opacity-60 bg-muted/30' : ''} border-none shadow-sm`}>
+                <CardBody className="p-4">
+                  <div className="flex gap-4">
+                    <div className="text-5xl drop-shadow-sm">{item.image}</div>
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between mb-1">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="font-black text-foreground">{item.name}</h4>
+                            {item.veg ? <VegBadge /> : <div className="inline-flex items-center justify-center w-5 h-5 border-2 border-red-600 rounded"><div className="w-2 h-2 bg-red-600 rounded-full"></div></div>}
+                          </div>
+                          <p className="text-xs font-bold text-muted-foreground uppercase">{item.category}</p>
                         </div>
-                        <p className="text-xs font-bold text-muted-foreground uppercase">{item.category}</p>
+                        <div className="flex flex-col items-end gap-2">
+                          <button
+                            onClick={() => toggleAvailability(item)}
+                            className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider"
+                          >
+                            <span className={item.is_available ? 'text-green-600' : 'text-red-500'}>
+                              {item.is_available ? 'Available' : 'Sold Out'}
+                            </span>
+                            {item.is_available ?
+                              <ToggleRight className="w-6 h-6 text-green-600" /> :
+                              <ToggleLeft className="w-6 h-6 text-red-500" />
+                            }
+                          </button>
+                          <button
+                            onClick={() => toggleSpecial(item)}
+                            className={`flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-lg border ${item.is_special ? 'bg-yellow-50 border-yellow-200 text-yellow-600' : 'bg-muted/50 border-muted text-muted-foreground'
+                              }`}
+                          >
+                            <Star className={`w-3 h-3 ${item.is_special ? 'fill-yellow-500' : ''}`} />
+                            {item.is_special ? 'Special' : 'Mark Special'}
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex flex-col items-end gap-2">
-                        <button 
-                          onClick={() => toggleAvailability(item)}
-                          className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider"
-                        >
-                          <span className={item.is_available ? 'text-green-600' : 'text-red-500'}>
-                            {item.is_available ? 'Available' : 'Sold Out'}
-                          </span>
-                          {item.is_available ? 
-                            <ToggleRight className="w-6 h-6 text-green-600" /> : 
-                            <ToggleLeft className="w-6 h-6 text-red-500" />
-                          }
-                        </button>
-                        <button 
-                          onClick={() => toggleSpecial(item)}
-                          className={`flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-lg border ${
-                            item.is_special ? 'bg-yellow-50 border-yellow-200 text-yellow-600' : 'bg-muted/50 border-muted text-muted-foreground'
-                          }`}
-                        >
-                          <Star className={`w-3 h-3 ${item.is_special ? 'fill-yellow-500' : ''}`} />
-                          {item.is_special ? 'Special' : 'Mark Special'}
-                        </button>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-divider">
-                      <span className="text-lg font-black text-primary">₹{item.price}</span>
-                      <div className="flex gap-1">
-                        <button className="p-2 hover:bg-muted rounded-xl transition-colors">
-                          <Edit className="w-4 h-4 text-foreground" />
-                        </button>
-                        <button 
-                          onClick={() => deleteItem(item.id)}
-                          className="p-2 hover:bg-red-50 rounded-xl transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4 text-red-500" />
-                        </button>
+                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-divider">
+                        <span className="text-lg font-black text-primary">₹{item.price}</span>
+                        <div className="flex gap-1">
+                          <button className="p-2 hover:bg-muted rounded-xl transition-colors">
+                            <Edit className="w-4 h-4 text-foreground" />
+                          </button>
+                          <button
+                            onClick={() => deleteItem(item.id)}
+                            className="p-2 hover:bg-red-50 rounded-xl transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4 text-red-500" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </CardBody>
-            </Card>
-          ))
+                </CardBody>
+              </Card>
+            ))
         )}
       </div>
     </div>
