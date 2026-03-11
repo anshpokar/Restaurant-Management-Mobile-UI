@@ -3,6 +3,7 @@ import { Button } from '@/components/design-system/button';
 import { Input } from '@/components/design-system/input';
 import { Sparkles, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { supabase, type UserRole, type Profile } from '@/lib/supabase';
+import { AUTH_TEXT } from '@/constants/text';
 
 interface SignupScreenProps {
   onLogin: () => void;
@@ -163,10 +164,10 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
           <Sparkles className="w-8 h-8 text-white" />
         </div>
         <h1 className="text-3xl font-bold text-foreground mb-2">
-          Create Account
+          {AUTH_TEXT.SIGNUP_TITLE}
         </h1>
         <p className="text-muted-foreground">
-          Sign up to get started with NAVRATNA
+          {AUTH_TEXT.SIGNUP_SUBTITLE}
         </p>
       </div>
 
@@ -175,8 +176,8 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
         <form onSubmit={handleSignup} className="space-y-4">
           <Input
             type="text"
-            label="Full Name"
-            placeholder="Enter your full name"
+            label={AUTH_TEXT.FULL_NAME_LABEL}
+            placeholder={`Enter your ${AUTH_TEXT.FULL_NAME_LABEL.toLowerCase()}`}
             value={name}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
             required
@@ -184,8 +185,8 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
 
           <Input
             type="text"
-            label="Username"
-            placeholder="Create a username"
+            label={AUTH_TEXT.USERNAME_LABEL}
+            placeholder={`Create a ${AUTH_TEXT.USERNAME_LABEL.toLowerCase()}`}
             value={username}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
               setUsername(e.target.value);
@@ -197,8 +198,8 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
 
           <Input
             type="tel"
-            label="Phone Number"
-            placeholder="Enter your phone number"
+            label={AUTH_TEXT.PHONE_LABEL}
+            placeholder={`Enter your ${AUTH_TEXT.PHONE_LABEL.toLowerCase()}`}
             value={phoneNumber}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPhoneNumber(e.target.value)}
             required
@@ -206,8 +207,8 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
 
           <Input
             type="email"
-            label="Email"
-            placeholder="Enter your email"
+            label={AUTH_TEXT.EMAIL_LABEL}
+            placeholder={`Enter your ${AUTH_TEXT.EMAIL_LABEL.toLowerCase()}`}
             value={email}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
               setEmail(e.target.value);
@@ -220,8 +221,8 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
           <div className="relative">
             <Input
               type={showPassword ? 'text' : 'password'}
-              label="Password"
-              placeholder="Create a password"
+              label={AUTH_TEXT.PASSWORD_LABEL}
+              placeholder={`Create a ${AUTH_TEXT.PASSWORD_LABEL.toLowerCase()}`}
               value={password}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                 setPassword(e.target.value);
@@ -247,7 +248,7 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
 
           <div className="pt-4">
             <Button type="submit" className="w-full" size="lg" isLoading={isLoading}>
-              Sign Up
+              {AUTH_TEXT.SIGN_UP}
             </Button>
           </div>
         </form>
@@ -257,7 +258,7 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
             <div className="w-full border-t border-muted"></div>
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+            <span className="bg-background px-2 text-muted-foreground">{AUTH_TEXT.OR_CONTINUE_WITH}</span>
           </div>
         </div>
 
@@ -286,7 +287,7 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
               d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 12-4.53z"
             />
           </svg>
-          Continue with Google
+          {AUTH_TEXT.CONTINUE_WITH_GOOGLE}
         </Button>
 
         {/* Terms */}
@@ -301,7 +302,7 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
       {/* Footer */}
       <div className="px-8 pb-8 text-center">
         <p className="text-sm text-muted-foreground">
-          Already have an account?{' '}
+          {AUTH_TEXT.ALREADY_HAVE_ACCOUNT}{' '}
           <button
             type="button"
             onClick={(e) => {
@@ -310,7 +311,7 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
             }}
             className="text-primary font-medium hover:underline"
           >
-            Sign In
+            {AUTH_TEXT.SIGN_IN}
           </button>
         </p>
       </div>

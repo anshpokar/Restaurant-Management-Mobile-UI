@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { MapPin, User, UtensilsCrossed, Calendar, Truck, Star } from 'lucide-react';
 import { supabase, type MenuItem, type Offer } from '@/lib/supabase';
 import { type Profile } from '@/lib/supabase';
+import { CUSTOMER_TEXT, COMMON_TEXT } from '@/constants/text';
 
 export function HomeScreen() {
   const navigate = useNavigate();
@@ -83,7 +84,7 @@ export function HomeScreen() {
   return (
     <div className="min-h-screen bg-background pb-10">
       <AppHeader
-        title="NAVRATNA"
+        title={COMMON_TEXT.APP_NAME}
         actions={
           <button
             onClick={() => onNavigate('profile')}
@@ -99,9 +100,9 @@ export function HomeScreen() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-black text-foreground">
-              Hello, {profile?.full_name?.split(' ')[0] || 'Guest'}! 👋
+              {CUSTOMER_TEXT.GREETING}, {profile?.full_name || 'Guest'}! 👋
             </h2>
-            <p className="text-muted-foreground text-sm">What would you like to eat today?</p>
+            <p className="text-muted-foreground text-sm">{CUSTOMER_TEXT.SUB_GREETING}</p>
           </div>
           <button className="w-12 h-12 bg-primary/10 text-primary rounded-2xl flex items-center justify-center font-bold text-lg">
             {profile?.full_name?.[0] || '👤'}
@@ -112,7 +113,7 @@ export function HomeScreen() {
         <button className="flex items-center gap-2 text-foreground hover:text-primary transition-colors">
           <MapPin className="w-5 h-5" />
           <div className="text-left">
-            <p className="text-sm font-medium">Delivering to</p>
+            <p className="text-sm font-medium">{CUSTOMER_TEXT.DELIVERING_TO}</p>
             <p className="text-xs text-muted-foreground">Connaught Place, New Delhi</p>
           </div>
         </button>
@@ -135,7 +136,7 @@ export function HomeScreen() {
                   <CardBody className="p-6 text-white relative h-full flex flex-col justify-center">
                     <div className="flex items-center gap-2 mb-2">
                       <Star className="w-5 h-5 fill-secondary text-secondary" />
-                      <Badge variant="warning" size="sm">Today's Special</Badge>
+                      <Badge variant="warning" size="sm">{CUSTOMER_TEXT.TODAYS_SPECIAL}</Badge>
                     </div>
                     <h2 className="text-2xl font-black mb-1">{specials[specialIndex].name}</h2>
                     <p className="text-white/90 mb-4 text-sm max-w-[200px]">Fresh from the kitchen! Limited availability.</p>
@@ -143,7 +144,7 @@ export function HomeScreen() {
                       onClick={() => onNavigate('menu')}
                       className="bg-secondary text-white w-fit px-6 py-2 rounded-xl font-bold hover:opacity-90 transition-all active:scale-95 shadow-lg"
                     >
-                      Order Now - ₹{specials[specialIndex].price}
+                      {CUSTOMER_TEXT.ORDER_NOW} - {COMMON_TEXT.CURRENCY_SYMBOL}{specials[specialIndex].price}
                     </button>
                     <motion.div
                       key={specials[specialIndex].id}
@@ -180,7 +181,7 @@ export function HomeScreen() {
                 onClick={() => onNavigate('menu')}
                 className="bg-secondary text-white px-6 py-2 rounded-xl font-bold hover:opacity-90 transition-all active:scale-95"
               >
-                Order Now - ₹349
+                {CUSTOMER_TEXT.ORDER_NOW} - {COMMON_TEXT.CURRENCY_SYMBOL}349
               </button>
               <div className="absolute top-6 right-6 text-7xl opacity-20">🍛</div>
             </CardBody>
@@ -194,7 +195,7 @@ export function HomeScreen() {
               <div className="w-12 h-12 mx-auto mb-2 bg-primary/10 rounded-2xl flex items-center justify-center">
                 <UtensilsCrossed className="w-6 h-6 text-primary" />
               </div>
-              <p className="text-xs font-bold text-foreground">Order Food</p>
+              <p className="text-xs font-bold text-foreground">{CUSTOMER_TEXT.QUICK_ACTIONS.ORDER_FOOD}</p>
             </CardBody>
           </Card>
 
@@ -203,7 +204,7 @@ export function HomeScreen() {
               <div className="w-12 h-12 mx-auto mb-2 bg-accent/10 rounded-2xl flex items-center justify-center">
                 <Calendar className="w-6 h-6 text-accent" />
               </div>
-              <p className="text-xs font-bold text-foreground">Book Table</p>
+              <p className="text-xs font-bold text-foreground">{CUSTOMER_TEXT.QUICK_ACTIONS.BOOK_TABLE}</p>
             </CardBody>
           </Card>
 
@@ -212,14 +213,14 @@ export function HomeScreen() {
               <div className="w-12 h-12 mx-auto mb-2 bg-secondary/10 rounded-2xl flex items-center justify-center">
                 <Truck className="w-6 h-6 text-secondary" />
               </div>
-              <p className="text-xs font-bold text-foreground">Track Order</p>
+              <p className="text-xs font-bold text-foreground">{CUSTOMER_TEXT.QUICK_ACTIONS.TRACK_ORDER}</p>
             </CardBody>
           </Card>
         </div>
 
         {/* Categories Grid */}
         <div>
-          <h3 className="text-xl font-black text-foreground mb-4">Categories</h3>
+          <h3 className="text-xl font-black text-foreground mb-4">{CUSTOMER_TEXT.CATEGORIES}</h3>
           <div className="grid grid-cols-4 gap-3">
             {[
               { name: 'Starters', icon: '🥗', color: 'bg-red-100', category: 'Starters' },
@@ -252,8 +253,8 @@ export function HomeScreen() {
         {/* Bestsellers Section */}
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-black text-foreground">Bestsellers</h3>
-            <button onClick={() => onNavigate('menu')} className="text-sm text-primary font-bold hover:underline">See All</button>
+            <h3 className="text-xl font-black text-foreground">{CUSTOMER_TEXT.BESTSELLERS}</h3>
+            <button onClick={() => onNavigate('menu')} className="text-sm text-primary font-bold hover:underline">{CUSTOMER_TEXT.SEE_ALL}</button>
           </div>
 
           <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 scrollbar-hide">
@@ -279,7 +280,7 @@ export function HomeScreen() {
                       {item.veg ? <VegBadge /> : <div className="inline-flex items-center justify-center w-5 h-5 border-2 border-red-600 rounded"><div className="w-2 h-2 bg-red-600 rounded-full"></div></div>}
                     </div>
                     <div className="flex items-center justify-between mt-4">
-                      <span className="font-black text-primary">₹{item.price}</span>
+                      <span className="font-black text-primary">{COMMON_TEXT.CURRENCY_SYMBOL}{item.price}</span>
                       {item.is_available ? (
                         <button
                           onClick={(e) => {

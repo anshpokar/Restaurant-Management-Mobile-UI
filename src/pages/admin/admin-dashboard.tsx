@@ -4,6 +4,8 @@ import { Card, CardBody } from '@/components/design-system/card';
 import { Button } from '@/components/design-system/button';
 import { TrendingUp, TrendingDown, ShoppingBag, DollarSign, Users, Calendar, Star, Tag, Plus, Trash2, RefreshCw } from 'lucide-react';
 import { supabase, type MenuItem, type Offer } from '@/lib/supabase';
+import { ADMIN_TEXT, COMMON_TEXT } from '@/constants/text';
+import { startOfDay, endOfDay } from 'date-fns';
 
 export function AdminDashboard() {
   const [specials, setSpecials] = useState<MenuItem[]>([]);
@@ -11,28 +13,89 @@ export function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [isAddingOffer, setIsAddingOffer] = useState(false);
   const [newOffer, setNewOffer] = useState({ title: '', description: '', discount_code: '' });
+  const [stats, setStats] = useState({
+    ordersCount: 0,
+    revenue: 0,
+    activeTables: 0,
+    totalTables: 0,
+    bookingsCount: 0
+  });
 
   useEffect(() => {
     fetchData();
   }, []);
 
+  const fetchKpis = async () => {
+    try {
+      const today = new Date();
+      const start = startOfDay(today).toISOString();
+      const end = endOfDay(today).toISOString();
+
+      // 1. Today's Orders
+      const { count: ordersCount } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', start)
+        .lte('created_at', end);
+
+      // 2. Today's Revenue
+      const { data: revenueData } = await supabase
+        .from('orders')
+        .select('total_amount')
+        .eq('is_paid', true)
+        .gte('created_at', start)
+        .lte('created_at', end);
+
+      const totalRevenue = revenueData?.reduce((acc, curr) => acc + curr.total_amount, 0) || 0;
+
+      // 3. Active Tables
+      const { data: tablesData } = await supabase
+        .from('restaurant_tables')
+        .select('status');
+
+      const activeTables = tablesData?.filter(t => t.status === 'occupied').length || 0;
+      const totalTables = tablesData?.length || 0;
+
+      // 4. Bookings
+      const dateStr = today.toISOString().split('T')[0];
+      const { count: bookingsCount } = await supabase
+        .from('table_bookings')
+        .select('*', { count: 'exact', head: true })
+        .eq('booking_date', dateStr);
+
+      setStats({
+        ordersCount: ordersCount || 0,
+        revenue: totalRevenue,
+        activeTables,
+        totalTables,
+        bookingsCount: bookingsCount || 0
+      });
+    } catch (error) {
+      console.error('Error fetching KPIs:', error);
+    }
+  };
+
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch Specials
-      const { data: specialsData } = await supabase
-        .from('menu_items')
-        .select('*')
-        .eq('is_special', true);
+      await Promise.all([
+        // Fetch Specials
+        supabase
+          .from('menu_items')
+          .select('*')
+          .eq('is_special', true)
+          .then(({ data }) => setSpecials(data || [])),
 
-      // Fetch Offers
-      const { data: offersData } = await supabase
-        .from('offers')
-        .select('*')
-        .order('created_at', { ascending: false });
+        // Fetch Offers
+        supabase
+          .from('offers')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .then(({ data }) => setOffers(data || [])),
 
-      setSpecials(specialsData || []);
-      setOffers(offersData || []);
+        // Fetch KPIs
+        fetchKpis()
+      ]);
     } catch (error) {
       console.error('Error fetching admin data:', error);
     } finally {
@@ -79,15 +142,15 @@ export function AdminDashboard() {
     }
   };
   const kpis = [
-    { label: "Today's Orders", value: '47', change: '+12%', trend: 'up', icon: ShoppingBag, color: 'text-blue-600', bg: 'bg-blue-100' },
-    { label: 'Revenue', value: '₹23,450', change: '+8%', trend: 'up', icon: DollarSign, color: 'text-green-600', bg: 'bg-green-100' },
-    { label: 'Active Tables', value: '8/12', change: '4 vacant', trend: 'neutral', icon: Users, color: 'text-purple-600', bg: 'bg-purple-100' },
-    { label: 'Bookings', value: '15', change: '+5 new', trend: 'up', icon: Calendar, color: 'text-orange-600', bg: 'bg-orange-100' },
+    { label: ADMIN_TEXT.KPIS.TODAYS_ORDERS, value: stats.ordersCount.toString(), change: '+12%', trend: 'up', icon: ShoppingBag, color: 'text-blue-600', bg: 'bg-blue-100' },
+    { label: ADMIN_TEXT.KPIS.REVENUE, value: `${COMMON_TEXT.CURRENCY_SYMBOL}${stats.revenue.toLocaleString()}`, change: '+8%', trend: 'up', icon: DollarSign, color: 'text-green-600', bg: 'bg-green-100' },
+    { label: ADMIN_TEXT.KPIS.ACTIVE_TABLES, value: `${stats.activeTables}/${stats.totalTables}`, change: `${stats.totalTables - stats.activeTables} vacant`, trend: 'neutral', icon: Users, color: 'text-purple-600', bg: 'bg-purple-100' },
+    { label: ADMIN_TEXT.KPIS.BOOKINGS, value: stats.bookingsCount.toString(), change: '+5 new', trend: 'up', icon: Calendar, color: 'text-orange-600', bg: 'bg-orange-100' },
   ];
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      <AppHeader title="Admin Dashboard" />
+      <AppHeader title={ADMIN_TEXT.DASHBOARD_TITLE} />
 
       <div className="px-4 py-4 space-y-8">
         {/* KPI Cards */}
@@ -119,7 +182,7 @@ export function AdminDashboard() {
         <div>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-black text-foreground flex items-center gap-2">
-              <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" /> Today's Specials
+              <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" /> {ADMIN_TEXT.TODAYS_SPECIALS_TITLE}
             </h3>
             <button onClick={fetchData} className="p-2 hover:bg-muted rounded-full">
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -127,7 +190,7 @@ export function AdminDashboard() {
           </div>
           <div className="space-y-3">
             {specials.length === 0 ? (
-              <p className="text-sm text-muted-foreground italic">No items set as Today's Special.</p>
+              <p className="text-sm text-muted-foreground italic">{ADMIN_TEXT.NO_SPECIALS}</p>
             ) : (
               specials.map(item => (
                 <Card key={item.id} className="border-none shadow-sm bg-yellow-50/30">
@@ -136,7 +199,7 @@ export function AdminDashboard() {
                       <span className="text-2xl">{item.image}</span>
                       <div>
                         <p className="font-bold text-sm text-foreground">{item.name}</p>
-                        <p className="text-xs text-muted-foreground">₹{item.price}</p>
+                        <p className="text-xs text-muted-foreground">{COMMON_TEXT.CURRENCY_SYMBOL}{item.price}</p>
                       </div>
                     </div>
                     <button
@@ -159,10 +222,10 @@ export function AdminDashboard() {
         <div>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-black text-foreground flex items-center gap-2">
-              <Tag className="w-5 h-5 text-primary" /> Active Offers
+              <Tag className="w-5 h-5 text-primary" /> {ADMIN_TEXT.ACTIVE_OFFERS_TITLE}
             </h3>
             <Button size="sm" onClick={() => setIsAddingOffer(true)}>
-              <Plus className="w-4 h-4 mr-1" /> New
+              <Plus className="w-4 h-4 mr-1" /> {COMMON_TEXT.CREATE.toLowerCase() === 'create' ? 'New' : COMMON_TEXT.CREATE}
             </Button>
           </div>
 
@@ -194,7 +257,7 @@ export function AdminDashboard() {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
             <Card className="w-full max-w-sm">
               <CardBody className="p-6 space-y-4">
-                <h3 className="text-lg font-black">Create New Offer</h3>
+                <h3 className="text-lg font-black">{ADMIN_TEXT.CREATE_NEW_OFFER}</h3>
                 <form onSubmit={handleAddOffer} className="space-y-4">
                   <div className="space-y-1">
                     <label className="text-xs font-bold uppercase text-muted-foreground">Title</label>
@@ -227,8 +290,8 @@ export function AdminDashboard() {
                     />
                   </div>
                   <div className="flex gap-3">
-                    <Button type="button" variant="outline" className="flex-1" onClick={() => setIsAddingOffer(false)}>Cancel</Button>
-                    <Button type="submit" className="flex-[2]">Create Offer</Button>
+                    <Button type="button" variant="outline" className="flex-1" onClick={() => setIsAddingOffer(false)}>{COMMON_TEXT.CANCEL}</Button>
+                    <Button type="submit" className="flex-[2]">{ADMIN_TEXT.NEW_OFFER}</Button>
                   </div>
                 </form>
               </CardBody>
