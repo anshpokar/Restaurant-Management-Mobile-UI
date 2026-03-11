@@ -34,6 +34,9 @@ import { ChefDashboard } from '@/pages/chef/chef-dashboard';
 import { WaiterApp } from '@/pages/waiter/waiter-app';
 import { WaiterDashboard } from '@/pages/waiter/waiter-dashboard';
 import { WaiterOrdering } from '@/pages/waiter/waiter-ordering';
+import { WaiterTableSelectionScreen } from '@/pages/waiter/table-selection-screen';
+import { WaiterCustomerInfoScreen } from '@/pages/waiter/customer-info-screen';
+import { WaiterTakeOrderScreen } from '@/pages/waiter/take-order-screen';
 
 // Delivery Screens
 import { DeliveryApp } from '@/pages/delivery/delivery-app';
@@ -123,8 +126,11 @@ export function AppRoutes({ userRole, userProfile, isLoadingAuth, handleLogout }
                     <WaiterApp onLogout={handleLogout} profile={userProfile} />
                 </ProtectedRoute>
             }>
-                <Route index element={<Navigate to="/waiter/dashboard" replace />} />
+                <Route index element={<Navigate to="/waiter/tables" replace />} />
                 <Route path="dashboard" element={<WaiterDashboard />} />
+                <Route path="tables" element={<WaiterTableSelectionScreen />} />
+                <Route path="customer-info/:tableId" element={<WaiterCustomerInfoScreen />} />
+                <Route path="take-order/:tableId" element={<WaiterTakeOrderScreen />} />
                 <Route path="ordering/:tableId" element={<WaiterOrdering />} />
             </Route>
 

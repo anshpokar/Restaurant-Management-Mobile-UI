@@ -1,208 +1,372 @@
 import { useState, useEffect } from 'react';
-import { useOutletContext } from 'react-router-dom';
 import { AppHeader } from '@/components/design-system/app-header';
 import { Card, CardBody } from '@/components/design-system/card';
 import { Button } from '@/components/design-system/button';
 import { Badge } from '@/components/design-system/badge';
-import {
-    LogOut,
-    Flame,
-    Utensils,
-    Timer,
-    RefreshCw,
-    ChefHat,
-    CheckCircle2
-} from 'lucide-react';
-import { supabase, type Order, type Profile } from '@/lib/supabase';
+import { supabase, type Profile, getStoredUser } from '@/lib/supabase';
+import { Clock, ChefHat, Bell, CheckCircle2, Timer, Utensils } from 'lucide-react';
 
-export function ChefDashboard() {
-    const { onLogout } = useOutletContext<{ onLogout: () => void, profile: Profile | null }>();
-    const [orders, setOrders] = useState<Order[]>([]);
-    const [loading, setLoading] = useState(false);
+interface OrderItem {
+  id: string;
+  name: string;
+  quantity: number;
+  price: number;
+  image: string;
+  special_instructions?: string;
+  spice_level?: string;
+}
 
-    useEffect(() => {
-        fetchActiveOrders();
+interface Order {
+  id: string;
+  table_number: number;
+  customer_name: string;
+  customer_email?: string;
+  total_amount: number;
+  status: string;
+  created_at: string;
+  order_items: OrderItem[];
+  elapsed_minutes: number;
+}
 
-        const subscription = supabase
-            .channel('chef-orders')
-            .on('postgres_changes' as any, { event: '*', table: 'orders' }, () => {
-                fetchActiveOrders();
-            })
-            .subscribe();
+export function ChefDashboardScreen() {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<'all' | 'pending' | 'preparing' | 'ready'>('all');
+  const [audioPermission, setAudioPermission] = useState(false);
 
-        return () => {
-            subscription.unsubscribe();
-        };
-    }, []);
+  useEffect(() => {
+    fetchOrders();
 
-    const fetchActiveOrders = async () => {
-        setLoading(true);
-        try {
-            const { data, error } = await supabase
-                .from('orders')
-                .select(`
+    // Real-time subscription for new orders
+    const subscription = supabase
+      .channel('chef-orders')
+      .on('postgres_changes' as any, 
+        { event: 'INSERT', table: 'orders', schema: 'public' },
+        async (payload) => {
+          console.log('New order received!', payload);
+          await fetchOrders();
+          playNotificationSound();
+        }
+      )
+      .on('postgres_changes' as any,
+        { event: 'UPDATE', table: 'orders', schema: 'public' },
+        async () => {
+          await fetchOrders();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const fetchOrders = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
           *,
-          profiles (full_name),
-          order_items (*),
-          restaurant_tables (table_number)
+          restaurant_tables (
+            table_number
+          ),
+          order_items (*)
         `)
-                .in('status', ['placed', 'preparing', 'cooking'])
-                .order('created_at', { ascending: true });
+        .eq('order_type', 'dine_in')
+        .neq('status', 'delivered')
+        .order('created_at', { ascending: false });
 
-            if (error) throw error;
-            setOrders(data || []);
-        } catch (error) {
-            console.error('Error fetching orders:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+      if (error) throw error;
 
-    const updateOrderStatus = async (orderId: string, status: Order['status']) => {
-        try {
-            const { error } = await supabase
-                .from('orders')
-                .update({ status })
-                .eq('id', orderId);
+      // Transform data
+      const transformedOrders = data?.map(order => ({
+        ...order,
+        table_number: (order.restaurant_tables as any)?.table_number || 0,
+        elapsed_minutes: Math.floor((Date.now() - new Date(order.created_at).getTime()) / 60000)
+      })) || [];
 
-            if (error) throw error;
-            fetchActiveOrders();
-        } catch (error) {
-            console.error('Error updating status:', error);
-            alert('Failed to update status');
-        }
-    };
+      setOrders(transformedOrders);
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    return (
-        <div className="flex-1 flex flex-col">
-            <AppHeader
-                title="Kitchen Dashboard"
-                actions={
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={fetchActiveOrders}
-                            className="p-2 hover:bg-muted rounded-full transition-colors"
-                            title="Refresh Orders"
-                        >
-                            <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-                        </button>
-                        <button
-                            onClick={onLogout}
-                            className="lg:hidden p-2 text-destructive hover:bg-destructive/10 rounded-full transition-colors"
-                            title="Logout"
-                        >
-                            <LogOut className="w-5 h-5" />
-                        </button>
-                    </div>
-                }
-            />
+  const playNotificationSound = async () => {
+    if (!audioPermission) return;
+    
+    try {
+      const audio = new Audio('/notification-sound.mp3');
+      await audio.play();
+    } catch (error) {
+      console.log('Could not play sound:', error);
+    }
+  };
 
-            <div className="flex-1 p-4 lg:p-8 overflow-y-auto">
-                <div className="max-w-7xl mx-auto space-y-6">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h2 className="text-2xl font-black text-foreground flex items-center gap-2">
-                                <ChefHat className="text-primary lg:hidden" /> Active Kitchen Orders
-                            </h2>
-                            <p className="text-muted-foreground">Manage ongoing preparations</p>
-                        </div>
-                        <div className="flex gap-4">
-                            <div className="bg-card px-4 py-2 rounded-2xl shadow-sm border border-border text-center min-w-[100px]">
-                                <p className="text-xs font-bold text-muted-foreground uppercase">New</p>
-                                <p className="text-xl font-black text-primary">
-                                    {orders.filter(o => o.status === 'placed').length}
-                                </p>
-                            </div>
-                            <div className="bg-card px-4 py-2 rounded-2xl shadow-sm border border-border text-center min-w-[100px]">
-                                <p className="text-xs font-bold text-muted-foreground uppercase">In Progress</p>
-                                <p className="text-xl font-black text-orange-500">
-                                    {orders.filter(o => o.status === 'preparing' || o.status === 'cooking').length}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+  const updateOrderStatus = async (orderId: string, newStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: newStatus })
+        .eq('id', orderId);
 
-                    {orders.length === 0 && !loading ? (
-                        <div className="flex flex-col items-center justify-center py-20 text-muted-foreground/40">
-                            <Utensils className="w-20 h-20 mb-4" />
-                            <p className="text-xl font-bold">Kitchen is clear!</p>
-                            <p>No active orders to prepare.</p>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            {orders.map((order) => (
-                                <Card key={order.id} className="border-none shadow-xl overflow-hidden group">
-                                    <div className={`h-2 ${order.status === 'placed' ? 'bg-primary' :
-                                        order.status === 'preparing' ? 'bg-orange-400' :
-                                            'bg-orange-600 animate-pulse'
-                                        }`} />
-                                    <CardBody className="p-6 space-y-4">
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <p className="text-xs font-black text-muted-foreground uppercase tracking-widest">
-                                                    Order #{order.id.slice(0, 5)}
-                                                </p>
-                                                <h4 className="font-bold text-lg text-foreground">
-                                                    {order.restaurant_tables ? `Table ${order.restaurant_tables.table_number}` : (order.profiles?.full_name || 'Customer')}
-                                                </h4>
-                                                {order.table_id && (
-                                                    <span className="text-[10px] font-black text-primary uppercase tracking-widest bg-primary/10 px-2 py-0.5 rounded-full">
-                                                        Dine-in
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <Badge variant={
-                                                order.status === 'placed' ? 'info' :
-                                                    order.status === 'preparing' ? 'warning' : 'error'
-                                            }>
-                                                {order.status.toUpperCase()}
-                                            </Badge>
-                                        </div>
+      if (error) throw error;
 
-                                        <div className="space-y-2 py-4 border-y border-divider">
-                                            {order.order_items?.map((item) => (
-                                                <div key={item.id} className="flex justify-between items-center">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="font-black text-primary">x{item.quantity}</span>
-                                                        <span className="font-medium text-foreground">{item.name}</span>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
+      await fetchOrders();
+      
+      // Show success feedback
+      alert(`Order status updated to ${newStatus}`);
+    } catch (error: any) {
+      console.error('Error updating order:', error);
+      alert('Failed to update order status');
+    }
+  };
 
-                                        <div className="flex flex-wrap gap-2 pt-2">
-                                            {order.status === 'placed' && (
-                                                <Button
-                                                    className="flex-1 bg-orange-400 hover:bg-orange-500"
-                                                    onClick={() => updateOrderStatus(order.id, 'preparing')}
-                                                >
-                                                    <Timer className="w-4 h-4 mr-2" /> Start Preparing
-                                                </Button>
-                                            )}
-                                            {order.status === 'preparing' && (
-                                                <Button
-                                                    className="flex-1 bg-orange-600 hover:bg-orange-700"
-                                                    onClick={() => updateOrderStatus(order.id, 'cooking')}
-                                                >
-                                                    <Flame className="w-4 h-4 mr-2" /> Start Cooking
-                                                </Button>
-                                            )}
-                                            {order.status === 'cooking' && (
-                                                <Button
-                                                    className="flex-1 bg-green-500 hover:bg-green-600"
-                                                    onClick={() => updateOrderStatus(order.id, 'prepared')}
-                                                >
-                                                    <CheckCircle2 className="w-4 h-4 mr-2" /> Ready/Prepared
-                                                </Button>
-                                            )}
-                                        </div>
-                                    </CardBody>
-                                </Card>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            </div>
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'placed':
+        return 'bg-blue-500 text-white';
+      case 'preparing':
+        return 'bg-yellow-500 text-white';
+      case 'prepared':
+        return 'bg-green-500 text-white';
+      default:
+        return 'bg-gray-500 text-white';
+    }
+  };
+
+  const getStatusBadgeVariant = (status: string) => {
+    switch (status) {
+      case 'placed':
+        return 'info';
+      case 'preparing':
+        return 'warning';
+      case 'prepared':
+        return 'success';
+      default:
+        return 'info';
+    }
+  };
+
+  const filteredOrders = filter === 'all' 
+    ? orders 
+    : orders.filter(order => order.status === filter);
+
+  const stats = {
+    pending: orders.filter(o => o.status === 'placed').length,
+    preparing: orders.filter(o => o.status === 'preparing').length,
+    ready: orders.filter(o => o.status === 'prepared').length
+  };
+
+  return (
+    <div className="min-h-screen bg-background pb-4">
+      <AppHeader title="Kitchen Dashboard" />
+
+      <div className="px-4 py-4 space-y-4">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-3 gap-3">
+          <Card>
+            <CardBody className="p-3 text-center">
+              <div className="w-8 h-8 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-2">
+                <Clock className="w-4 h-4 text-blue-600" />
+              </div>
+              <p className="text-2xl font-bold text-foreground">{stats.pending}</p>
+              <p className="text-xs text-muted-foreground">Pending</p>
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardBody className="p-3 text-center">
+              <div className="w-8 h-8 bg-yellow-500/10 rounded-full flex items-center justify-center mx-auto mb-2">
+                <Timer className="w-4 h-4 text-yellow-600" />
+              </div>
+              <p className="text-2xl font-bold text-foreground">{stats.preparing}</p>
+              <p className="text-xs text-muted-foreground">Preparing</p>
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardBody className="p-3 text-center">
+              <div className="w-8 h-8 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-2">
+                <CheckCircle2 className="w-4 h-4 text-green-600" />
+              </div>
+              <p className="text-2xl font-bold text-foreground">{stats.ready}</p>
+              <p className="text-xs text-muted-foreground">Ready</p>
+            </CardBody>
+          </Card>
         </div>
-    );
+
+        {/* Enable Sound Toggle */}
+        <div className="flex items-center justify-between bg-surface p-3 rounded-xl border">
+          <div className="flex items-center gap-2">
+            <Bell className={`w-5 h-5 ${audioPermission ? 'text-green-600' : 'text-muted-foreground'}`} />
+            <span className="text-sm font-medium">Notification Sound</span>
+          </div>
+          <button
+            onClick={() => setAudioPermission(!audioPermission)}
+            className={`relative w-12 h-6 rounded-full transition-colors ${
+              audioPermission ? 'bg-green-600' : 'bg-divider'
+            }`}
+          >
+            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
+              audioPermission ? 'left-7' : 'left-1'
+            }`} />
+          </button>
+        </div>
+
+        {/* Filter Tabs */}
+        <div className="flex gap-2">
+          {(['all', 'pending', 'preparing', 'ready'] as const).map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`flex-1 px-3 py-2 rounded-xl text-sm font-bold transition-all ${
+                filter === f
+                  ? 'bg-primary text-white shadow-md'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              }`}
+            >
+              {f.charAt(0).toUpperCase() + f.slice(1)}
+              {f !== 'all' && (
+                <span className="ml-1 text-xs opacity-80">
+                  ({stats[f as keyof typeof stats]})
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Orders Queue */}
+        {loading ? (
+          <div className="text-center py-10 text-muted-foreground">Loading orders...</div>
+        ) : filteredOrders.length === 0 ? (
+          <div className="text-center py-10 bg-surface rounded-2xl border border-dashed">
+            <ChefHat className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-20" />
+            <p className="text-sm font-medium text-foreground">No orders in this section</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {filter === 'all' ? 'Waiting for new orders...' : `No ${filter} orders`}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredOrders.map((order) => (
+              <Card key={order.id} className="border-l-4 border-l-primary">
+                <CardBody className="p-4 space-y-3">
+                  {/* Header */}
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center">
+                        <Utensils className="w-6 h-6 text-primary" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-lg text-foreground">
+                            Table {order.table_number}
+                          </h3>
+                          <Badge variant={getStatusBadgeVariant(order.status)}>
+                            {order.status.toUpperCase()}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {order.customer_name}
+                          {order.customer_email && ' ✓'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-black text-primary">₹{order.total_amount}</p>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Clock className="w-3 h-3" />
+                        {order.elapsed_minutes}m ago
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Order Items */}
+                  <div className="bg-surface rounded-xl p-3 space-y-2">
+                    {order.order_items.map((item, idx) => (
+                      <div key={idx} className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-foreground">{item.quantity}x</span>
+                            <span className="text-foreground">{item.name}</span>
+                          </div>
+                          {item.special_instructions && (
+                            <p className="text-xs text-orange-600 mt-1">
+                              📝 {item.special_instructions}
+                            </p>
+                          )}
+                          {item.spice_level && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <div className={`w-2 h-2 rounded-full ${
+                                item.spice_level === 'mild' ? 'bg-green-500' :
+                                item.spice_level === 'medium' ? 'bg-yellow-500' :
+                                item.spice_level === 'spicy' ? 'bg-orange-500' :
+                                'bg-red-500'
+                              }`} />
+                              <span className="text-xs text-muted-foreground capitalize">
+                                {item.spice_level.replace('_', ' ')}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-2 pt-2 border-t border-divider">
+                    {order.status === 'placed' && (
+                      <>
+                        <Button
+                          onClick={() => updateOrderStatus(order.id, 'preparing')}
+                          className="flex-1"
+                          size="sm"
+                        >
+                          Start Preparing
+                        </Button>
+                        <Button
+                          onClick={() => updateOrderStatus(order.id, 'prepared')}
+                          variant="outline"
+                          size="sm"
+                        >
+                          Mark Ready
+                        </Button>
+                      </>
+                    )}
+                    
+                    {order.status === 'preparing' && (
+                      <Button
+                        onClick={() => updateOrderStatus(order.id, 'prepared')}
+                        className="w-full"
+                        size="sm"
+                      >
+                        <CheckCircle2 className="w-4 h-4 mr-2" />
+                        Ready to Serve
+                      </Button>
+                    )}
+
+                    {order.status === 'prepared' && (
+                      <div className="w-full text-center text-green-600 text-sm font-medium py-2">
+                        ✓ Ready for serving
+                      </div>
+                    )}
+                  </div>
+                </CardBody>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* Instructions */}
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+          <p className="text-sm font-medium text-blue-900">
+            💡 Pro Tip: Update order status promptly so waiters know when to serve.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 }
