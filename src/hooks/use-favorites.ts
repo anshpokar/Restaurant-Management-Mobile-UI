@@ -1,18 +1,21 @@
 import { useState, useEffect } from 'react';
-import { supabase, type Favorite } from '@/lib/supabase';
+import { supabase, type Favorite, getStoredUser } from '@/lib/supabase';
 
 export function useFavorites(userId: string | null) {
     const [favorites, setFavorites] = useState<Favorite[]>([]);
     const [loading, setLoading] = useState(false);
 
+    // Get userId from stored data if not provided
+    const effectiveUserId = userId || getStoredUser()?.id || null;
+
     useEffect(() => {
-        if (userId) {
+        if (effectiveUserId) {
             fetchFavorites();
         }
-    }, [userId]);
+    }, [effectiveUserId]);
 
     const fetchFavorites = async () => {
-        if (!userId) return;
+        if (!effectiveUserId) return;
         
         setLoading(true);
         try {
@@ -22,7 +25,7 @@ export function useFavorites(userId: string | null) {
                     *,
                     menu_items (*)
                 `)
-                .eq('user_id', userId)
+                .eq('user_id', effectiveUserId)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -35,12 +38,12 @@ export function useFavorites(userId: string | null) {
     };
 
     const addToFavorites = async (menuItemId: number) => {
-        if (!userId) return;
+        if (!effectiveUserId) return;
 
         try {
             const { data, error } = await supabase
                 .from('favorites')
-                .insert([{ user_id: userId, menu_item_id: menuItemId }])
+                .insert([{ user_id: effectiveUserId, menu_item_id: menuItemId }])
                 .select()
                 .single();
 
@@ -62,7 +65,8 @@ export function useFavorites(userId: string | null) {
             const { error } = await supabase
                 .from('favorites')
                 .delete()
-                .eq('id', favoriteId);
+                .eq('id', favoriteId)
+                .eq('user_id', effectiveUserId); // Ensure user owns this favorite
 
             if (error) throw error;
             setFavorites(prev => prev.filter(f => f.id !== favoriteId));

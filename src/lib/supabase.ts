@@ -162,3 +162,17 @@ export interface SupportTicket {
   created_at: string;
   updated_at: string;
 }
+
+// Helper function to get stored user data from localStorage
+export function getStoredUser() {
+  const stored = localStorage.getItem('userProfile');
+  if (stored) {
+    try {
+      return JSON.parse(stored);
+    } catch (e) {
+      console.error('Error parsing stored user profile:', e);
+      return null;
+    }
+  }
+  return null;
+}

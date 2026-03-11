@@ -10,6 +10,8 @@ export function useAuth() {
     const [isLoadingAuth, setIsLoadingAuth] = useState(true);
 
     useEffect(() => {
+        let isMounted = true;
+
         const fetchAndSetProfile = async (userId: string, email?: string, fullName?: string) => {
             try {
                 const { data: profile, error } = await supabase
@@ -35,13 +37,17 @@ export function useAuth() {
                         .single();
 
                     if (!createError && newProfile) {
-                        setUserRole(newProfile.role);
-                        setUserProfile(newProfile);
+                        if (isMounted) {
+                            setUserRole(newProfile.role);
+                            setUserProfile(newProfile);
+                        }
                         return newProfile;
                     }
                 } else {
-                    setUserRole(profile.role);
-                    setUserProfile(profile);
+                    if (isMounted) {
+                        setUserRole(profile.role);
+                        setUserProfile(profile);
+                    }
                     return profile;
                 }
             } catch (err) {
@@ -61,17 +67,40 @@ export function useAuth() {
                         session.user.user_metadata?.full_name
                     );
 
-                    if (profile) {
+                    if (profile && isMounted) {
+                        // Store user data in localStorage for reuse
+                        const userData = {
+                            id: profile.id,
+                            email: profile.email,
+                            full_name: profile.full_name,
+                            username: profile.username,
+                            phone_number: profile.phone_number,
+                            role: profile.role
+                        };
+                        localStorage.setItem('userProfile', JSON.stringify(userData));
+                                        
                         // If on auth pages, redirect to dashboard
                         if (['/login', '/signup', '/forgot-password', '/'].includes(location.pathname)) {
                             navigate(`/${profile.role}`, { replace: true });
                         }
                     }
+                } else {
+                    // No session, but check if we have stale localStorage
+                    const storedProfile = localStorage.getItem('userProfile');
+                    if (storedProfile) {
+                        console.log('Clearing stale localStorage profile');
+                        localStorage.removeItem('userProfile');
+                    }
                 }
-            } catch (err) {
-                console.error("Auth init error:", err);
+            } catch (err: any) {
+                // Ignore abort errors as they're expected during hot reload
+                if (err.name !== 'AbortError') {
+                    console.error("Auth init error:", err);
+                }
             } finally {
-                setIsLoadingAuth(false);
+                if (isMounted) {
+                    setIsLoadingAuth(false);
+                }
             }
         };
 
@@ -88,8 +117,19 @@ export function useAuth() {
                     session.user.user_metadata?.full_name
                 );
 
-                if (profile) {
+                if (profile && isMounted) {
                     console.log("Profile resolved, navigating to:", profile.role);
+                    // Store user data in localStorage for reuse
+                    const userData = {
+                        id: profile.id,
+                        email: profile.email,
+                        full_name: profile.full_name,
+                        username: profile.username,
+                        phone_number: profile.phone_number,
+                        role: profile.role
+                    };
+                    localStorage.setItem('userProfile', JSON.stringify(userData));
+                    
                     // Only navigate if we are on an auth page
                     if (['/login', '/signup', '/forgot-password', '/'].includes(location.pathname)) {
                         navigate(`/${profile.role}`, { replace: true });
@@ -99,6 +139,7 @@ export function useAuth() {
                 console.log("User signed out, clearing state.");
                 setUserRole(null);
                 setUserProfile(null);
+                localStorage.removeItem('userProfile'); // Clear stored profile
                 if (!['/login', '/signup', '/forgot-password'].includes(location.pathname)) {
                     navigate('/login', { replace: true });
                 }
@@ -108,7 +149,10 @@ export function useAuth() {
             }
         });
 
-        return () => subscription.unsubscribe();
+        return () => {
+            isMounted = false;
+            subscription.unsubscribe();
+        };
     }, [navigate, location.pathname]);
 
     const handleLogout = async () => {

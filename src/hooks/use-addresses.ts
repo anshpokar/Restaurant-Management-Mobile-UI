@@ -1,25 +1,28 @@
 import { useState, useEffect } from 'react';
-import { supabase, type Address, type AddressInput } from '@/lib/supabase';
+import { supabase, type Address, type AddressInput, getStoredUser } from '@/lib/supabase';
 
 export function useAddresses(userId: string | null) {
     const [addresses, setAddresses] = useState<Address[]>([]);
     const [loading, setLoading] = useState(false);
 
+    // Get userId from stored data if not provided
+    const effectiveUserId = userId || getStoredUser()?.id || null;
+
     useEffect(() => {
-        if (userId) {
+        if (effectiveUserId) {
             fetchAddresses();
         }
-    }, [userId]);
+    }, [effectiveUserId]);
 
     const fetchAddresses = async () => {
-        if (!userId) return;
+        if (!effectiveUserId) return;
         
         setLoading(true);
         try {
             const { data, error } = await supabase
                 .from('addresses')
                 .select('*')
-                .eq('user_id', userId)
+                .eq('user_id', effectiveUserId)
                 .order('is_default', { ascending: false })
                 .order('created_at', { ascending: false });
 
@@ -33,7 +36,7 @@ export function useAddresses(userId: string | null) {
     };
 
     const addAddress = async (address: AddressInput) => {
-        if (!userId) return;
+        if (!effectiveUserId) return;
 
         try {
             // If this is set as default, unset other defaults
@@ -41,12 +44,12 @@ export function useAddresses(userId: string | null) {
                 await supabase
                     .from('addresses')
                     .update({ is_default: false })
-                    .eq('user_id', userId);
+                    .eq('user_id', effectiveUserId);
             }
 
             const { data, error } = await supabase
                 .from('addresses')
-                .insert([{ ...address, user_id: userId }])
+                .insert([{ ...address, user_id: effectiveUserId }])
                 .select()
                 .single();
 
@@ -66,7 +69,7 @@ export function useAddresses(userId: string | null) {
                 await supabase
                     .from('addresses')
                     .update({ is_default: false })
-                    .eq('user_id', userId)
+                    .eq('user_id', effectiveUserId)
                     .neq('id', id);
             }
 
@@ -74,6 +77,7 @@ export function useAddresses(userId: string | null) {
                 .from('addresses')
                 .update(updates)
                 .eq('id', id)
+                .eq('user_id', effectiveUserId) // Ensure user owns this address
                 .select()
                 .single();
 
@@ -91,7 +95,8 @@ export function useAddresses(userId: string | null) {
             const { error } = await supabase
                 .from('addresses')
                 .delete()
-                .eq('id', id);
+                .eq('id', id)
+                .eq('user_id', effectiveUserId); // Ensure user owns this address
 
             if (error) throw error;
             setAddresses(prev => prev.filter(a => a.id !== id));

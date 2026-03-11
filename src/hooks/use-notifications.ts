@@ -1,20 +1,28 @@
 import { useState, useEffect } from 'react';
-import { supabase, type Notification } from '@/lib/supabase';
+import { supabase, type Notification, getStoredUser } from '@/lib/supabase';
 
 export function useNotifications(userId: string | null) {
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [loading, setLoading] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
 
+    // Get userId from stored data if not provided
+    const effectiveUserId = userId || getStoredUser()?.id || null;
+
     useEffect(() => {
-        if (userId) {
+        if (effectiveUserId) {
             fetchNotifications();
             
             // Realtime subscription for new notifications
             const subscription = supabase
                 .channel('notifications')
-                .on('postgres_changes', 
-                    { event: 'INSERT', table: 'notifications', filter: `user_id=eq.${userId}` },
+                .on(
+                    'postgres_changes' as any,
+                    { 
+                        event: 'INSERT', 
+                        table: 'notifications', 
+                        filter: `user_id=eq.${effectiveUserId}` 
+                    },
                     () => {
                         fetchNotifications();
                     }
@@ -25,17 +33,17 @@ export function useNotifications(userId: string | null) {
                 subscription.unsubscribe();
             };
         }
-    }, [userId]);
+    }, [effectiveUserId]);
 
     const fetchNotifications = async () => {
-        if (!userId) return;
+        if (!effectiveUserId) return;
         
         setLoading(true);
         try {
             const { data, error } = await supabase
                 .from('notifications')
                 .select('*')
-                .eq('user_id', userId)
+                .eq('user_id', effectiveUserId)
                 .order('created_at', { ascending: false })
                 .limit(50);
 
@@ -57,7 +65,8 @@ export function useNotifications(userId: string | null) {
             const { error } = await supabase
                 .from('notifications')
                 .update({ is_read: true })
-                .eq('id', notificationId);
+                .eq('id', notificationId)
+                .eq('user_id', effectiveUserId);
 
             if (error) throw error;
             setNotifications(prev => 
@@ -74,7 +83,7 @@ export function useNotifications(userId: string | null) {
             const { error } = await supabase
                 .from('notifications')
                 .update({ is_read: true })
-                .eq('user_id', userId)
+                .eq('user_id', effectiveUserId)
                 .eq('is_read', false);
 
             if (error) throw error;
@@ -90,12 +99,14 @@ export function useNotifications(userId: string | null) {
             const { error } = await supabase
                 .from('notifications')
                 .delete()
-                .eq('id', notificationId);
+                .eq('id', notificationId)
+                .eq('user_id', effectiveUserId);
 
             if (error) throw error;
             setNotifications(prev => prev.filter(n => n.id !== notificationId));
         } catch (error) {
             console.error('Error deleting notification:', error);
+            throw error;
         }
     };
 

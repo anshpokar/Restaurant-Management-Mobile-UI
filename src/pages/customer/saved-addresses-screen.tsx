@@ -22,9 +22,6 @@ export function SavedAddressesScreen() {
     is_default: false
   });
 
-  console.log('SavedAddressesScreen - Profile:', profile);
-  console.log('SavedAddressesScreen - Addresses:', addresses);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
