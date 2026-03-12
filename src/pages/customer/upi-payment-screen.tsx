@@ -43,6 +43,7 @@ export function PaymentScreen() {
   const [paymentStatus, setPaymentStatus] = useState('pending');
   const [expired, setExpired] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState<number>(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Fetch order or session details
   useEffect(() => {
@@ -73,8 +74,12 @@ export function PaymentScreen() {
 
   // Real-time subscription
   useEffect(() => {
+    console.log('Setting up real-time subscription for qrId:', qrId, 'current status:', paymentStatus);
+    
     if (qrId && paymentStatus === 'pending') {
       const unsubscribe = subscribeToUpiPayments(qrId, (updatedData) => {
+        console.log('Real-time update received:', updatedData);
+        
         setPaymentStatus(updatedData.status);
         
         if (updatedData.status === 'verified') {
@@ -85,7 +90,19 @@ export function PaymentScreen() {
         }
       });
 
-      return () => unsubscribe();
+      console.log('Real-time subscription active');
+      
+      // Fallback: Poll every 5 seconds in case real-time doesn't work
+      const pollInterval = setInterval(() => {
+        console.log('Polling for payment status...');
+        checkPaymentStatus();
+      }, 5000);
+      
+      return () => {
+        console.log('Cleaning up real-time subscription and polling');
+        unsubscribe();
+        clearInterval(pollInterval);
+      };
     }
   }, [qrId, paymentStatus, navigate]);
 
@@ -254,6 +271,36 @@ export function PaymentScreen() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const checkPaymentStatus = async () => {
+    if (!qrId) return;
+    
+    setIsRefreshing(true);
+    try {
+      const { data, error } = await supabase
+        .from('upi_payments')
+        .select('status')
+        .eq('id', qrId)
+        .single();
+      
+      if (error) throw error;
+      
+      console.log('Manual status check:', data);
+      
+      if (data.status !== paymentStatus) {
+        setPaymentStatus(data.status);
+        
+        if (data.status === 'verified') {
+          toast.success('Payment verified successfully!');
+          setTimeout(() => navigate('/customer/orders'), 2000);
+        }
+      }
+    } catch (error: any) {
+      console.error('Error checking payment status:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -295,6 +342,17 @@ export function PaymentScreen() {
               `Order #${order?.id.slice(0, 8)}`
             }
           </p>
+          {/* Manual refresh button */}
+          <Button 
+            onClick={checkPaymentStatus} 
+            variant="outline" 
+            size="sm"
+            disabled={isRefreshing || paymentStatus !== 'pending'}
+            className="mt-4"
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Check Status
+          </Button>
         </div>
 
         {/* Payment Summary */}
