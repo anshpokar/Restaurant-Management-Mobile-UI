@@ -58,7 +58,13 @@ export function useAuth() {
 
         const initializeAuth = async () => {
             try {
-                const { data: { session } } = await supabase.auth.getSession();
+                // Add timeout to prevent infinite loading
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Auth timeout')), 5000)
+                );
+                
+                const authPromise = supabase.auth.getSession();
+                const { data: { session } } = await Promise.race([authPromise, timeoutPromise]) as any;
 
                 if (session?.user) {
                     const profile = await fetchAndSetProfile(
@@ -75,7 +81,8 @@ export function useAuth() {
                             full_name: profile.full_name,
                             username: profile.username,
                             phone_number: profile.phone_number,
-                            role: profile.role
+                            role: profile.role,
+                            timestamp: Date.now() // Add timestamp for freshness check
                         };
                         localStorage.setItem('userProfile', JSON.stringify(userData));
                                         
@@ -88,13 +95,26 @@ export function useAuth() {
                     // No session, but check if we have stale localStorage
                     const storedProfile = localStorage.getItem('userProfile');
                     if (storedProfile) {
-                        console.log('Clearing stale localStorage profile');
-                        localStorage.removeItem('userProfile');
+                        try {
+                            const parsed = JSON.parse(storedProfile);
+                            // Clear if older than 24 hours or no valid session
+                            const isStale = !parsed.timestamp || Date.now() - parsed.timestamp > 86400000;
+                            if (isStale) {
+                                console.log('Clearing stale localStorage profile');
+                                localStorage.removeItem('userProfile');
+                            }
+                        } catch {
+                            // Invalid JSON, clear it
+                            localStorage.removeItem('userProfile');
+                        }
                     }
                 }
             } catch (err: any) {
-                // Ignore abort errors as they're expected during hot reload
-                if (err.name !== 'AbortError') {
+                // Handle timeout and abort errors gracefully
+                if (err.name === 'AbortError' || err.message === 'Auth timeout') {
+                    console.warn('Auth initialization timed out, clearing state');
+                    localStorage.removeItem('userProfile');
+                } else {
                     console.error("Auth init error:", err);
                 }
             } finally {
