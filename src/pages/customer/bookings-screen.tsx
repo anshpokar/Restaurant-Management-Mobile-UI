@@ -53,7 +53,7 @@ export function BookingsScreen({ hideHeader = false }: { hideHeader?: boolean })
         .from('table_bookings')
         .select(`
           *,
-          restaurant_tables (*)
+          restaurant_tables!inner (*)
         `)
         .eq('user_id', user.id)
         .order('booking_date', { ascending: false });

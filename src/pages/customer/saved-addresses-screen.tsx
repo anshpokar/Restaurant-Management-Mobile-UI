@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AppHeader } from '@/components/design-system/app-header';
 import { Card, CardBody } from '@/components/design-system/card';
 import { Button } from '@/components/design-system/button';
@@ -8,9 +9,10 @@ import { type Profile, type AddressInput } from '@/lib/supabase';
 import { useAddresses } from '@/hooks/use-addresses';
 
 export function SavedAddressesScreen() {
+  const navigate = useNavigate();
   const { profile } = useOutletContext<{ profile: Profile | null }>();
   const { addresses, loading, addAddress, deleteAddress, setDefaultAddress } = useAddresses(profile?.id || null);
-  const [isAdding, setIsAdding] = useState(false);
+  
   const [newAddress, setNewAddress] = useState<AddressInput>({
     address_label: 'Home',
     address_line1: '',
@@ -58,13 +60,13 @@ export function SavedAddressesScreen() {
 
       <div className="px-4 py-4 space-y-4">
         {/* Add Address Button */}
-        <Button onClick={() => setIsAdding(!isAdding)} className="w-full">
+        <Button onClick={() => navigate('/customer/delivery-address')} className='w-full'>
           <Plus className="w-4 h-4 mr-2" />
-          {isAdding ? 'Cancel' : 'Add New Address'}
+          Add New Address
         </Button>
 
-        {/* Add Address Form */}
-        {isAdding && (
+
+        {/* Removed inline form - now navigates to delivery-address route */}
           <Card>
             <CardBody className="p-4">
               <form onSubmit={handleSubmit} className="space-y-3">
@@ -164,7 +166,7 @@ export function SavedAddressesScreen() {
               </form>
             </CardBody>
           </Card>
-        )}
+        )
 
         {/* Addresses List */}
         {loading ? (
@@ -230,3 +232,8 @@ export function SavedAddressesScreen() {
     </div>
   );
 }
+
+function setIsAdding(arg0: boolean) {
+  throw new Error('Function not implemented.');
+}
+

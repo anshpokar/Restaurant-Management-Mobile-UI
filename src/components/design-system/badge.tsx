@@ -2,7 +2,7 @@ import React from 'react';
 import { Leaf, Drumstick } from 'lucide-react';
 
 interface BadgeProps {
-  variant?: 'veg' | 'nonveg' | 'success' | 'warning' | 'error' | 'info' | 'paid' | 'pending' | 'vacant' | 'occupied';
+  variant?: 'veg' | 'nonveg' | 'success' | 'warning' | 'error' | 'info' | 'paid' | 'pending' | 'vacant' | 'occupied' | 'destructive' | 'secondary';
   children?: React.ReactNode;
   size?: 'sm' | 'md';
 }
@@ -26,6 +26,8 @@ export function Badge({ variant = 'info', children, size = 'md' }: BadgeProps) {
     pending: 'bg-[#F59E0B] text-white',
     vacant: 'bg-[#16A34A] text-white',
     occupied: 'bg-[#DC2626] text-white',
+    destructive: 'bg-[#DC2626] text-white',
+    secondary: 'bg-gray-100 text-gray-700 border border-gray-300',
   };
   
   return (

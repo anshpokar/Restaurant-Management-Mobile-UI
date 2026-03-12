@@ -16,6 +16,9 @@ import { SavedAddressesScreen } from '@/pages/customer/saved-addresses-screen';
 import { FavoritesScreen } from '@/pages/customer/favorites-screen';
 import { NotificationsScreen } from '@/pages/customer/notifications-screen';
 import { HelpSupportScreen } from '@/pages/customer/help-support-screen';
+import { OrderTrackingScreen } from '@/pages/customer/order-tracking-screen';
+import { PaymentScreen } from '@/pages/customer/upi-payment-screen';
+import { CheckoutScreen } from '@/pages/customer/checkout-screen';
 
 // Admin Screens
 import { AdminApp } from '@/pages/admin/admin-app';
@@ -25,10 +28,12 @@ import { AdminMenu } from '@/pages/admin/admin-menu';
 import { AdminTables } from '@/pages/admin/admin-tables';
 import { AdminReports } from '@/pages/admin/admin-reports';
 import { AdminUserManagement } from '@/pages/admin/admin-user-management';
+import { DeliveryAssignmentScreen } from '@/pages/admin/delivery-assignment-screen';
+import { AdminUPIVerificationScreen } from '@/pages/admin/upi-verification-screen';
 
 // Chef Screens
 import { ChefApp } from '@/pages/chef/chef-app';
-import { ChefDashboard } from '@/pages/chef/chef-dashboard';
+import { ChefDashboardScreen } from '@/pages/chef/chef-dashboard';
 
 // Waiter Screens
 import { WaiterApp } from '@/pages/waiter/waiter-app';
@@ -40,9 +45,11 @@ import { WaiterTakeOrderScreen } from '@/pages/waiter/take-order-screen';
 
 // Delivery Screens
 import { DeliveryApp } from '@/pages/delivery/delivery-app';
-import { DeliveryTasks } from '@/pages/delivery/tasks-screen';
+import { DeliveryTasksScreen } from '@/pages/delivery/tasks-screen';
 import { DeliveryHistory } from '@/pages/delivery/history-screen';
 import { DeliveryProfile } from '@/pages/delivery/profile-screen';
+import { AddressPickerScreen } from '@/pages/delivery/address-picker-screen';
+import { LeafletAddressPicker } from '@/pages/delivery/leaflet-address-picker';
 
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { Profile, UserRole } from '@/lib/supabase';
@@ -98,11 +105,16 @@ export function AppRoutes({ userRole, userProfile, isLoadingAuth, handleLogout }
                 <Route path="menu" element={<MenuScreen />} />
                 <Route path="bookings" element={<BookingsScreen />} />
                 <Route path="orders" element={<OrdersScreen />} />
+                <Route path="checkout" element={<CheckoutScreen />} />
                 <Route path="profile" element={<ProfileScreen />} />
                 <Route path="addresses" element={<SavedAddressesScreen />} />
+                <Route path="delivery-address" element={<AddressPickerScreen />} />
+                <Route path="delivery-address-map" element={<LeafletAddressPicker />} /> {/* ✅ FREE Leaflet */}
                 <Route path="favorites" element={<FavoritesScreen />} />
                 <Route path="notifications" element={<NotificationsScreen />} />
                 <Route path="help-support" element={<HelpSupportScreen />} />
+                <Route path="track-order/:orderId" element={<OrderTrackingScreen />} />
+                <Route path="payment/:orderId" element={<PaymentScreen />} />
             </Route>
 
             {/* Admin Routes */}
@@ -118,6 +130,8 @@ export function AppRoutes({ userRole, userProfile, isLoadingAuth, handleLogout }
                 <Route path="tables" element={<AdminTables />} />
                 <Route path="reports" element={<AdminReports />} />
                 <Route path="users" element={<AdminUserManagement />} />
+                <Route path="delivery-assignment" element={<DeliveryAssignmentScreen />} />
+                <Route path="upi-verification" element={<AdminUPIVerificationScreen />} />
             </Route>
 
             {/* Waiter Routes */}
@@ -141,7 +155,7 @@ export function AppRoutes({ userRole, userProfile, isLoadingAuth, handleLogout }
                 </ProtectedRoute>
             }>
                 <Route index element={<Navigate to="/chef/dashboard" replace />} />
-                <Route path="dashboard" element={<ChefDashboard />} />
+                <Route path="dashboard" element={<ChefDashboardScreen />} />
             </Route>
 
             {/* Delivery Routes */}
@@ -151,7 +165,7 @@ export function AppRoutes({ userRole, userProfile, isLoadingAuth, handleLogout }
                 </ProtectedRoute>
             }>
                 <Route index element={<Navigate to="/delivery/tasks" replace />} />
-                <Route path="tasks" element={<DeliveryTasks />} />
+                <Route path="tasks" element={<DeliveryTasksScreen />} />
                 <Route path="history" element={<DeliveryHistory />} />
                 <Route path="profile" element={<DeliveryProfile />} />
             </Route>
@@ -161,3 +175,5 @@ export function AppRoutes({ userRole, userProfile, isLoadingAuth, handleLogout }
         </Routes>
     );
 }
+
+

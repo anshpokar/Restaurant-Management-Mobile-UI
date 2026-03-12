@@ -1,5 +1,29 @@
 import { createClient } from '@supabase/supabase-js';
 
+/**
+ * =====================================================
+ * SUPABASE CLIENT & TYPE DEFINITIONS
+ * =====================================================
+ * 
+ * Database Tables Covered:
+ * 1. profiles - User accounts and authentication
+ * 2. menu_items - Restaurant menu items
+ * 3. restaurant_tables - Dine-in table management
+ * 4. orders - Customer orders
+ * 5. order_items - Order line items
+ * 6. table_bookings - Table reservations
+ * 7. offers - Promotional offers
+ * 8. addresses - Customer saved delivery addresses
+ * 9. favorites - Customer favorite menu items
+ * 10. notifications - User notifications
+ * 11. support_tickets - Help & support tickets
+ * 12. upi_payments - UPI QR payment tracking (NEW)
+ * 13. delivery_person_locations - Delivery tracking (NEW)
+ * 14. delivery_config - Delivery configuration (NEW)
+ * 
+ * All interfaces are typed to match Supabase schema exactly.
+ */
+
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
@@ -161,6 +185,80 @@ export interface SupportTicket {
   resolved_at?: string;
   created_at: string;
   updated_at: string;
+}
+
+// UPI Payment interfaces
+export interface Upayment {
+  id: string;
+  order_id: string;
+  qr_id: string;
+  amount: number;
+  upi_link: string;
+  transaction_id?: string; // UTR number submitted by customer
+  status: 'pending' | 'verified' | 'failed' | 'expired';
+  expires_at: string;
+  verified_at?: string;
+  verified_by?: string; // Admin ID who verified
+  notes?: string; // Admin verification notes
+  created_at: string;
+  updated_at: string;
+  // Join data
+  orders?: Order;
+  profiles?: Profile; // Verified by admin
+}
+
+// Delivery configuration
+export interface DeliveryConfig {
+  id: string;
+  config_key: string;
+  config_value: string;
+  description?: string;
+  is_active: boolean;
+  updated_at: string;
+}
+
+// Delivery person location tracking
+export interface DeliveryPersonLocation {
+  id: string;
+  delivery_person_id: string;
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  recorded_at: string;
+  // Join data
+  profiles?: Profile;
+}
+
+// Cart item (temporary, not stored in database)
+export interface CartItem {
+  menu_item_id: number;
+  name: string;
+  quantity: number;
+  price: number;
+  image: string;
+  veg: boolean;
+}
+
+// Booking input type
+export interface TableBookingInput {
+  table_id: string;
+  booking_date: string;
+  booking_time: string;
+  guests_count: number;
+}
+
+// Order input type
+export interface OrderInput {
+  table_id?: string;
+  items: {
+    menu_item_id: number;
+    quantity: number;
+  }[];
+  total_amount: number;
+  delivery_address?: string;
+  delivery_latitude?: number;
+  delivery_longitude?: number;
+  delivery_pincode?: string;
 }
 
 // Helper function to get stored user data from localStorage

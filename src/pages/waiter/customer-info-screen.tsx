@@ -1,4 +1,4 @@
-YESimport { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AppHeader } from '@/components/design-system/app-header';
 import { Card, CardBody } from '@/components/design-system/card';
@@ -134,7 +134,7 @@ export function WaiterCustomerInfoScreen() {
 
     try {
       // If creating account for new customer
-      if (createAccount && customerEmail && !otpData?.existingCustomer) {
+      if (createAccount && customerEmail) {
         // Create quick account
         const tempPassword = Math.random().toString(36).slice(-8);
         
