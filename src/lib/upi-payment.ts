@@ -53,10 +53,11 @@ export const createUPIPayment = async (
       .from('upi_payments')
       .select('*')
       .eq('order_id', paymentId)
+      .eq('status', 'pending')  // Only find PENDING payments
       .single();
     
     if (existing) {
-      // Update existing record
+      // Update existing PENDING record
       console.log('Updating existing UPI payment record:', existing.id);
       
       const { data, error: updateError } = await supabase
@@ -73,6 +74,7 @@ export const createUPIPayment = async (
           updated_at: new Date().toISOString()
         })
         .eq('order_id', paymentId)
+        .eq('status', 'pending')  // Only update if still pending
         .select()
         .single();
       
@@ -198,6 +200,8 @@ export const verifyUPIPayment = async (
 
     // Try to update orders table first (for regular orders)
     try {
+      console.log('Attempting to update orders table with order_id:', upiPayment.order_id);
+      
       const { error: orderError } = await supabase
         .from('orders')
         .update({
@@ -210,10 +214,11 @@ export const verifyUPIPayment = async (
         .eq('id', upiPayment.order_id);
 
       if (orderError) {
-        console.log('Order update failed, might be a session:', orderError.message);
+        console.log('Order update failed:', orderError.message);
+        console.log('Trying to update dine_in_sessions instead...');
         
         // If it fails, try updating dine_in_sessions instead
-        const { error: sessionError } = await supabase
+        const { data: sessionData, error: sessionError } = await supabase
           .from('dine_in_sessions')
           .update({
             payment_status: 'paid',
@@ -223,19 +228,21 @@ export const verifyUPIPayment = async (
             session_status: 'completed',
             updated_at: new Date().toISOString()
           })
-          .eq('id', upiPayment.order_id);
+          .eq('id', upiPayment.order_id)
+          .select();
         
         if (sessionError) {
-          console.error('Session update also failed:', sessionError.message);
+          console.error('Session update failed:', sessionError.message);
+          console.error('Session error details:', sessionError.details);
           // Continue anyway - UPI payment was marked as verified
         } else {
-          console.log('Session payment updated successfully');
+          console.log('✅ Session payment updated successfully:', sessionData);
         }
       } else {
-        console.log('Order payment updated successfully');
+        console.log('✅ Order payment updated successfully');
       }
     } catch (orderUpdateError: any) {
-      console.error('Error updating order:', orderUpdateError.message);
+      console.error('Error in order update logic:', orderUpdateError.message);
       // Continue anyway - UPI payment was marked as verified
     }
 
