@@ -164,6 +164,7 @@ export const submitUPITransaction = async (
 
 /**
  * Verify UPI Payment (Admin only)
+ * Enhanced with better error handling and ORDER vs SESSION detection
  */
 export const verifyUPIPayment = async (
   qrId: string,
@@ -171,18 +172,21 @@ export const verifyUPIPayment = async (
   notes?: string
 ) => {
   try {
-    // Get UPI payment details
+    // Step 1: Get UPI payment details
     const { data: upiPayment, error: fetchError } = await supabase
       .from('upi_payments')
       .select('*')
       .eq('id', qrId)
       .single();
 
-    if (fetchError) throw fetchError;
+    if (fetchError) {
+      console.error('Failed to fetch UPI payment:', fetchError);
+      throw fetchError;
+    }
 
-    console.log('Verifying payment:', upiPayment);
+    console.log('🔍 Verifying payment:', upiPayment);
 
-    // Update UPI payment status
+    // Step 2: Update UPI payment status
     const { data: updatedUPI, error: updateError } = await supabase
       .from('upi_payments')
       .update({
@@ -196,17 +200,35 @@ export const verifyUPIPayment = async (
       .select()
       .single();
 
-    if (updateError) throw updateError;
+    if (updateError) {
+      console.error('❌ Failed to update UPI payment:', updateError);
+      throw updateError;
+    }
 
-    // Try to update orders table first (for regular orders)
-    try {
-      console.log('Attempting to update orders table with order_id:', upiPayment.order_id);
+    console.log('✅ UPI payment marked as verified:', updatedUPI);
+
+    // Step 3: Determine if this is an ORDER or SESSION payment
+    // Check if order_id exists in orders table
+    const { data: orderCheck, error: orderCheckError } = await supabase
+      .from('orders')
+      .select('id')
+      .eq('id', upiPayment.order_id)
+      .single();
+
+    if (orderCheckError && orderCheckError.code !== 'PGRST116') {
+      // PGRST116 = "not found", which is expected for sessions
+      console.warn('Error checking order existence:', orderCheckError);
+    }
+
+    if (orderCheck) {
+      // This is an ORDER payment
+      console.log('📦 Updating ORDER payment:', upiPayment.order_id);
       
       const { error: orderError } = await supabase
         .from('orders')
         .update({
           payment_status: 'paid',
-          payment_id: upiPayment.transaction_id, // Store UTR in payment_id
+          payment_id: upiPayment.transaction_id,
           paid_at: new Date().toISOString(),
           is_paid: true,
           updated_at: new Date().toISOString()
@@ -214,44 +236,62 @@ export const verifyUPIPayment = async (
         .eq('id', upiPayment.order_id);
 
       if (orderError) {
-        console.log('Order update failed:', orderError.message);
-        console.log('Trying to update dine_in_sessions instead...');
-        
-        // If it fails, try updating dine_in_sessions instead
-        const { data: sessionData, error: sessionError } = await supabase
-          .from('dine_in_sessions')
-          .update({
-            payment_status: 'paid',
-            payment_method: 'upi',
-            paid_amount: upiPayment.amount,
-            payment_completed_at: new Date().toISOString(),
-            session_status: 'completed',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', upiPayment.order_id)
-          .select();
-        
-        if (sessionError) {
-          console.error('Session update failed:', sessionError.message);
-          console.error('Session error details:', sessionError.details);
-          // Continue anyway - UPI payment was marked as verified
-        } else {
-          console.log('✅ Session payment updated successfully:', sessionData);
-        }
-      } else {
-        console.log('✅ Order payment updated successfully');
+        console.error('❌ Failed to update order:', orderError);
+        throw new Error(`Order update failed: ${orderError.message}`);
       }
-    } catch (orderUpdateError: any) {
-      console.error('Error in order update logic:', orderUpdateError.message);
-      // Continue anyway - UPI payment was marked as verified
+      
+      console.log('✅ Order payment updated successfully');
+      
+    } else {
+      // This is a SESSION payment
+      console.log('🍽️ Updating DINE-IN SESSION payment:', upiPayment.order_id);
+      
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('dine_in_sessions')
+        .update({
+          payment_status: 'paid',
+          payment_method: 'upi',
+          paid_amount: upiPayment.amount,
+          payment_completed_at: new Date().toISOString(),
+          session_status: 'completed',  // Explicitly set completed
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', upiPayment.order_id)
+        .select();
+      
+      if (sessionError) {
+        console.error('❌ Failed to update session:', sessionError);
+        throw new Error(`Session update failed: ${sessionError.message}`);
+      }
+      
+      console.log('✅ Session payment updated successfully:', sessionData);
+      
+      // Optional: Call RPC function to ensure related orders are also updated
+      try {
+        const { error: rpcError } = await supabase.rpc('update_session_orders_paid', {
+          p_session_id: upiPayment.order_id
+        });
+        
+        if (rpcError) {
+          console.warn('⚠️ RPC function failed (non-critical):', rpcError.message);
+        } else {
+          console.log('✅ Session orders also updated via RPC');
+        }
+      } catch (rpcErr: any) {
+        console.warn('⚠️ RPC call skipped - orders will need manual update if needed');
+      }
     }
 
     return {
       success: true,
-      message: 'Payment verified successfully'
+      message: 'Payment verified successfully',
+      type: orderCheck ? 'ORDER' : 'SESSION',
+      updatedUPI
     };
+    
   } catch (error: any) {
-    console.error('Error verifying UPI payment:', error);
+    console.error('❌ Error verifying UPI payment:', error);
     return {
       success: false,
       error: error.message
