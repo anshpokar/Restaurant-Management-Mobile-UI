@@ -105,7 +105,7 @@ export const verifyUPIPayment = async (
     // Get UPI payment details
     const { data: upiPayment, error: fetchError } = await supabase
       .from('upi_payments')
-      .select('*, orders(user_id, total_amount)')
+      .select('*, orders(user_id, total_amount, session_name)')
       .eq('id', qrId)
       .single();
 
@@ -140,6 +140,20 @@ export const verifyUPIPayment = async (
       .eq('id', upiPayment.order_id);
 
     if (orderError) throw orderError;
+
+    // If order has a session_name, also update the dine_in_sessions table
+    if (upiPayment.orders?.session_name) {
+      // Use the RPC function to confirm payment and auto-complete session
+      const { error: sessionError } = await supabase.rpc('confirm_session_payment_by_name', {
+        p_session_name: upiPayment.orders.session_name,
+        p_admin_id: adminId
+      });
+
+      if (sessionError) {
+        console.warn('Could not update session:', sessionError.message);
+        // Continue anyway - session can be updated manually if needed
+      }
+    }
 
     return {
       success: true,
