@@ -172,11 +172,13 @@ export const verifyUPIPayment = async (
     // Get UPI payment details
     const { data: upiPayment, error: fetchError } = await supabase
       .from('upi_payments')
-      .select('*, orders(user_id, total_amount, session_name)')
+      .select('*')
       .eq('id', qrId)
       .single();
 
     if (fetchError) throw fetchError;
+
+    console.log('Verifying payment:', upiPayment);
 
     // Update UPI payment status
     const { data: updatedUPI, error: updateError } = await supabase
@@ -194,32 +196,47 @@ export const verifyUPIPayment = async (
 
     if (updateError) throw updateError;
 
-    // Update orders table
-    const { error: orderError } = await supabase
-      .from('orders')
-      .update({
-        payment_status: 'paid',
-        payment_id: upiPayment.transaction_id, // Store UTR in payment_id
-        paid_at: new Date().toISOString(),
-        is_paid: true,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', upiPayment.order_id);
+    // Try to update orders table first (for regular orders)
+    try {
+      const { error: orderError } = await supabase
+        .from('orders')
+        .update({
+          payment_status: 'paid',
+          payment_id: upiPayment.transaction_id, // Store UTR in payment_id
+          paid_at: new Date().toISOString(),
+          is_paid: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', upiPayment.order_id);
 
-    if (orderError) throw orderError;
-
-    // If order has a session_name, also update the dine_in_sessions table
-    if (upiPayment.orders?.session_name) {
-      // Use the RPC function to confirm payment and auto-complete session
-      const { error: sessionError } = await supabase.rpc('confirm_session_payment_by_name', {
-        p_session_name: upiPayment.orders.session_name,
-        p_admin_id: adminId
-      });
-
-      if (sessionError) {
-        console.warn('Could not update session:', sessionError.message);
-        // Continue anyway - session can be updated manually if needed
+      if (orderError) {
+        console.log('Order update failed, might be a session:', orderError.message);
+        
+        // If it fails, try updating dine_in_sessions instead
+        const { error: sessionError } = await supabase
+          .from('dine_in_sessions')
+          .update({
+            payment_status: 'paid',
+            payment_method: 'upi',
+            paid_amount: upiPayment.amount,
+            payment_completed_at: new Date().toISOString(),
+            session_status: 'completed',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', upiPayment.order_id);
+        
+        if (sessionError) {
+          console.error('Session update also failed:', sessionError.message);
+          // Continue anyway - UPI payment was marked as verified
+        } else {
+          console.log('Session payment updated successfully');
+        }
+      } else {
+        console.log('Order payment updated successfully');
       }
+    } catch (orderUpdateError: any) {
+      console.error('Error updating order:', orderUpdateError.message);
+      // Continue anyway - UPI payment was marked as verified
     }
 
     return {

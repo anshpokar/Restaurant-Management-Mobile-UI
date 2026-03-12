@@ -28,10 +28,8 @@ CREATE TABLE public.upi_payments (
   -- Primary key
   CONSTRAINT upi_payments_pkey PRIMARY KEY (id),
   
-  -- Foreign key to orders (can be order_id OR session_id)
-  CONSTRAINT upi_payments_order_id_fkey FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
-  
   -- Each order/session can only have one active payment
+  -- order_id can reference either orders.id OR dine_in_sessions.id
   UNIQUE(order_id)
 );
 
