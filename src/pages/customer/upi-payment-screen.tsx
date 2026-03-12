@@ -174,12 +174,31 @@ export function PaymentScreen() {
       console.log('QR generation result:', result);
 
       if (result.success && result.qrId) {
+        // Generate the final UPI link with correct amount
         const link = generateUPILink(
           paymentId,
           paymentAmount,
           UPI_PAYMENT_VPA,
           RESTAURANT_NAME
         );
+        
+        // Update the database record with correct amount
+        if (result.amount === 0) {
+          const { error: updateError } = await supabase
+            .from('upi_payments')
+            .update({ 
+              amount: paymentAmount,
+              upi_link: link
+            })
+            .eq('id', result.qrId); // Use 'id' field instead of 'qr_id'
+          
+          if (updateError) {
+            console.error('Failed to update amount:', updateError);
+          } else {
+            console.log('Successfully updated payment amount');
+          }
+        }
+        
         setUpiLink(link);
         setQrId(result.qrId);
         setTimeRemaining(QR_EXPIRY_MINUTES * 60);
