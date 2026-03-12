@@ -58,47 +58,94 @@ export function AdminUPIVerificationScreen() {
   }, [filter]);
 
   const fetchCurrentUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data: profile } = await supabase
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError) {
+        console.error('Auth error:', authError);
+        throw authError;
+      }
+      
+      if (!user) {
+        console.warn('No authenticated user');
+        return;
+      }
+      
+      console.log('Current user ID:', user.id);
+      
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
         .single();
       
+      if (profileError) {
+        console.error('Profile fetch error:', profileError);
+        throw profileError;
+      }
+      
+      console.log('User profile:', profile);
+      console.log('User role:', profile?.role);
+      
+      if (profile?.role !== 'admin') {
+        console.warn('User is not an admin! Role:', profile?.role);
+        toast.error('Admin access required');
+        return;
+      }
+      
       setCurrentUser(profile);
+    } catch (error: any) {
+      console.error('Error fetching current user:', error);
     }
   };
 
   const fetchUpiPayments = async () => {
     try {
+      // First try without the orders join to see if that's the issue
       let query = supabase
         .from('upi_payments')
-        .select(`
-          *,
-          orders (
-            id,
-            user_id,
-            total_amount,
-            order_type,
-            customer_name,
-            customer_email,
-            status as order_status
-          )
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (filter !== 'all') {
         query = query.eq('status', filter);
       }
 
-      const { data, error } = await query;
+      const { data: paymentsData, error: paymentsError } = await query;
 
-      if (error) throw error;
-      setUpiPayments(data || []);
+      if (paymentsError) {
+        console.error('Error fetching UPI payments:', paymentsError);
+        throw paymentsError;
+      }
+
+      // If we have payments, try to enrich with order data separately
+      if (paymentsData && paymentsData.length > 0) {
+        const enrichedPayments = await Promise.all(
+          paymentsData.map(async (payment) => {
+            try {
+              const { data: orderData } = await supabase
+                .from('orders')
+                .select('id, user_id, total_amount, order_type')
+                .eq('id', payment.order_id)
+                .single();
+              
+              return { ...payment, orders: orderData };
+            } catch (orderError) {
+              console.warn(`Could not fetch order ${payment.order_id}:`, orderError);
+              return { ...payment, orders: null };
+            }
+          })
+        );
+        setUpiPayments(enrichedPayments);
+      } else {
+        setUpiPayments([]);
+      }
     } catch (error: any) {
       console.error('Error fetching UPI payments:', error);
-      toast.error('Failed to load UPI payments');
+      // Don't show toast for every error, only critical ones
+      if (error.message?.includes('relation') || error.message?.includes('does not exist')) {
+        toast.error('Database configuration issue. Please contact administrator.');
+      }
     } finally {
       setLoading(false);
     }
@@ -177,13 +224,14 @@ export function AdminUPIVerificationScreen() {
   };
 
   const filteredPayments = upiPayments.filter(payment => {
-    if (!searchTerm) return payment;
+    if (!searchTerm) return true;
     
     const searchLower = searchTerm.toLowerCase();
     return (
       payment.transaction_id?.toLowerCase().includes(searchLower) ||
       payment.order_id.toLowerCase().includes(searchLower) ||
-      payment.beneficiary_name?.toLowerCase().includes(searchLower)
+      payment.beneficiary_name?.toLowerCase().includes(searchLower) ||
+      payment.orders?.customer_name?.toLowerCase().includes(searchLower)
     );
   });
 
@@ -316,7 +364,7 @@ export function AdminUPIVerificationScreen() {
                     <div className="flex items-start justify-between mb-4">
                       <div>
                         <h3 className="font-semibold text-lg mb-1">
-                          Order #{payment.orders.id.slice(0, 8)}
+                          Order #{payment.orders?.id?.slice(0, 8) || 'N/A'}
                         </h3>
                         <p className="text-sm text-gray-600">
                           {new Date(payment.created_at).toLocaleString()}
@@ -333,7 +381,7 @@ export function AdminUPIVerificationScreen() {
                       <div>
                         <p className="text-sm text-gray-600 mb-1">Order Type</p>
                         <Badge variant="secondary">
-                          {payment.orders.order_type}
+                          {payment.orders?.order_type || 'Unknown'}
                         </Badge>
                       </div>
                     </div>

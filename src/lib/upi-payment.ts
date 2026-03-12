@@ -134,7 +134,6 @@ export const verifyUPIPayment = async (
         payment_status: 'paid',
         payment_id: upiPayment.transaction_id, // Store UTR in payment_id
         paid_at: new Date().toISOString(),
-        status: 'confirmed',
         is_paid: true,
         updated_at: new Date().toISOString()
       })

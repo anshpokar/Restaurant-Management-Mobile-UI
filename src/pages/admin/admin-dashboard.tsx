@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AppHeader } from '@/components/design-system/app-header';
 import { Card, CardBody } from '@/components/design-system/card';
 import { Button } from '@/components/design-system/button';
-import { TrendingUp, TrendingDown, ShoppingBag, DollarSign, Users, Calendar, Star, Tag, Plus, Trash2, RefreshCw } from 'lucide-react';
+import { TrendingUp, TrendingDown, ShoppingBag, DollarSign, Users, Calendar, Star, Tag, Plus, Trash2, RefreshCw, CreditCard, Clock } from 'lucide-react';
 import { supabase, type MenuItem, type Offer } from '@/lib/supabase';
 import { ADMIN_TEXT, COMMON_TEXT } from '@/constants/text';
 import { startOfDay, endOfDay } from 'date-fns';
 
 export function AdminDashboard() {
+  const navigate = useNavigate();
   const [specials, setSpecials] = useState<MenuItem[]>([]);
   const [offers, setOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -18,7 +20,8 @@ export function AdminDashboard() {
     revenue: 0,
     activeTables: 0,
     totalTables: 0,
-    bookingsCount: 0
+    bookingsCount: 0,
+    pendingUpiVerifications: 0
   });
 
   useEffect(() => {
@@ -63,13 +66,37 @@ export function AdminDashboard() {
         .select('*', { count: 'exact', head: true })
         .eq('booking_date', dateStr);
 
-      setStats({
-        ordersCount: ordersCount || 0,
-        revenue: totalRevenue,
-        activeTables,
-        totalTables,
-        bookingsCount: bookingsCount || 0
-      });
+      // 5. Pending UPI Verifications
+      try {
+        const { count: upiCount, error: upiError } = await supabase
+          .from('upi_payments')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'verification_requested');
+        
+        if (upiError) {
+          console.warn('UPI payments query error:', upiError.message);
+        }
+        
+        setStats({
+          ordersCount: ordersCount || 0,
+          revenue: totalRevenue,
+          activeTables,
+          totalTables,
+          bookingsCount: bookingsCount || 0,
+          pendingUpiVerifications: upiCount || 0
+        });
+      } catch (error) {
+        console.warn('Error fetching UPI verifications (table may not exist or RLS issue):', error);
+        // Set to 0 if table doesn't exist yet or access issue
+        setStats({
+          ordersCount: ordersCount || 0,
+          revenue: totalRevenue,
+          activeTables,
+          totalTables,
+          bookingsCount: bookingsCount || 0,
+          pendingUpiVerifications: 0
+        });
+      }
     } catch (error) {
       console.error('Error fetching KPIs:', error);
     }
@@ -145,7 +172,19 @@ export function AdminDashboard() {
     { label: ADMIN_TEXT.KPIS.TODAYS_ORDERS, value: stats.ordersCount.toString(), change: '+12%', trend: 'up', icon: ShoppingBag, color: 'text-blue-600', bg: 'bg-blue-100' },
     { label: ADMIN_TEXT.KPIS.REVENUE, value: `${COMMON_TEXT.CURRENCY_SYMBOL}${stats.revenue.toLocaleString()}`, change: '+8%', trend: 'up', icon: DollarSign, color: 'text-green-600', bg: 'bg-green-100' },
     { label: ADMIN_TEXT.KPIS.ACTIVE_TABLES, value: `${stats.activeTables}/${stats.totalTables}`, change: `${stats.totalTables - stats.activeTables} vacant`, trend: 'neutral', icon: Users, color: 'text-purple-600', bg: 'bg-purple-100' },
-    { label: ADMIN_TEXT.KPIS.BOOKINGS, value: stats.bookingsCount.toString(), change: '+5 new', trend: 'up', icon: Calendar, color: 'text-orange-600', bg: 'bg-orange-100' },
+    { label: 'Bookings', value: stats.bookingsCount.toString(), change: '+5 new', trend: 'up', icon: Calendar, color: 'text-orange-600', bg: 'bg-orange-100' },
+  ];
+
+  const quickActions = [
+    {
+      label: 'UPI Verifications',
+      value: stats.pendingUpiVerifications > 0 ? `${stats.pendingUpiVerifications} pending` : 'No pending',
+      icon: CreditCard,
+      color: 'text-pink-600',
+      bg: 'bg-pink-100',
+      action: () => navigate('/admin/upi-verification'),
+      badge: stats.pendingUpiVerifications > 0
+    }
   ];
 
   return (
@@ -176,6 +215,47 @@ export function AdminDashboard() {
               </Card>
             );
           })}
+        </div>
+
+        {/* Quick Actions - UPI Verifications */}
+        <div>
+          <h3 className="text-xl font-black text-foreground mb-4 flex items-center gap-2">
+            <CreditCard className="w-5 h-5 text-pink-600" /> Quick Actions
+          </h3>
+          <div className="grid grid-cols-1 gap-3">
+            {quickActions.map((action, index) => {
+              const Icon = action.icon;
+              return (
+                <Card 
+                  key={index} 
+                  className={`border-2 border-pink-200 bg-pink-50 hover:bg-pink-100 transition-colors cursor-pointer ${action.badge ? 'animate-pulse' : ''}`}
+                  onClick={action.action}
+                >
+                  <CardBody className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-12 h-12 ${action.bg} rounded-xl flex items-center justify-center`}>
+                        <Icon className={`w-6 h-6 ${action.color}`} />
+                      </div>
+                      <div>
+                        <p className="font-bold text-base text-foreground">{action.label}</p>
+                        <p className={`text-sm ${action.badge ? 'text-pink-600 font-bold' : 'text-muted-foreground'}`}>
+                          {action.value}
+                        </p>
+                      </div>
+                    </div>
+                    {action.badge && (
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-5 h-5 text-pink-600 animate-pulse" />
+                        <span className="px-3 py-1 bg-pink-600 text-white text-xs font-bold rounded-full">
+                          {stats.pendingUpiVerifications}
+                        </span>
+                      </div>
+                    )}
+                  </CardBody>
+                </Card>
+              );
+            })}
+          </div>
         </div>
 
         {/* Today's Specials Management */}

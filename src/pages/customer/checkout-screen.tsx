@@ -5,7 +5,7 @@ import { useCart } from '@/contexts/cart-context';
 import { AppHeader } from '@/components/design-system/app-header';
 import { Button } from '@/components/design-system/button';
 import { Card, CardBody } from '@/components/design-system/card';
-import { ShoppingBag, UtensilsCrossed, Bike, MapPin, X } from 'lucide-react';
+import { ShoppingBag, UtensilsCrossed, Bike, MapPin, X, CreditCard, IndianRupee } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function CheckoutScreen() {
@@ -31,6 +31,11 @@ export function CheckoutScreen() {
     pincode: '',
     phone_number: ''
   });
+
+  // Payment method selection
+  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'upi'>('cod');
+  const [paymentTiming, setPaymentTiming] = useState<'now' | 'later'>('now'); // For dine-in: pay now or pay later
+  const [showUPIPayment, setShowUPIPayment] = useState(false);
 
   // Fetch tables and addresses on mount
   useState(() => {
@@ -113,8 +118,7 @@ export function CheckoutScreen() {
     }
   }
 
-  async function handleSubmit() {
-
+  async function handlePlaceOrder() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -123,8 +127,105 @@ export function CheckoutScreen() {
         return;
       }
 
+      // Validate required fields
+      if (orderType === 'dine_in' && !tableId) {
+        toast.error('Please select a table');
+        return;
+      }
+
+      if (orderType === 'delivery' && !selectedAddress) {
+        toast.error('Please select a delivery address');
+        return;
+      }
+
+      setLoading(true);
+
       // Calculate total
       const totalAmount = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+      // ============================================
+      // SPECIAL FLOW: Dine-In with Pay Later
+      // ============================================
+      if (orderType === 'dine_in' && paymentTiming === 'later') {
+        try {
+          // Create a dine-in session
+          const { data: session, error: sessionError } = await supabase
+            .from('dine_in_sessions')
+            .insert({
+              table_id: tableId,
+              user_id: user.id,
+              session_status: 'active',
+              payment_status: 'pending',
+              total_amount: totalAmount,
+              paid_amount: 0,
+              notes: 'Pay after finishing'
+            })
+            .select()
+            .single();
+
+          if (sessionError) throw sessionError;
+
+          // Create regular order linked to session
+          const { data: order, error: orderError } = await supabase
+            .from('orders')
+            .insert({
+              user_id: user.id,
+              order_type: 'dine_in',
+              table_id: tableId,
+              total_amount: totalAmount,
+              status: 'placed',
+              payment_status: 'pending',
+              payment_method: 'cod', // Will update when paying
+              is_paid: false,
+              placed_by: 'customer',
+              notes: `Dine-in Session: ${session.id}`
+            })
+            .select()
+            .single();
+
+          if (orderError) throw orderError;
+
+          // Insert order items
+          const orderItemsData = cartItems.map(item => ({
+            order_id: order.id,
+            menu_item_id: item.menu_item_id,
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price,
+            image: item.image || ''
+          }));
+
+          const { error: itemsError } = await supabase
+            .from('order_items')
+            .insert(orderItemsData);
+
+          if (itemsError) throw itemsError;
+
+          // Update table status
+          await supabase
+            .from('restaurant_tables')
+            .update({ status: 'occupied' })
+            .eq('id', tableId);
+
+          clearCart();
+
+          toast.success('Table session started! You can pay after finishing.');
+          setTimeout(() => {
+            navigate(`/customer/orders`);
+          }, 1000);
+
+          return; // Exit early for dine-in pay later flow
+        } catch (error: any) {
+          console.error('Dine-in session error:', error);
+          toast.error('Failed to start dining session: ' + error.message);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // ============================================
+      // REGULAR ORDER FLOW (Dine-in Pay Now, Delivery)
+      // ============================================
 
       // Get address details if delivery
       let deliveryAddressText = null;
@@ -133,17 +234,30 @@ export function CheckoutScreen() {
       let deliveryLongitude = null;
 
       if (orderType === 'delivery' && selectedAddress) {
-        const { data: addressData } = await supabase
-          .from('addresses')
-          .select('address_line1, city, state, pincode, latitude, longitude')
-          .eq('id', selectedAddress)
-          .single();
+        try {
+          const { data: addressData, error: addressError } = await supabase
+            .from('addresses')
+            .select('address_line1, city, state, pincode')
+            .eq('id', selectedAddress)
+            .single();
 
-        if (addressData) {
-          deliveryAddressText = `${addressData.address_line1}, ${addressData.city}, ${addressData.state} - ${addressData.pincode}`;
-          deliveryPincode = addressData.pincode;
-          deliveryLatitude = addressData.latitude;
-          deliveryLongitude = addressData.longitude;
+          if (addressError) {
+            console.error('Error fetching address:', addressError);
+            throw new Error('Could not fetch delivery address');
+          }
+
+          if (addressData) {
+            deliveryAddressText = `${addressData.address_line1}, ${addressData.city}, ${addressData.state} - ${addressData.pincode}`;
+            deliveryPincode = addressData.pincode;
+            // Latitude and longitude are optional for now
+            deliveryLatitude = null;
+            deliveryLongitude = null;
+          }
+        } catch (error: any) {
+          console.error('Address fetch error:', error);
+          toast.error('Please select a valid delivery address');
+          setLoading(false);
+          return;
         }
       }
 
@@ -161,7 +275,9 @@ export function CheckoutScreen() {
           total_amount: totalAmount,
           status: 'placed',
           payment_status: 'pending',
-          payment_method: 'upi'
+          payment_method: paymentMethod,
+          is_paid: paymentMethod === 'cod' ? false : false,
+          placed_by: 'customer'
         })
         .select()
         .single();
@@ -195,12 +311,19 @@ export function CheckoutScreen() {
       // Clear cart
       clearCart();
 
-      toast.success('Order placed successfully! Proceeding to payment...');
-
-      // Redirect to UPI payment
-      setTimeout(() => {
-        navigate(`/customer/payment/${order.id}`);
-      }, 1000);
+      // Handle based on payment method
+      if (paymentMethod === 'cod') {
+        toast.success('Order placed successfully! Pay on delivery.');
+        setTimeout(() => {
+          navigate(`/customer/orders`);
+        }, 1000);
+      } else {
+        // UPI Payment - Show payment window
+        toast.success('Order placed! Proceeding to payment...');
+        setTimeout(() => {
+          navigate(`/customer/payment/${order.id}`);
+        }, 500);
+      }
 
     } catch (error: any) {
       console.error('Error placing order:', error);
@@ -441,6 +564,93 @@ export function CheckoutScreen() {
               </CardBody>
             </Card>
 
+            {/* Payment Method Selection */}
+            {orderType && (
+              <Card>
+                <CardBody className="p-4">
+                  <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
+                    <CreditCard className="w-5 h-5" />
+                    Payment Method
+                  </h2>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Cash on Delivery Option */}
+                    <button
+                      onClick={() => setPaymentMethod('cod')}
+                      className={`w-full p-4 rounded-lg border-2 transition-all ${
+                        paymentMethod === 'cod' 
+                          ? 'border-green-500 bg-green-50' 
+                          : 'border-border hover:border-green-300'
+                      }`}
+                    >
+                      <div className="flex flex-col items-center text-center gap-2">
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                          paymentMethod === 'cod' ? 'bg-green-500 text-white' : 'bg-gray-200'
+                        }`}>
+                          <IndianRupee className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-sm">Cash on Delivery</h3>
+                          <p className="text-xs text-muted-foreground mt-1">Pay when you receive</p>
+                        </div>
+                        {paymentMethod === 'cod' && (
+                          <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
+                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+                    </button>
+
+                    {/* UPI/Prepaid Option */}
+                    <button
+                      onClick={() => setPaymentMethod('upi')}
+                      className={`w-full p-4 rounded-lg border-2 transition-all ${
+                        paymentMethod === 'upi' 
+                          ? 'border-blue-500 bg-blue-50' 
+                          : 'border-border hover:border-blue-300'
+                      }`}
+                    >
+                      <div className="flex flex-col items-center text-center gap-2">
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                          paymentMethod === 'upi' ? 'bg-blue-500 text-white' : 'bg-gray-200'
+                        }`}>
+                          <CreditCard className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-sm">Prepaid (UPI)</h3>
+                          <p className="text-xs text-muted-foreground mt-1">Pay online via UPI</p>
+                        </div>
+                        {paymentMethod === 'upi' && (
+                          <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
+                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* Payment Info */}
+                  {paymentMethod === 'cod' ? (
+                    <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <p className="text-xs text-green-800 font-medium">
+                        💵 You'll pay cash when you receive your order
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-xs text-blue-800 font-medium">
+                        📱 You'll be redirected to UPI payment page after placing order
+                      </p>
+                    </div>
+                  )}
+                </CardBody>
+              </Card>
+            )}
+
             {/* Submit Button */}
             <div className="pt-2">
               <Button
@@ -460,7 +670,10 @@ export function CheckoutScreen() {
               </Button>
               
               <p className="text-xs text-center text-muted-foreground mt-3">
-                You'll be redirected to UPI payment after clicking continue
+                {paymentMethod === 'cod' 
+                  ? '💵 Cash on Delivery - Pay when you receive your order' 
+                  : '📱 You will be redirected to UPI payment page'
+                }
               </p>
             </div>
           </>
