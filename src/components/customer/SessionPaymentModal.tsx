@@ -47,12 +47,12 @@ export function SessionPaymentModal({ sessionId, totalAmount, onClose }: Session
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error('Not authenticated');
 
-        // Update session with confirming payment status
+        // Update session with PENDING payment status (waiting for admin confirmation)
         const { error: sessionError } = await supabase
           .from('dine_in_sessions')
           .update({
             payment_method: 'cod',
-            payment_status: 'pending', // Changed from 'confirming_payment' which doesn't exist
+            payment_status: 'pending', // Pending admin confirmation
             session_status: 'completed',
             completed_at: new Date().toISOString()
           })
@@ -70,14 +70,14 @@ export function SessionPaymentModal({ sessionId, totalAmount, onClose }: Session
           // Continue anyway - admin can update manually
         }
 
-        toast.success('Order marked as Cash on Delivery. Please pay at the counter.');
+        toast.success('Payment marked as pending. Please pay at the counter.');
+        setProcessing(false); // Reset processing so button becomes clickable again
         onClose();
         navigate(`/customer/orders`);
       }
     } catch (error: any) {
       console.error('Payment error:', error);
       toast.error('Failed to process payment: ' + error.message);
-    } finally {
       setProcessing(false);
     }
   }
@@ -108,7 +108,7 @@ export function SessionPaymentModal({ sessionId, totalAmount, onClose }: Session
             <h3 className="font-bold text-lg mb-3">Select Payment Method</h3>
             
             <div className="grid grid-cols-2 gap-3">
-              {/* COD Option */}
+              {/* Cash Option */}
               <button
                 onClick={() => setSelectedMethod('cod')}
                 className={`w-full p-4 rounded-lg border-2 transition-all ${
@@ -124,7 +124,7 @@ export function SessionPaymentModal({ sessionId, totalAmount, onClose }: Session
                     <IndianRupee className="w-6 h-6" />
                   </div>
                   <div className="text-center">
-                    <h4 className="font-bold text-sm">Cash on Delivery</h4>
+                    <h4 className="font-bold text-sm">Cash</h4>
                     <p className="text-xs text-muted-foreground mt-1">Pay at counter</p>
                   </div>
                   {selectedMethod === 'cod' && (
@@ -192,9 +192,9 @@ export function SessionPaymentModal({ sessionId, totalAmount, onClose }: Session
               size="lg"
             >
               {processing 
-                ? 'Processing...' 
+                ? 'Completing...' 
                 : selectedMethod === 'cod'
-                  ? 'Confirm COD Payment'
+                  ? 'Proceed to Cash Payment'
                   : 'Proceed to UPI Payment'
               }
             </Button>

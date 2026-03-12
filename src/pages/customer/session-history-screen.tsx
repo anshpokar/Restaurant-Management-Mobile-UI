@@ -42,17 +42,12 @@ export function SessionHistoryScreen() {
 
       console.log('Fetching all sessions for user:', userId);
 
+      // First, fetch sessions without the orders join
       let query = supabase
         .from('dine_in_sessions')
         .select(`
           *,
-          restaurant_tables (table_number),
-          orders (
-            id,
-            order_items,
-            total_amount,
-            status
-          )
+          restaurant_tables (table_number)
         `)
         .eq('user_id', userId);
 
@@ -76,12 +71,44 @@ export function SessionHistoryScreen() {
 
       query = query.order('started_at', { ascending: false });
 
-      const { data, error } = await query;
+      const { data: sessionsData, error: sessionsError } = await query;
 
-      if (error) throw error;
+      if (sessionsError) throw sessionsError;
 
-      console.log('Sessions found:', data);
-      setCompletedSessions(data || []);
+      if (!sessionsData || sessionsData.length === 0) {
+        setCompletedSessions([]);
+        return;
+      }
+
+      // Then, fetch orders for each session separately
+      const sessionsWithOrders = await Promise.all(
+        sessionsData.map(async (session) => {
+          try {
+            // Fetch orders linked to this session via notes or session_name
+            const { data: ordersData } = await supabase
+              .from('orders')
+              .select(`
+                id,
+                order_items,
+                total_amount,
+                status
+              `)
+              .eq('user_id', userId)
+              .or(`notes.like.%Dine-in Session: ${session.id}%,session_name.eq.${session.session_name}`);
+
+            return { 
+              ...session, 
+              orders: ordersData || [] 
+            };
+          } catch (orderError) {
+            console.warn(`Error fetching orders for session ${session.id}:`, orderError);
+            return { ...session, orders: [] };
+          }
+        })
+      );
+
+      console.log('Fetched sessions with orders:', sessionsWithOrders);
+      setCompletedSessions(sessionsWithOrders);
     } catch (error) {
       console.error('Error fetching sessions:', error);
     } finally {

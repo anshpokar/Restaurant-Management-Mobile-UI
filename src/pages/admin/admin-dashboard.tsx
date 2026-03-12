@@ -177,12 +177,12 @@ export function AdminDashboard() {
 
   const quickActions = [
     {
-      label: 'UPI Verifications',
+      label: 'Payment Verifications',
       value: stats.pendingUpiVerifications > 0 ? `${stats.pendingUpiVerifications} pending` : 'No pending',
       icon: CreditCard,
       color: 'text-pink-600',
       bg: 'bg-pink-100',
-      action: () => navigate('/admin/upi-verification'),
+      action: () => navigate('/admin/payment-verification'),
       badge: stats.pendingUpiVerifications > 0
     }
   ];

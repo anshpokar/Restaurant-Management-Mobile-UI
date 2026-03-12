@@ -237,7 +237,8 @@ export function CheckoutScreen() {
               payment_method: 'cod', // Will update when paying
               is_paid: false,
               placed_by: 'customer',
-              notes: `Dine-in Session: ${sessionId}`
+              notes: `Dine-in Session: ${sessionId}`,
+              session_name: sessionName.trim() // Add session_name for easier lookup
             })
             .select()
             .single();
@@ -573,15 +574,17 @@ export function CheckoutScreen() {
                               </div>
                             )}
                             
-                            <Button
-                              onClick={() => setShowAddressForm(true)}
-                              variant="outline"
-                              size="sm"
-                              className="w-full"
-                            >
-                              <MapPin className="w-4 h-4 mr-2" />
-                              Add New Address
-                            </Button>
+                            <div className="mt-3">
+                              <Button
+                                onClick={() => setShowAddressForm(true)}
+                                variant="outline"
+                                size="sm"
+                                className="w-full"
+                              >
+                                <MapPin className="w-4 h-4 mr-2" />
+                                Add New Address
+                              </Button>
+                            </div>
                           </>
                         ) : (
                           <div className="bg-surface p-3 rounded-lg space-y-3">

@@ -31,7 +31,7 @@ import { AdminTables } from '@/pages/admin/admin-tables';
 import { AdminReports } from '@/pages/admin/admin-reports';
 import { AdminUserManagement } from '@/pages/admin/admin-user-management';
 import { DeliveryAssignmentScreen } from '@/pages/admin/delivery-assignment-screen';
-import { AdminUPIVerificationScreen } from '@/pages/admin/upi-verification-screen';
+import { AdminPaymentVerificationScreen } from '@/pages/admin/payment-verification-screen';
 
 // Chef Screens
 import { ChefApp } from '@/pages/chef/chef-app';
@@ -135,7 +135,7 @@ export function AppRoutes({ userRole, userProfile, isLoadingAuth, handleLogout }
                 <Route path="reports" element={<AdminReports />} />
                 <Route path="users" element={<AdminUserManagement />} />
                 <Route path="delivery-assignment" element={<DeliveryAssignmentScreen />} />
-                <Route path="upi-verification" element={<AdminUPIVerificationScreen />} />
+                <Route path="payment-verification" element={<AdminPaymentVerificationScreen />} />
             </Route>
 
             {/* Waiter Routes */}
