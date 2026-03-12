@@ -22,14 +22,14 @@ export function SessionPaymentModal({ sessionId, totalAmount, onClose }: Session
       setProcessing(true);
 
       if (selectedMethod === 'upi') {
-        // First update session status - use valid payment_status values
+        // First update session - keep it active, just set payment method and status
         const { error: sessionError } = await supabase
           .from('dine_in_sessions')
           .update({
             payment_method: 'upi',
             payment_status: 'pending', // Valid value: pending, paid, or partial
-            session_status: 'completed',
-            completed_at: new Date().toISOString()
+            // Keep session_status as 'active' until payment is verified
+            updated_at: new Date().toISOString()
           })
           .eq('id', sessionId);
 
@@ -40,7 +40,7 @@ export function SessionPaymentModal({ sessionId, totalAmount, onClose }: Session
           return;
         }
 
-        // Navigate to UPI payment page
+        // Navigate to UPI payment page immediately
         navigate(`/customer/payment/session/${sessionId}`);
       } else {
         // COD - Mark order as COD and notify admin
@@ -48,13 +48,14 @@ export function SessionPaymentModal({ sessionId, totalAmount, onClose }: Session
         if (!user) throw new Error('Not authenticated');
 
         // Update session with PENDING payment status (waiting for admin confirmation)
+        // Keep session as 'active' until admin confirms payment
         const { error: sessionError } = await supabase
           .from('dine_in_sessions')
           .update({
             payment_method: 'cod',
             payment_status: 'pending', // Pending admin confirmation
-            session_status: 'completed',
-            completed_at: new Date().toISOString()
+            // Keep session_status as 'active' until admin confirms
+            updated_at: new Date().toISOString()
           })
           .eq('id', sessionId);
 
