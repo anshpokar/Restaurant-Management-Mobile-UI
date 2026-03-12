@@ -25,6 +25,7 @@ export const generateUPILink = (
 /**
  * Create UPI Payment Record in Database
  * Supports both orders and dine-in sessions
+ * Uses direct insert instead of RPC for reliability
  */
 export const createUPIPayment = async (
   paymentId: string,
@@ -34,61 +35,43 @@ export const createUPIPayment = async (
   isSession: boolean = false
 ) => {
   try {
-    // Try RPC first, fall back to direct insert if it fails
-    const functionName = isSession ? 'create_upi_payment_for_session' : 'create_upi_payment';
-    
-    console.log(`Attempting to call RPC function: ${functionName}`);
-    
-    const { data, error } = await supabase.rpc(functionName, {
-      p_order_id: paymentId,
-      p_vpa: vpa,
-      p_restaurant_name: restaurantName,
-      p_expiry_minutes: expiryMinutes
+    // ALWAYS use direct insert (more reliable than RPC)
+    console.log('Creating UPI payment via direct insert:', { 
+      paymentId, 
+      isSession,
+      amount: 0 // Will be updated later
     });
-
-    if (error) {
-      console.error('RPC failed, using fallback method:', error);
-      
-      // FALLBACK: Direct insert (bypasses RPC)
-      const paymentRecordId = crypto.randomUUID();
-      const encodedName = encodeURIComponent(restaurantName);
-      const upiLink = `upi://pay?pa=${vpa}&pn=${encodedName}&am=0&cu=INR&tn=ORDER_${paymentId}`;
-      const qrExpiresAt = new Date();
-      qrExpiresAt.setMinutes(qrExpiresAt.getMinutes() + expiryMinutes);
-      
-      const { error: insertError } = await supabase
-        .from('upi_payments')
-        .insert({
-          id: paymentRecordId,
-          order_id: paymentId,
-          vpa: vpa,
-          amount: 0, // Will be updated when amount is known
-          upi_link: upiLink,
-          qr_expires_at: qrExpiresAt.toISOString(),
-          status: 'pending'
-        });
-      
-      if (insertError) throw insertError;
-      
-      console.log('Direct insert successful, paymentId:', paymentRecordId);
-      
-      return {
-        success: true,
-        qrId: paymentRecordId, // Use the record ID as QR identifier
-        upiLink: upiLink,
-        amount: 0,
-        expiresAt: qrExpiresAt.toISOString()
-      };
-    }
-
-    console.log('RPC successful:', data);
-
+    
+    const paymentRecordId = crypto.randomUUID();
+    const encodedName = encodeURIComponent(restaurantName);
+    const upiLink = `upi://pay?pa=${vpa}&pn=${encodedName}&am=0&cu=INR&tn=ORDER_${paymentId}`;
+    const qrExpiresAt = new Date();
+    qrExpiresAt.setMinutes(qrExpiresAt.getMinutes() + expiryMinutes);
+    
+    const { data, error: insertError } = await supabase
+      .from('upi_payments')
+      .insert({
+        id: paymentRecordId,
+        order_id: paymentId,
+        vpa: vpa,
+        amount: 0, // Will be updated when amount is known
+        upi_link: upiLink,
+        qr_expires_at: qrExpiresAt.toISOString(),
+        status: 'pending'
+      })
+      .select()
+      .single();
+    
+    if (insertError) throw insertError;
+    
+    console.log('Direct insert successful, paymentId:', paymentRecordId, data);
+    
     return {
       success: true,
-      qrId: data?.qr_id,
-      upiLink: data?.upi_link,
-      amount: data?.amount,
-      expiresAt: data?.expires_at
+      qrId: paymentRecordId, // Use the record ID as QR identifier
+      upiLink: upiLink,
+      amount: 0,
+      expiresAt: qrExpiresAt.toISOString()
     };
   } catch (error: any) {
     console.error('Error creating UPI payment:', error);
