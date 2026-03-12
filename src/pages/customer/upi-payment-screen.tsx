@@ -29,10 +29,11 @@ const QR_EXPIRY_MINUTES = 5; // QR code expires after 5 minutes
 
 export function PaymentScreen() {
   const navigate = useNavigate();
-  const { orderId } = useParams<{ orderId: string }>();
+  const { orderId, sessionId } = useParams<{ orderId: string; sessionId: string }>();
   
   // State
   const [order, setOrder] = useState<any>(null);
+  const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [upiLink, setUpiLink] = useState<string>('');
   const [qrId, setQrId] = useState<string>('');
@@ -41,18 +42,23 @@ export function PaymentScreen() {
   const [timeRemaining, setTimeRemaining] = useState(QR_EXPIRY_MINUTES * 60);
   const [paymentStatus, setPaymentStatus] = useState('pending');
   const [expired, setExpired] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState<number>(0);
 
-  // Fetch order details
+  // Fetch order or session details
   useEffect(() => {
-    fetchOrder();
-  }, [orderId]);
+    if (orderId) {
+      fetchOrder();
+    } else if (sessionId) {
+      fetchSession();
+    }
+  }, [orderId, sessionId]);
 
   // Generate QR code
   useEffect(() => {
-    if (order) {
+    if (order || session) {
       generateQR();
     }
-  }, [order]);
+  }, [order, session]);
 
   // Timer countdown
   useEffect(() => {
@@ -92,6 +98,7 @@ export function PaymentScreen() {
 
       if (error) throw error;
       setOrder(data);
+      setPaymentAmount(data.total_amount);
     } catch (error: any) {
       console.error('Error fetching order:', error);
       toast.error('Failed to load order');
@@ -101,10 +108,33 @@ export function PaymentScreen() {
     }
   };
 
+  const fetchSession = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('dine_in_sessions')
+        .select('*')
+        .eq('id', sessionId)
+        .single();
+
+      if (error) throw error;
+      setSession(data);
+      setPaymentAmount(data.total_amount);
+    } catch (error: any) {
+      console.error('Error fetching session:', error);
+      toast.error('Failed to load session');
+      navigate('/customer/orders');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const generateQR = async () => {
     try {
+      // Use orderId for orders, sessionId for sessions
+      const paymentId = orderId || sessionId!;
+      
       const result = await createUPIPayment(
-        orderId!,
+        paymentId,
         UPI_PAYMENT_VPA,
         RESTAURANT_NAME,
         QR_EXPIRY_MINUTES
@@ -112,8 +142,8 @@ export function PaymentScreen() {
 
       if (result.success) {
         const link = generateUPILink(
-          orderId!,
-          order.total_amount,
+          paymentId,
+          paymentAmount,
           UPI_PAYMENT_VPA,
           RESTAURANT_NAME
         );
@@ -172,14 +202,14 @@ export function PaymentScreen() {
     );
   }
 
-  if (!order) {
+  if (!order && !session) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Card className="p-6 max-w-md">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-center mb-2">Order Not Found</h2>
+          <h2 className="text-xl font-bold text-center mb-2">Payment Not Found</h2>
           <Button onClick={() => navigate('/customer/orders')} className="w-full">
-            View My Orders
+            View Orders
           </Button>
         </Card>
       </div>
@@ -195,17 +225,24 @@ export function PaymentScreen() {
             Complete Your Payment
           </h1>
           <p className="text-gray-600">
-            Order #{order.id.slice(0, 8)}
+            {sessionId ? 
+              `Session ${session?.session_name || session?.id.slice(0, 8)}` :
+              `Order #${order?.id.slice(0, 8)}`
+            }
           </p>
         </div>
 
-        {/* Order Summary */}
+        {/* Payment Summary */}
         <Card className="mb-6 p-6">
-          <h2 className="text-lg font-semibold mb-4">Order Summary</h2>
+          <h2 className="text-lg font-semibold mb-4">Payment Summary</h2>
           <div className="space-y-2">
             <div className="flex justify-between">
-              <span className="text-gray-600">Order Amount</span>
-              <span className="font-semibold">₹{order.total_amount}</span>
+              <span className="text-gray-600">Payment Amount</span>
+              <span className="font-semibold">₹{paymentAmount}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Payment Type</span>
+              <span className="font-medium">{sessionId ? 'Dine-in Session' : 'Order'}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600">Payment Method</span>
@@ -215,7 +252,7 @@ export function PaymentScreen() {
               <div className="flex justify-between text-lg">
                 <span className="font-semibold">Total to Pay</span>
                 <span className="font-bold text-orange-600">
-                  ₹{order.total_amount}
+                  ₹{paymentAmount}
                 </span>
               </div>
             </div>
