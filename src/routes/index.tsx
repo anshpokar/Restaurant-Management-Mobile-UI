@@ -16,6 +16,9 @@ import { SavedAddressesScreen } from '@/pages/customer/saved-addresses-screen';
 import { FavoritesScreen } from '@/pages/customer/favorites-screen';
 import { NotificationsScreen } from '@/pages/customer/notifications-screen';
 import { HelpSupportScreen } from '@/pages/customer/help-support-screen';
+import { OrderTrackingScreen } from '@/pages/customer/order-tracking-screen';
+import { PaymentScreen } from '@/pages/customer/payment-screen';
+import { LeafletAddressPicker } from '@/pages/delivery/leaflet-address-picker';
 
 // Admin Screens
 import { AdminApp } from '@/pages/admin/admin-app';
@@ -103,11 +106,12 @@ export function AppRoutes({ userRole, userProfile, isLoadingAuth, handleLogout }
                 <Route path="orders" element={<OrdersScreen />} />
                 <Route path="profile" element={<ProfileScreen />} />
                 <Route path="addresses" element={<SavedAddressesScreen />} />
-                <Route path="delivery-address" element={<AddressPickerScreen />} />
+                <Route path="delivery-address" element={<LeafletAddressPicker />} />
                 <Route path="delivery-address-map" element={<GoogleMapsAddressPicker />} />
                 <Route path="favorites" element={<FavoritesScreen />} />
                 <Route path="notifications" element={<NotificationsScreen />} />
                 <Route path="help-support" element={<HelpSupportScreen />} />
+                <Route path="track-order/:orderId" element={<OrderTrackingScreen />} />`n                <Route path="payment/:orderId" element={<PaymentScreen />} />
             </Route>
 
             {/* Admin Routes */}
@@ -167,3 +171,10 @@ export function AppRoutes({ userRole, userProfile, isLoadingAuth, handleLogout }
         </Routes>
     );
 }
+
+
+
+
+
+
+

@@ -1,0 +1,386 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { supabase } from '@/lib/supabase';
+import { 
+  generateUPILink, 
+  createUPIPayment, 
+  submitUPITransaction,
+  isQRExpired,
+  subscribeToUpiPayments
+} from '@/lib/upi-payment';
+import QRCode from 'react-qr-code';
+import { 
+  Clock, 
+  CheckCircle, 
+  AlertCircle, 
+  RefreshCw, 
+  Smartphone,
+  Shield,
+  Timer
+} from 'lucide-react';
+import { Button } from '@/components/design-system/button';
+import { Card } from '@/components/design-system/card';
+import { toast } from 'sonner';
+
+// ⚠️ IMPORTANT: UPDATE THESE WITH YOUR ACTUAL UPI DETAILS!
+const UPI_PAYMENT_VPA = 'anshjpokar@oksbi'; 
+const RESTAURANT_NAME = 'Navratna Restaurant'; 
+const QR_EXPIRY_MINUTES = 5; // QR code expires after 5 minutes
+
+export function PaymentScreen() {
+  const navigate = useNavigate();
+  const { orderId } = useParams<{ orderId: string }>();
+  
+  // State
+  const [order, setOrder] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [upiLink, setUpiLink] = useState<string>('');
+  const [qrId, setQrId] = useState<string>('');
+  const [transactionId, setTransactionId] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState(QR_EXPIRY_MINUTES * 60);
+  const [paymentStatus, setPaymentStatus] = useState('pending');
+  const [expired, setExpired] = useState(false);
+
+  // Fetch order details
+  useEffect(() => {
+    fetchOrder();
+  }, [orderId]);
+
+  // Generate QR code
+  useEffect(() => {
+    if (order) {
+      generateQR();
+    }
+  }, [order]);
+
+  // Timer countdown
+  useEffect(() => {
+    if (timeRemaining > 0 && paymentStatus === 'pending') {
+      const timer = setTimeout(() => setTimeRemaining(timeRemaining - 1), 1000);
+      return () => clearTimeout(timer);
+    } else if (timeRemaining === 0 && paymentStatus === 'pending') {
+      setExpired(true);
+    }
+  }, [timeRemaining, paymentStatus]);
+
+  // Real-time subscription
+  useEffect(() => {
+    if (qrId && paymentStatus === 'pending') {
+      const unsubscribe = subscribeToUpiPayments(qrId, (updatedData) => {
+        setPaymentStatus(updatedData.status);
+        
+        if (updatedData.status === 'verified') {
+          toast.success('Payment verified successfully!');
+          setTimeout(() => navigate('/customer/orders'), 2000);
+        } else if (updatedData.status === 'verification_requested') {
+          toast.info('Payment submitted for verification');
+        }
+      });
+
+      return () => unsubscribe();
+    }
+  }, [qrId, paymentStatus, navigate]);
+
+  const fetchOrder = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('id', orderId)
+        .single();
+
+      if (error) throw error;
+      setOrder(data);
+    } catch (error: any) {
+      console.error('Error fetching order:', error);
+      toast.error('Failed to load order');
+      navigate('/customer/orders');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateQR = async () => {
+    try {
+      const result = await createUPIPayment(
+        orderId!,
+        UPI_PAYMENT_VPA,
+        RESTAURANT_NAME,
+        QR_EXPIRY_MINUTES
+      );
+
+      if (result.success) {
+        const link = generateUPILink(
+          orderId!,
+          order.total_amount,
+          UPI_PAYMENT_VPA,
+          RESTAURANT_NAME
+        );
+        setUpiLink(link);
+        setQrId(result.qrId);
+        setTimeRemaining(QR_EXPIRY_MINUTES * 60);
+        setExpired(false);
+      } else {
+        toast.error('Failed to generate QR code');
+      }
+    } catch (error: any) {
+      console.error('Error generating QR:', error);
+      toast.error('Failed to generate QR code');
+    }
+  };
+
+  const handleSubmitTransaction = async () => {
+    if (!transactionId.trim()) {
+      toast.error('Please enter UPI Transaction ID');
+      return;
+    }
+
+    setSubmitting(true);
+    
+    try {
+      const result = await submitUPITransaction(qrId, transactionId);
+      
+      if (result.success) {
+        toast.success('Transaction ID submitted for verification!');
+        setPaymentStatus('verification_requested');
+      } else {
+        toast.error('Failed to submit transaction ID');
+      }
+    } catch (error: any) {
+      console.error('Error submitting transaction:', error);
+      toast.error('Failed to submit transaction ID');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-orange-500" />
+          <p className="text-gray-600">Loading payment details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!order) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Card className="p-6 max-w-md">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-center mb-2">Order Not Found</h2>
+          <Button onClick={() => navigate('/customer/orders')} className="w-full">
+            View My Orders
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 py-8 px-4">
+      <div className="max-w-2xl mx-auto">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Complete Your Payment
+          </h1>
+          <p className="text-gray-600">
+            Order #{order.id.slice(0, 8)}
+          </p>
+        </div>
+
+        {/* Order Summary */}
+        <Card className="mb-6 p-6">
+          <h2 className="text-lg font-semibold mb-4">Order Summary</h2>
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-gray-600">Order Amount</span>
+              <span className="font-semibold">₹{order.total_amount}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Payment Method</span>
+              <span className="font-medium">UPI (QR Code)</span>
+            </div>
+            <div className="border-t pt-2 mt-2">
+              <div className="flex justify-between text-lg">
+                <span className="font-semibold">Total to Pay</span>
+                <span className="font-bold text-orange-600">
+                  ₹{order.total_amount}
+                </span>
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {/* Payment Status */}
+        {paymentStatus === 'verified' && (
+          <Card className="mb-6 p-6 bg-green-50 border-green-200">
+            <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-center text-green-800 mb-2">
+              Payment Successful!
+            </h2>
+            <p className="text-green-700 text-center">
+              Your order has been confirmed. Redirecting to orders...
+            </p>
+          </Card>
+        )}
+
+        {paymentStatus === 'verification_requested' && (
+          <Card className="mb-6 p-6 bg-blue-50 border-blue-200">
+            <Clock className="w-16 h-16 text-blue-500 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-center text-blue-800 mb-2">
+              Verification in Progress
+            </h2>
+            <p className="text-blue-700 text-center">
+              Admin is verifying your payment. This usually takes 1-2 minutes.
+            </p>
+          </Card>
+        )}
+
+        {expired && paymentStatus === 'pending' && (
+          <Card className="mb-6 p-6 bg-yellow-50 border-yellow-200">
+            <Timer className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-center text-yellow-800 mb-2">
+              QR Code Expired
+            </h2>
+            <p className="text-yellow-700 text-center mb-4">
+              For security, this QR code has expired. Please generate a new one.
+            </p>
+            <Button onClick={generateQR} className="w-full">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Generate New QR Code
+            </Button>
+          </Card>
+        )}
+
+        {/* Dynamic QR Code */}
+        {paymentStatus === 'pending' && !expired && (
+          <>
+            <Card className="mb-6 p-6">
+              <div className="text-center mb-6">
+                <Smartphone className="w-12 h-12 text-orange-500 mx-auto mb-4" />
+                <h2 className="text-xl font-bold mb-2">Scan & Pay</h2>
+                <p className="text-gray-600">
+                  Scan this QR code with any UPI app
+                </p>
+              </div>
+
+              {/* QR Code */}
+              <div className="bg-white p-4 rounded-lg inline-block mx-auto mb-6">
+                <QRCode 
+                  value={upiLink} 
+                  size={220}
+                  level="H"
+                />
+              </div>
+
+              {/* Timer */}
+              <div className="flex items-center justify-center gap-2 text-orange-600 mb-4">
+                <Clock className="w-5 h-5" />
+                <span className="font-semibold">
+                  Expires in: {formatTime(timeRemaining)}
+                </span>
+              </div>
+
+              {/* Instructions */}
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h3 className="font-semibold mb-3 text-blue-900">How to Pay:</h3>
+                <ol className="space-y-2 text-sm text-blue-800">
+                  <li className="flex gap-2">
+                    <span className="font-bold">1.</span>
+                    <span>Open any UPI app (Google Pay, PhonePe, Paytm, etc.)</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-bold">2.</span>
+                    <span>Scan the QR code above</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-bold">3.</span>
+                    <span>Enter your UPI PIN to pay ₹{order.total_amount}</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-bold">4.</span>
+                    <span>Copy the UPI Transaction ID (UTR) shown after payment</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-bold">5.</span>
+                    <span>Enter the UTR below for verification</span>
+                  </li>
+                </ol>
+              </div>
+            </Card>
+
+            {/* Submit Transaction ID */}
+            <Card className="mb-6 p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Shield className="w-6 h-6 text-green-500" />
+                <h2 className="text-lg font-semibold">Verify Payment</h2>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    UPI Transaction ID (UTR)
+                  </label>
+                  <input
+                    type="text"
+                    value={transactionId}
+                    onChange={(e) => setTransactionId(e.target.value)}
+                    placeholder="e.g., 42153128123"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    disabled={submitting}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    This is the reference number you received after payment
+                  </p>
+                </div>
+
+                <Button
+                  onClick={handleSubmitTransaction}
+                  disabled={submitting || !transactionId.trim()}
+                  className="w-full"
+                >
+                  {submitting ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Submit for Verification
+                    </>
+                  )}
+                </Button>
+              </div>
+            </Card>
+          </>
+        )}
+
+        {/* Security Notice */}
+        <Card className="p-4 bg-gray-50">
+          <div className="flex items-start gap-3">
+            <Shield className="w-5 h-5 text-gray-400 mt-0.5" />
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-1">Secure Payment</h3>
+              <p className="text-sm text-gray-600">
+                Your payment is secured with bank-grade encryption. The QR code 
+                expires in 5 minutes for your safety.
+              </p>
+            </div>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}

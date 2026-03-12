@@ -68,13 +68,15 @@ export function ChefDashboardScreen() {
         .from('orders')
         .select(`
           *,
-          restaurant_tables (
+          restaurant_tables!left (
             table_number
           ),
           order_items (*)
         `)
-        .eq('order_type', 'dine_in')
+        // Remove order_type filter to show both dine_in and delivery
+        // Only exclude completed/cancelled orders
         .neq('status', 'delivered')
+        .neq('status', 'cancelled')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -82,7 +84,8 @@ export function ChefDashboardScreen() {
       // Transform data
       const transformedOrders = data?.map(order => ({
         ...order,
-        table_number: (order.restaurant_tables as any)?.table_number || 0,
+        table_number: (order.restaurant_tables as any)?.table_number || null,
+        is_delivery: order.order_type === 'delivery',
         elapsed_minutes: Math.floor((Date.now() - new Date(order.created_at).getTime()) / 60000)
       })) || [];
 
