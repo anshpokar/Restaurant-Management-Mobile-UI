@@ -8,14 +8,12 @@ import { supabase } from './supabase';
 /**
  * Generate UPI Payment Link (Dynamic QR)
  * Format: upi://pay?pa=UPI_ID&pn=NAME&am=AMOUNT&cu=INR&tn=ORDER_ID
- * 
- * ⚠️ IMPORTANT: Update the default values below with your actual UPI details!
  */
 export const generateUPILink = (
   orderId: string,
   amount: number,
-  vpa: string = 'your-upi-id@bank', // ⚠️ CHANGE THIS to your UPI ID (e.g., 'myrestaurant@paytm')
-  restaurantName: string = 'Your Restaurant Name' // ⚠️ CHANGE THIS to your restaurant name
+  vpa: string = 'anshjpokar@oksbi', // ✅ Navratna Restaurant UPI ID
+  restaurantName: string = 'Navratna Restaurant' // ✅ Your restaurant name
 ): string => {
   // Encode parameters properly
   const encodedName = encodeURIComponent(restaurantName);
@@ -29,8 +27,8 @@ export const generateUPILink = (
  */
 export const createUPIPayment = async (
   orderId: string,
-  vpa: string = 'your-upi-id@bank', // ⚠️ CHANGE THIS to your UPI ID
-  restaurantName: string = 'Your Restaurant Name', // ⚠️ CHANGE THIS to your restaurant name
+  vpa: string = 'anshjpokar@oksbi', // ✅ Navratna Restaurant UPI ID
+  restaurantName: string = 'Navratna Restaurant', // ✅ Your restaurant name
   expiryMinutes: number = 5
 ) => {
   try {

@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useNavigate } from 'react-router-dom';
 import { AppHeader } from '@/components/design-system/app-header';
 import { Card, CardBody } from '@/components/design-system/card';
 import { VegBadge } from '@/components/design-system/badge';
-import { Search, SlidersHorizontal, Star, Plus, RefreshCw } from 'lucide-react';
+import { Search, SlidersHorizontal, Star, Plus, RefreshCw, ShoppingBag } from 'lucide-react';
 import { supabase, type MenuItem } from '@/lib/supabase';
+import { useCart } from '@/contexts/cart-context';
 
 export function MenuScreen() {
-  const { addToCart } = useOutletContext<{ addToCart: (item: MenuItem) => void }>();
+  const navigate = useNavigate();
+  const { addToCart, cartItems, getTotalItems, getTotalAmount } = useCart();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -42,6 +44,19 @@ export function MenuScreen() {
         title="Menu"
         actions={
           <div className="flex gap-1">
+            {cartItems.length > 0 && (
+              <button
+                onClick={() => navigate('/customer/checkout')}
+                className="relative p-2 text-foreground hover:bg-muted rounded-full transition-colors"
+              >
+                <ShoppingBag className="w-5 h-5" />
+                {cartItems.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-white text-[10px] rounded-full flex items-center justify-center">
+                    {getTotalItems()}
+                  </span>
+                )}
+              </button>
+            )}
             <button onClick={fetchMenu} className="p-2 text-foreground hover:bg-muted rounded-full transition-colors">
               <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
             </button>

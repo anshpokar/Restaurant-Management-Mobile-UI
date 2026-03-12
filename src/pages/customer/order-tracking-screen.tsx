@@ -1,28 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { LoadScript, GoogleMap, Marker, DirectionsRenderer } from '@react-google-maps/api';
 import { supabase } from '../../lib/supabase';
 import { AppHeader } from '../../components/design-system/app-header';
 import { Button } from '../../components/design-system/button';
 import { Card } from '../../components/design-system/card';
 import { MobileContainer } from '../../components/MobileContainer';
+import { LeafletOrderTracking } from './leaflet-order-tracking';
 import { 
   MapPin, Navigation, Phone, MessageCircle, Clock, 
   Package, CheckCircle, Truck, AlertCircle 
 } from 'lucide-react';
-
-const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
-
-const mapContainerStyle = {
-  width: '100%',
-  height: '400px',
-  borderRadius: '8px'
-};
-
-const defaultCenter = {
-  lat: 28.6139,
-  lng: 77.2090
-};
 
 interface Order {
   id: string;
@@ -53,7 +40,8 @@ export function OrderTrackingScreen() {
   const [order, setOrder] = useState<Order | null>(null);
   const [deliveryPerson, setDeliveryPerson] = useState<DeliveryPerson | null>(null);
   const [riderLocation, setRiderLocation] = useState<{lat: number, lng: number} | null>(null);
-  const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
+  const [deliveryLocation, setDeliveryLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [routeCoordinates, setRouteCoordinates] = useState<[number, number][] | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [eta, setEta] = useState<string>('');
 
@@ -113,14 +101,16 @@ export function OrderTrackingScreen() {
         }
       }
 
-      // Calculate ETA and route
-      if (orderData.delivery_latitude && orderData.delivery_longitude && deliveryPerson?.current_latitude && deliveryPerson?.current_longitude) {
-        calculateRouteAndETA(
-          deliveryPerson.current_latitude,
-          deliveryPerson.current_longitude,
-          orderData.delivery_latitude,
-          orderData.delivery_longitude
-        );
+      // Set delivery location for map
+      if (orderData.delivery_latitude && orderData.delivery_longitude) {
+        setDeliveryLocation({
+          lat: orderData.delivery_latitude,
+          lng: orderData.delivery_longitude
+        });
+        
+        // Simple ETA estimation (30 minutes default)
+        const arrivalTime = new Date(Date.now() + 30 * 60 * 1000);
+        setEta(arrivalTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
       }
     } catch (error) {
       console.error('Error fetching order:', error);
@@ -137,43 +127,17 @@ export function OrderTrackingScreen() {
       };
       setRiderLocation(newLocation);
       
-      // Update route if we have destination
+      // Update delivery location if available
       if (order?.delivery_latitude && order?.delivery_longitude) {
-        calculateRouteAndETA(
-          newLocation.lat,
-          newLocation.lng,
-          order.delivery_latitude,
-          order.delivery_longitude
-        );
+        setDeliveryLocation({
+          lat: order.delivery_latitude,
+          lng: order.delivery_longitude
+        });
       }
     }
   }
 
-  async function calculateRouteAndETA(
-    fromLat: number,
-    fromLng: number,
-    toLat: number,
-    toLng: number
-  ) {
-    try {
-      const directionsService = new google.maps.DirectionsService();
-      
-      const result = await directionsService.route({
-        origin: { lat: fromLat, lng: fromLng },
-        destination: { lat: toLat, lng: toLng },
-        travelMode: google.maps.TravelMode.DRIVING
-      });
-
-      setDirections(result);
-      
-      // Calculate ETA
-      const duration = result.routes[0].legs[0].duration?.value || 0;
-      const arrivalTime = new Date(Date.now() + duration * 1000);
-      setEta(arrivalTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-    } catch (error) {
-      console.error('Error calculating route:', error);
-    }
-  }
+  // Removed Google Maps route calculation - using Leaflet instead
 
   function callRider() {
     if (deliveryPerson?.phone) {
@@ -250,41 +214,14 @@ export function OrderTrackingScreen() {
           )}
         </Card>
 
-        {/* Live Map */}
-        <LoadScript googleMapsApiKey={GOOGLE_MAPS_API_KEY}>
-          <GoogleMap
-            mapContainerStyle={mapContainerStyle}
-            center={riderLocation || defaultCenter}
-            zoom={13}
-          >
-            {/* Rider Location */}
-            {riderLocation && (
-              <Marker
-                position={riderLocation}
-                icon={{
-                  url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png',
-                  scaledSize: { width: 40, height: 40 } as any
-                }}
-                label="🛵"
-              />
-            )}
-
-            {/* Delivery Destination */}
-            {order.delivery_latitude && order.delivery_longitude && (
-              <Marker
-                position={{ lat: order.delivery_latitude, lng: order.delivery_longitude }}
-                icon={{
-                  url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
-                  scaledSize: { width: 40, height: 40 } as any
-                }}
-                label="🏠"
-              />
-            )}
-
-            {/* Route polyline */}
-            {directions && <DirectionsRenderer directions={directions} />}
-          </GoogleMap>
-        </LoadScript>
+        {/* Live Map with Leaflet - FREE! */}
+        <Card className="p-0 overflow-hidden mb-6">
+          <LeafletOrderTracking
+            riderLocation={riderLocation}
+            deliveryLocation={deliveryLocation}
+            routeCoordinates={routeCoordinates}
+          />
+        </Card>
 
         {/* Rider Info */}
         {deliveryPerson && (

@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { MobileContainer } from '@/components/MobileContainer';
 import { AppRoutes } from '@/routes';
 import { useAuth } from '@/hooks/use-auth';
+import { CartProvider } from '@/contexts/cart-context';
 
 export default function App() {
   const location = useLocation();
@@ -25,25 +26,27 @@ export default function App() {
   }
 
   return (
-    <MobileContainer fullWidth={isDesktopRole}>
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={location.pathname}
-          initial="initial"
-          animate="animate"
-          exit="exit"
-          variants={screenVariants}
-          transition={{ duration: 0.3, ease: "easeInOut" }}
-          className="h-full w-full"
-        >
-          <AppRoutes
-            userRole={userRole}
-            userProfile={userProfile}
-            isLoadingAuth={isLoadingAuth}
-            handleLogout={handleLogout}
-          />
-        </motion.div>
-      </AnimatePresence>
-    </MobileContainer>
+    <CartProvider>
+      <MobileContainer fullWidth={isDesktopRole}>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={location.pathname}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            variants={screenVariants}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="h-full w-full"
+          >
+            <AppRoutes
+              userRole={userRole}
+              userProfile={userProfile}
+              isLoadingAuth={isLoadingAuth}
+              handleLogout={handleLogout}
+            />
+          </motion.div>
+        </AnimatePresence>
+      </MobileContainer>
+    </CartProvider>
   );
 }

@@ -166,7 +166,7 @@ export function SavedAddressesScreen() {
               </form>
             </CardBody>
           </Card>
-        )}
+        )
 
         {/* Addresses List */}
         {loading ? (
@@ -231,5 +231,9 @@ export function SavedAddressesScreen() {
       </div>
     </div>
   );
+}
+
+function setIsAdding(arg0: boolean) {
+  throw new Error('Function not implemented.');
 }
 
