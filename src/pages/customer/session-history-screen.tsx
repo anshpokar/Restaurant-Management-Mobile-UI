@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { AppHeader } from '@/components/design-system/app-header';
 import { Card, CardBody } from '@/components/design-system/card';
 import { Badge } from '@/components/design-system/badge';
-import { Package, CheckCircle2, XCircle, Clock, Calendar, IndianRupee, CreditCard, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/design-system/button';
+import { Package, CheckCircle2, XCircle, Clock, Calendar, IndianRupee, CreditCard, ChevronLeft, Filter } from 'lucide-react';
 import { supabase, type Profile, getStoredUser } from '@/lib/supabase';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 
@@ -13,18 +13,21 @@ export function SessionHistoryScreen() {
   const [completedSessions, setCompletedSessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'completed' | 'cancelled'>('all');
+  const [showDateFilter, setShowDateFilter] = useState(false);
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
 
   const userId = profile?.id || getStoredUser()?.id;
 
   useEffect(() => {
     if (userId) {
-      fetchCompletedSessions();
+      fetchAllSessions(); // Changed to fetch all sessions including active
     }
 
     const subscription = supabase
       .channel('session-history')
       .on('postgres_changes' as any, { event: '*', table: 'dine_in_sessions' }, () => {
-        fetchCompletedSessions();
+        fetchAllSessions();
       })
       .subscribe();
 
@@ -33,13 +36,13 @@ export function SessionHistoryScreen() {
     };
   }, [userId]);
 
-  async function fetchCompletedSessions() {
+  async function fetchAllSessions() {
     try {
       if (!userId) return;
 
-      console.log('Fetching completed sessions for user:', userId);
+      console.log('Fetching all sessions for user:', userId);
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('dine_in_sessions')
         .select(`
           *,
@@ -51,16 +54,36 @@ export function SessionHistoryScreen() {
             status
           )
         `)
-        .eq('user_id', userId)
-        .in('session_status', ['completed', 'cancelled'])
-        .order('completed_at', { ascending: false });
+        .eq('user_id', userId);
+
+      // Apply date filter if set
+      if (startDate) {
+        query = query.gte('started_at', startDate);
+      }
+      if (endDate) {
+        const endDateObj = new Date(endDate);
+        endDateObj.setDate(endDateObj.getDate() + 1);
+        query = query.lt('started_at', endDateObj.toISOString());
+      }
+
+      // Filter by status based on selected filter
+      if (filter !== 'all') {
+        query = query.eq('session_status', filter);
+      } else {
+        // For 'all', include active, completed, and cancelled
+        query = query.in('session_status', ['active', 'completed', 'cancelled']);
+      }
+
+      query = query.order('started_at', { ascending: false });
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
-      console.log('Completed sessions found:', data);
+      console.log('Sessions found:', data);
       setCompletedSessions(data || []);
     } catch (error) {
-      console.error('Error fetching completed sessions:', error);
+      console.error('Error fetching sessions:', error);
     } finally {
       setLoading(false);
     }
@@ -77,6 +100,8 @@ export function SessionHistoryScreen() {
         return <Badge variant="success"><CheckCircle2 className="w-3 h-3 mr-1" /> Completed</Badge>;
       case 'cancelled':
         return <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" /> Cancelled</Badge>;
+      case 'active':
+        return <Badge variant="info"><Clock className="w-3 h-3 mr-1" /> Active</Badge>;
       default:
         return <Badge variant="info">{status}</Badge>;
     }
@@ -86,17 +111,71 @@ export function SessionHistoryScreen() {
     <div className="min-h-screen bg-muted/5 pb-4">
       <AppHeader 
         title="Session History" 
-        leftSlot={
-          <button onClick={() => navigate('/customer/orders')} className="p-2 hover:bg-muted rounded-full">
-            <ChevronLeft className="w-5 h-5" />
+        showBack
+        onBack={() => navigate('/customer/orders')}
+        actions={
+          <button 
+            onClick={() => setShowDateFilter(!showDateFilter)} 
+            className={`p-2 hover:bg-muted rounded-full ${showDateFilter ? 'text-primary' : ''}`}
+          >
+            <Filter className="w-5 h-5" />
           </button>
         }
       />
 
       <div className="px-4 py-4 space-y-4">
+        {/* Date Range Filter */}
+        {showDateFilter && (
+          <Card>
+            <CardBody className="p-4 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold mb-1">Start Date</label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full p-2 bg-background border border-border rounded-lg text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold mb-1">End Date</label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full p-2 bg-background border border-border rounded-lg text-sm"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={fetchAllSessions}
+                  size="sm"
+                  className="flex-1"
+                >
+                  Apply Filter
+                </Button>
+                <Button 
+                  onClick={() => {
+                    setStartDate('');
+                    setEndDate('');
+                    setShowDateFilter(false);
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                >
+                  Clear
+                </Button>
+              </div>
+            </CardBody>
+          </Card>
+        )}
+
         {/* Filter Tabs */}
         <div className="flex gap-2 p-1 bg-muted rounded-2xl overflow-x-auto">
-          {['all', 'completed', 'cancelled'].map((tab) => (
+          {['all', 'active', 'completed', 'cancelled'].map((tab) => (
             <button
               key={tab}
               onClick={() => setFilter(tab as any)}
@@ -112,7 +191,18 @@ export function SessionHistoryScreen() {
         </div>
 
         {/* Summary */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
+          <Card>
+            <CardBody className="p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Clock className="w-4 h-4 text-blue-600" />
+                <span className="text-xs text-muted-foreground">Active</span>
+              </div>
+              <p className="text-lg font-bold text-blue-600">
+                {completedSessions.filter(s => s.session_status === 'active').length}
+              </p>
+            </CardBody>
+          </Card>
           <Card>
             <CardBody className="p-3">
               <div className="flex items-center gap-2 mb-1">

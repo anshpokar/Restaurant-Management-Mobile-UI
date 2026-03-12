@@ -22,12 +22,12 @@ export function SessionPaymentModal({ sessionId, totalAmount, onClose }: Session
       setProcessing(true);
 
       if (selectedMethod === 'upi') {
-        // First update session status to confirming_payment
+        // First update session status - use valid payment_status values
         const { error: sessionError } = await supabase
           .from('dine_in_sessions')
           .update({
             payment_method: 'upi',
-            payment_status: 'confirming_payment',
+            payment_status: 'pending', // Valid value: pending, paid, or partial
             session_status: 'completed',
             completed_at: new Date().toISOString()
           })
@@ -52,7 +52,7 @@ export function SessionPaymentModal({ sessionId, totalAmount, onClose }: Session
           .from('dine_in_sessions')
           .update({
             payment_method: 'cod',
-            payment_status: 'confirming_payment', // Changed from 'pending'
+            payment_status: 'pending', // Changed from 'confirming_payment' which doesn't exist
             session_status: 'completed',
             completed_at: new Date().toISOString()
           })
