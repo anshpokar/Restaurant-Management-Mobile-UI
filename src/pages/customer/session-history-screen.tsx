@@ -118,11 +118,22 @@ export function SessionHistoryScreen() {
 
   const filteredSessions = completedSessions.filter(session => {
     if (filter === 'all') return true;
-    return session.session_status === filter;
+    
+    // Sessions with completed status but pending payment should be treated as active
+    const effectiveStatus = session.session_status === 'completed' && session.payment_status === 'pending' 
+      ? 'active' 
+      : session.session_status;
+    
+    return effectiveStatus === filter;
   });
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
+  const getStatusBadge = (session: any) => {
+    // If session is completed but payment is pending, show as Active
+    if (session.session_status === 'completed' && session.payment_status === 'pending') {
+      return <Badge variant="info"><Clock className="w-3 h-3 mr-1" /> Active</Badge>;
+    }
+    
+    switch (session.session_status) {
       case 'completed':
         return <Badge variant="success"><CheckCircle2 className="w-3 h-3 mr-1" /> Completed</Badge>;
       case 'cancelled':
@@ -130,7 +141,7 @@ export function SessionHistoryScreen() {
       case 'active':
         return <Badge variant="info"><Clock className="w-3 h-3 mr-1" /> Active</Badge>;
       default:
-        return <Badge variant="info">{status}</Badge>;
+        return <Badge variant="info">{session.session_status}</Badge>;
     }
   };
 
@@ -292,7 +303,7 @@ export function SessionHistoryScreen() {
                         </p>
                       </div>
                       <div className="flex flex-col items-end gap-1">
-                        {getStatusBadge(session.session_status)}
+                        {getStatusBadge(session)}
                       </div>
                     </div>
 
