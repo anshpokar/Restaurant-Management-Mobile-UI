@@ -226,7 +226,10 @@ export function SessionHistoryScreen() {
                 <span className="text-xs text-muted-foreground">Active</span>
               </div>
               <p className="text-lg font-bold text-blue-600">
-                {completedSessions.filter(s => s.session_status === 'active').length}
+                {completedSessions.filter(s => 
+                  s.session_status === 'active' || 
+                  (s.session_status === 'completed' && s.payment_status === 'pending')
+                ).length}
               </p>
             </CardBody>
           </Card>
@@ -237,7 +240,9 @@ export function SessionHistoryScreen() {
                 <span className="text-xs text-muted-foreground">Completed</span>
               </div>
               <p className="text-lg font-bold text-green-600">
-                {completedSessions.filter(s => s.session_status === 'completed').length}
+                {completedSessions.filter(s => 
+                  s.session_status === 'completed' && s.payment_status !== 'pending'
+                ).length}
               </p>
             </CardBody>
           </Card>
