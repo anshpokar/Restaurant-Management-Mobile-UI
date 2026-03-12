@@ -19,6 +19,8 @@ import { HelpSupportScreen } from '@/pages/customer/help-support-screen';
 import { OrderTrackingScreen } from '@/pages/customer/order-tracking-screen';
 import { PaymentScreen } from '@/pages/customer/upi-payment-screen';
 import { CheckoutScreen } from '@/pages/customer/checkout-screen';
+import { PaymentHistoryScreen } from '@/pages/customer/payment-history-screen';
+import { SessionHistoryScreen } from '@/pages/customer/session-history-screen';
 
 // Admin Screens
 import { AdminApp } from '@/pages/admin/admin-app';
@@ -29,7 +31,7 @@ import { AdminTables } from '@/pages/admin/admin-tables';
 import { AdminReports } from '@/pages/admin/admin-reports';
 import { AdminUserManagement } from '@/pages/admin/admin-user-management';
 import { DeliveryAssignmentScreen } from '@/pages/admin/delivery-assignment-screen';
-import { AdminUPIVerificationScreen } from '@/pages/admin/upi-verification-screen';
+import { AdminPaymentVerificationScreen } from '@/pages/admin/payment-verification-screen';
 
 // Chef Screens
 import { ChefApp } from '@/pages/chef/chef-app';
@@ -113,8 +115,10 @@ export function AppRoutes({ userRole, userProfile, isLoadingAuth, handleLogout }
                 <Route path="favorites" element={<FavoritesScreen />} />
                 <Route path="notifications" element={<NotificationsScreen />} />
                 <Route path="help-support" element={<HelpSupportScreen />} />
-                <Route path="track-order/:orderId" element={<OrderTrackingScreen />} />
                 <Route path="payment/:orderId" element={<PaymentScreen />} />
+                <Route path="payment/session/:sessionId" element={<PaymentScreen />} />
+                <Route path="payment-history" element={<PaymentHistoryScreen />} />
+                <Route path="session-history" element={<SessionHistoryScreen />} />
             </Route>
 
             {/* Admin Routes */}
@@ -131,7 +135,7 @@ export function AppRoutes({ userRole, userProfile, isLoadingAuth, handleLogout }
                 <Route path="reports" element={<AdminReports />} />
                 <Route path="users" element={<AdminUserManagement />} />
                 <Route path="delivery-assignment" element={<DeliveryAssignmentScreen />} />
-                <Route path="upi-verification" element={<AdminUPIVerificationScreen />} />
+                <Route path="payment-verification" element={<AdminPaymentVerificationScreen />} />
             </Route>
 
             {/* Waiter Routes */}
