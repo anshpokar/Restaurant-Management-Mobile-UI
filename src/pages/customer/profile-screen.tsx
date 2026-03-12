@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { AppHeader } from '@/components/design-system/app-header';
 import { Card, CardBody } from '@/components/design-system/card';
 import { Button } from '@/components/design-system/button';
-import { User, MapPin, Bell, Heart, HelpCircle, LogOut, ChevronRight } from 'lucide-react';
+import { User, MapPin, Bell, Heart, HelpCircle, LogOut, ChevronRight, CreditCard } from 'lucide-react';
 import { type Profile } from '@/lib/supabase';
 import { useOutletContext } from 'react-router-dom';
 import { useNotifications } from '@/hooks/use-notifications';
@@ -18,6 +18,11 @@ export function ProfileScreen() {
       icon: MapPin, 
       label: 'Saved Addresses', 
       action: () => navigate('/customer/addresses') 
+    },
+    { 
+      icon: CreditCard, 
+      label: 'Payment History', 
+      action: () => navigate('/customer/payment-history') 
     },
     { 
       icon: Bell, 

@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS dine_in_sessions (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   table_id uuid REFERENCES restaurant_tables(id) ON DELETE CASCADE NOT NULL,
   user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  session_name text,
   session_status text DEFAULT 'active' CHECK (session_status IN ('active', 'completed', 'cancelled')),
   payment_status text DEFAULT 'pending' CHECK (payment_status IN ('pending', 'paid', 'partial')),
   payment_method text CHECK (payment_method IN ('cod', 'upi', 'razorpay')),
