@@ -48,6 +48,48 @@ export const createUPIPayment = async (
     const qrExpiresAt = new Date();
     qrExpiresAt.setMinutes(qrExpiresAt.getMinutes() + expiryMinutes);
     
+    // First check if payment record already exists for this order/session
+    const { data: existing } = await supabase
+      .from('upi_payments')
+      .select('*')
+      .eq('order_id', paymentId)
+      .single();
+    
+    if (existing) {
+      // Update existing record
+      console.log('Updating existing UPI payment record:', existing.id);
+      
+      const { data, error: updateError } = await supabase
+        .from('upi_payments')
+        .update({
+          vpa: vpa,
+          amount: 0,
+          upi_link: upiLink,
+          qr_expires_at: qrExpiresAt.toISOString(),
+          status: 'pending',
+          transaction_id: null,
+          verified_at: null,
+          verified_by: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('order_id', paymentId)
+        .select()
+        .single();
+      
+      if (updateError) throw updateError;
+      
+      console.log('Updated UPI payment successfully:', data);
+      
+      return {
+        success: true,
+        qrId: data.id,
+        upiLink: upiLink,
+        amount: data.amount || 0,
+        expiresAt: data.qr_expires_at
+      };
+    }
+    
+    // Insert new record
     const { data, error: insertError } = await supabase
       .from('upi_payments')
       .insert({
