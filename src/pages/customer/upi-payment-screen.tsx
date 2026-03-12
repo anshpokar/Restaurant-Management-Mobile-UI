@@ -55,10 +55,11 @@ export function PaymentScreen() {
 
   // Generate QR code
   useEffect(() => {
-    if (order || session) {
+    // Only generate QR if we have order/session AND paymentAmount is set
+    if ((order || session) && paymentAmount > 0) {
       generateQR();
     }
-  }, [order, session]);
+  }, [order, session, paymentAmount]);
 
   // Timer countdown
   useEffect(() => {
@@ -97,8 +98,10 @@ export function PaymentScreen() {
         .single();
 
       if (error) throw error;
+      if (!data) throw new Error('Order not found');
+      
       setOrder(data);
-      setPaymentAmount(data.total_amount);
+      setPaymentAmount(data.total_amount ?? 0);
     } catch (error: any) {
       console.error('Error fetching order:', error);
       toast.error('Failed to load order');
@@ -117,8 +120,10 @@ export function PaymentScreen() {
         .single();
 
       if (error) throw error;
+      if (!data) throw new Error('Session not found');
+      
       setSession(data);
-      setPaymentAmount(data.total_amount);
+      setPaymentAmount(data.total_amount ?? 0);
     } catch (error: any) {
       console.error('Error fetching session:', error);
       toast.error('Failed to load session');
@@ -132,15 +137,43 @@ export function PaymentScreen() {
     try {
       // Use orderId for orders, sessionId for sessions
       const paymentId = orderId || sessionId!;
+      const isSession = !!sessionId && !orderId;
       
+      if (!paymentId) {
+        console.error('No payment ID available');
+        toast.error('Cannot generate QR: Missing order or session ID');
+        return;
+      }
+
+      console.log('Generating QR for payment:', { 
+        paymentId, 
+        paymentIdType: typeof paymentId,
+        amount: paymentAmount,
+        orderId, 
+        sessionId,
+        isSession,
+        hasOrder: !!order,
+        hasSession: !!session
+      });
+      
+      // Validate paymentAmount
+      if (!paymentAmount || paymentAmount <= 0) {
+        console.error('Invalid payment amount:', paymentAmount);
+        toast.error('Invalid payment amount. Please try again.');
+        return;
+      }
+
       const result = await createUPIPayment(
         paymentId,
         UPI_PAYMENT_VPA,
         RESTAURANT_NAME,
-        QR_EXPIRY_MINUTES
+        QR_EXPIRY_MINUTES,
+        isSession
       );
 
-      if (result.success) {
+      console.log('QR generation result:', result);
+
+      if (result.success && result.qrId) {
         const link = generateUPILink(
           paymentId,
           paymentAmount,
@@ -151,12 +184,14 @@ export function PaymentScreen() {
         setQrId(result.qrId);
         setTimeRemaining(QR_EXPIRY_MINUTES * 60);
         setExpired(false);
+        console.log('QR generated successfully:', { qrId: result.qrId, link });
       } else {
-        toast.error('Failed to generate QR code');
+        console.error('QR generation failed:', result);
+        toast.error(`Failed to generate QR code: ${result.error || 'Unknown error'}`);
       }
     } catch (error: any) {
       console.error('Error generating QR:', error);
-      toast.error('Failed to generate QR code');
+      toast.error(`Failed to generate QR code: ${error.message}`);
     }
   };
 
@@ -165,6 +200,14 @@ export function PaymentScreen() {
       toast.error('Please enter UPI Transaction ID');
       return;
     }
+
+    if (!qrId) {
+      console.error('No QR ID available');
+      toast.error('QR code not generated. Please refresh the page.');
+      return;
+    }
+
+    console.log('Submitting transaction:', { qrId, transactionId });
 
     setSubmitting(true);
     
@@ -175,6 +218,7 @@ export function PaymentScreen() {
         toast.success('Transaction ID submitted for verification!');
         setPaymentStatus('verification_requested');
       } else {
+        console.error('Transaction submission failed:', result);
         toast.error('Failed to submit transaction ID');
       }
     } catch (error: any) {
@@ -202,7 +246,9 @@ export function PaymentScreen() {
     );
   }
 
-  if (!order && !session) {
+  // Safety check: ensure we have either order or session before rendering
+  if ((!order && !session) || (orderId && !order) || (sessionId && !session)) {
+    console.log('PaymentScreen: No data available', { orderId, sessionId, order, session });
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Card className="p-6 max-w-md">
@@ -238,7 +284,7 @@ export function PaymentScreen() {
           <div className="space-y-2">
             <div className="flex justify-between">
               <span className="text-gray-600">Payment Amount</span>
-              <span className="font-semibold">₹{paymentAmount}</span>
+              <span className="font-semibold">₹{paymentAmount || 0}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600">Payment Type</span>
@@ -252,7 +298,7 @@ export function PaymentScreen() {
               <div className="flex justify-between text-lg">
                 <span className="font-semibold">Total to Pay</span>
                 <span className="font-bold text-orange-600">
-                  ₹{paymentAmount}
+                  ₹{paymentAmount || 0}
                 </span>
               </div>
             </div>
@@ -343,7 +389,7 @@ export function PaymentScreen() {
                   </li>
                   <li className="flex gap-2">
                     <span className="font-bold">3.</span>
-                    <span>Enter your UPI PIN to pay ₹{order.total_amount}</span>
+                    <span>Enter your UPI PIN to pay ₹{paymentAmount || 0}</span>
                   </li>
                   <li className="flex gap-2">
                     <span className="font-bold">4.</span>

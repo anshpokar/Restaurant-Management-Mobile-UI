@@ -24,16 +24,21 @@ export const generateUPILink = (
 
 /**
  * Create UPI Payment Record in Database
+ * Supports both orders and dine-in sessions
  */
 export const createUPIPayment = async (
-  orderId: string,
+  paymentId: string,
   vpa: string = 'anshjpokar@oksbi', // ✅ Navratna Restaurant UPI ID
   restaurantName: string = 'Navratna Restaurant', // ✅ Your restaurant name
-  expiryMinutes: number = 5
+  expiryMinutes: number = 5,
+  isSession: boolean = false
 ) => {
   try {
-    const { data, error } = await supabase.rpc('create_upi_payment', {
-      p_order_id: orderId,
+    // Use different RPC functions for orders vs sessions
+    const functionName = isSession ? 'create_upi_payment_for_session' : 'create_upi_payment';
+    
+    const { data, error } = await supabase.rpc(functionName, {
+      p_order_id: paymentId,
       p_vpa: vpa,
       p_restaurant_name: restaurantName,
       p_expiry_minutes: expiryMinutes
