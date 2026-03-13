@@ -1,20 +1,83 @@
-import { LayoutGrid } from 'lucide-react';
+import { LayoutGrid, Users } from 'lucide-react';
 import { Card, CardBody } from '@/components/design-system/card';
 import { Button } from '@/components/design-system/button';
 import { Badge } from '@/components/design-system/badge';
-import { RestaurantTable } from '@/lib/supabase';
+import { RestaurantTable, type Profile } from '@/lib/supabase';
 import { useOutletContext, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
+
+interface TableSession {
+  id: string;
+  table_id: string;
+  user_id?: string;
+  session_name?: string;
+  status: 'active' | 'pending' | 'completed';
+  total_amount?: number;
+  started_at: string;
+}
+
+interface TableWithSession extends RestaurantTable {
+  active_session?: TableSession | null;
+}
 
 export function WaiterDashboard() {
     const navigate = useNavigate();
-    const { tables, loading, fetchTables } = useOutletContext<{
+    const { tables, loading, fetchTables, profile } = useOutletContext<{
         tables: RestaurantTable[],
         loading: boolean,
-        fetchTables: () => void
+        fetchTables: () => void,
+        profile: Profile | null
     }>();
+    
+    const [tablesWithSessions, setTablesWithSessions] = useState<TableWithSession[]>([]);
+    const [sessionsLoading, setSessionsLoading] = useState(false);
 
-    const onTableClick = (table: RestaurantTable) => {
-        navigate(`ordering/${table.id}`);
+    useEffect(() => {
+        if (tables.length > 0) {
+            fetchActiveSessions();
+        }
+    }, [tables]);
+
+    const fetchActiveSessions = async () => {
+        setSessionsLoading(true);
+        try {
+            // Fetch all active sessions with table details
+            const { data: sessions, error } = await supabase
+                .from('table_sessions')
+                .select('*')
+                .in('status', ['active', 'pending'])
+                .order('started_at', { ascending: false });
+
+            if (error) throw error;
+
+            // Map sessions to tables
+            const tablesWithSessionsData = tables.map(table => {
+                const session = sessions?.find(s => s.table_id === table.id);
+                return {
+                    ...table,
+                    active_session: session || null
+                };
+            });
+
+            setTablesWithSessions(tablesWithSessionsData);
+        } catch (error) {
+            console.error('Error fetching sessions:', error);
+            // Fallback to tables without sessions
+            setTablesWithSessions(tables.map(t => ({ ...t, active_session: null })));
+        } finally {
+            setSessionsLoading(false);
+        }
+    };
+
+    const onTableClick = (table: TableWithSession) => {
+        if (table.active_session) {
+            // If session exists, go to session management
+            navigate(`/waiter/session/${table.active_session.id}`);
+        } else {
+            // If no session, go to customer selection to start session
+            navigate(`/waiter/customer-info/${table.id}`);
+        }
     };
 
     return (
@@ -29,34 +92,61 @@ export function WaiterDashboard() {
                 </Button>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {tables.length === 0 && !loading ? (
+            <div className="grid grid-cols-2 gap-3">
+                {tablesWithSessions.length === 0 && !loading && !sessionsLoading ? (
                     <div className="col-span-full py-20 text-center bg-card rounded-3xl border-2 border-dashed border-divider">
                         <LayoutGrid className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-20" />
                         <p className="font-bold text-muted-foreground">No tables found in database</p>
                         <p className="text-xs text-muted-foreground mt-1">Please add tables in the Admin section</p>
                     </div>
                 ) : (
-                    tables.map(table => (
+                    tablesWithSessions.map(table => (
                         <Card
                             key={table.id}
                             onClick={() => onTableClick(table)}
-                            className={`cursor-pointer transition-all active:scale-95 border-2 ${table.status === 'occupied'
-                                ? 'bg-red-50 border-red-200'
-                                : table.status === 'reserved'
-                                    ? 'bg-orange-50 border-orange-200'
-                                    : 'bg-green-50 border-green-200 hover:border-primary'
-                                }`}
+                            className={`cursor-pointer transition-all active:scale-95 border-2 ${
+                                table.active_session
+                                    ? 'bg-gradient-to-br from-blue-50 to-blue-100 border-blue-300 hover:border-blue-400'
+                                    : table.status === 'occupied'
+                                        ? 'bg-red-50 border-red-200 hover:border-red-300'
+                                        : table.status === 'reserved'
+                                            ? 'bg-orange-50 border-orange-200 hover:border-orange-300'
+                                            : 'bg-green-50 border-green-200 hover:border-primary'
+                            }`}
                         >
-                            <CardBody className="p-6 text-center">
-                                <div className="text-4xl mb-2">
-                                    {table.status === 'occupied' ? '👨‍👩‍👧‍👦' : '🍽️'}
+                            <CardBody className="p-3 text-center flex flex-col h-full justify-between gap-2">
+                                {/* Table Info */}
+                                <div>
+                                    <div className="text-2xl mb-1">
+                                        {table.active_session ? '👨‍👩‍👧‍👦' : table.status === 'occupied' ? '⚠️' : '🍽️'}
+                                    </div>
+                                    <h3 className="text-base font-black text-foreground">T{table.table_number}</h3>
+                                    <p className="text-[10px] font-medium text-muted-foreground">{table.capacity} Seats</p>
                                 </div>
-                                <h3 className="text-xl font-black text-foreground">Table {table.table_number}</h3>
-                                <p className="text-xs font-bold text-muted-foreground mb-3">{table.capacity} Seats</p>
-                                <Badge variant={table.status === 'occupied' ? 'occupied' : table.status === 'reserved' ? 'warning' : 'success'}>
-                                    {table.status.toUpperCase()}
-                                </Badge>
+                                
+                                {/* Session Status */}
+                                {table.active_session ? (
+                                    <div className="space-y-1.5">
+                                        <Badge variant="paid" className="text-[8px] px-1.5 py-0.5">
+                                            <Users className="w-2 h-2 mr-0.5 inline" />
+                                            ACTIVE
+                                        </Badge>
+                                        {table.active_session.session_name && (
+                                            <div className="bg-white/80 rounded-md p-1.5">
+                                                <p className="text-[9px] font-bold text-primary truncate leading-tight">
+                                                    {table.active_session.session_name}
+                                                </p>
+                                                <p className="text-[9px] font-semibold text-muted-foreground">
+                                                    ₹{Math.round(table.active_session.total_amount || 0)}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <Badge variant={table.status === 'occupied' ? 'occupied' : table.status === 'reserved' ? 'warning' : 'success'} className="text-[8px] px-1.5 py-0.5">
+                                        {table.status.toUpperCase()}
+                                    </Badge>
+                                )}
                             </CardBody>
                         </Card>
                     ))

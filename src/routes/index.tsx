@@ -46,6 +46,10 @@ import { WaiterOrdering } from '@/pages/waiter/waiter-ordering';
 import { WaiterTableSelectionScreen } from '@/pages/waiter/table-selection-screen';
 import { WaiterCustomerInfoScreen } from '@/pages/waiter/customer-info-screen';
 import { WaiterTakeOrderScreen } from '@/pages/waiter/take-order-screen';
+import { WaiterCustomerSelectionScreen } from '@/pages/waiter/customer-selection-screen';
+import { WaiterOTPVerificationScreen } from '@/pages/waiter/otp-verification-screen';
+import { WaiterCustomerSignupScreen } from '@/pages/waiter/customer-signup-screen';
+import { WaiterSessionStartScreen } from '@/pages/waiter/session-start-screen';
 
 // Delivery Screens
 import { DeliveryApp } from '@/pages/delivery/delivery-app';
@@ -148,10 +152,20 @@ export function AppRoutes({ userRole, userProfile, isLoadingAuth, handleLogout }
                     <WaiterApp onLogout={handleLogout} profile={userProfile} />
                 </ProtectedRoute>
             }>
-                <Route index element={<Navigate to="/waiter/tables" replace />} />
+                <Route index element={<Navigate to="/waiter/dashboard" replace />} />
                 <Route path="dashboard" element={<WaiterDashboard />} />
                 <Route path="tables" element={<WaiterTableSelectionScreen />} />
-                <Route path="customer-info/:tableId" element={<WaiterCustomerInfoScreen />} />
+                
+                {/* Legacy route - redirect to dashboard */}
+                <Route path="customer-info/:tableId" element={<WaiterCustomerSelectionScreen />} />
+                
+                {/* New customer selection flow */}
+                <Route path="customer-info/:tableId" element={<WaiterCustomerSelectionScreen />} />
+                <Route path="otp-verify/:tableId" element={<WaiterOTPVerificationScreen />} />
+                <Route path="signup/:tableId" element={<WaiterCustomerSignupScreen />} />
+                
+                {/* Session management flow */}
+                <Route path="session/start/:tableId" element={<WaiterSessionStartScreen />} />
                 <Route path="take-order/:tableId" element={<WaiterTakeOrderScreen />} />
                 <Route path="ordering/:tableId" element={<WaiterOrdering />} />
             </Route>

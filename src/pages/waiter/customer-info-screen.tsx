@@ -31,42 +31,56 @@ export function WaiterCustomerInfoScreen() {
     setError('');
     
     try {
-      // Check if customer exists
-      const { data: existingCustomer } = await supabase
-        .from('profiles')
-        .select('id, email')
-        .eq('email', customerEmail)
-        .single();
-
-      if (existingCustomer) {
-        // Existing customer - send OTP via Supabase Auth
-        const { error: otpError } = await supabase.auth.signInWithOtp({
-          email: customerEmail
+      // Generate OTP
+      const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+      
+      // Store OTP in database
+      const { error: storeError } = await supabase
+        .from('customer_otps')
+        .insert({
+          email: customerEmail,
+          otp_code: generatedOtp,
+          expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(), // 10 minutes
+          used: false
         });
 
-        if (otpError) throw otpError;
-        
-        alert('OTP sent to your email! Please check and enter the code.');
-        setOtpSent(true);
-      } else {
-        // New customer - generate OTP manually
-        const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-        
-        const { error: insertError } = await supabase
-          .from('customer_otps')
-          .insert({
+      if (storeError) throw storeError;
+
+      // Try to send email via Edge Function
+      try {
+        const { error: emailError } = await supabase.functions.invoke('send-otp-email', {
+          body: {
             email: customerEmail,
-            otp_code: generatedOtp,
-            expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString() // 10 minutes
-          });
+            otpCode: generatedOtp,
+            purpose: 'customer_verification'
+          }
+        });
 
-        if (insertError) throw insertError;
-
-        // In production, send via email service
-        // For now, show OTP in alert for testing
-        alert(`TEST MODE - OTP: ${generatedOtp}\n(In production, this will be sent via email)`);
-        setOtpSent(true);
+        if (emailError) {
+          // Email service failed, show OTP manually
+          alert(
+            `⚠️ Email Service Unavailable\n\n` +
+            `📧 OTP Generated for ${customerEmail}\n\n` +
+            `Your OTP Code: ${generatedOtp}\n\n` +
+            `Please share this code with the customer.`
+          );
+        } else {
+          // Email sent successfully
+          alert(`✅ OTP sent to ${customerEmail}!\n\nPlease check the email and enter the code.`);
+        }
+      } catch (emailErr) {
+        console.error('Email sending error:', emailErr);
+        // Fallback: show OTP manually
+        alert(
+          `⚠️ Email Service Unavailable\n\n` +
+          `📧 OTP Generated for ${customerEmail}\n\n` +
+          `Your OTP Code: ${generatedOtp}\n\n` +
+          `Please share this code with the customer.`
+        );
       }
+
+      setOtpSent(true);
+      
     } catch (err: any) {
       console.error('Error sending OTP:', err);
       setError(err.message || 'Failed to send OTP');

@@ -77,13 +77,35 @@ export function LoginScreen({ onLogin, onSignup, onForgotPassword }: LoginScreen
               console.log('Resolved via phone to:', loginEmail);
             } else {
               console.warn('Resolution failed: No profile found for', cleanEmail);
-              throw new Error('User not found with that username or phone number');
+              throw new Error('No account found with this username or phone number. Please sign up first.');
             }
           }
         } catch (resolveErr: any) {
           console.error('Resolution failed:', resolveErr);
           throw resolveErr;
         }
+      } else {
+        // Email format - check if user exists
+        console.log('Step 1b: Checking if email exists:', cleanEmail);
+        const { data: existingUser, error: emailCheckError } = await withTimeout(
+          supabase
+            .from('profiles')
+            .select('id')
+            .eq('email', cleanEmail)
+            .maybeSingle() as any
+        );
+
+        if (emailCheckError) {
+          console.error('Email check database error:', emailCheckError);
+        }
+
+        if (!existingUser) {
+          console.warn('Email not found in database:', cleanEmail);
+          throw new Error('No account found with this email address. Please sign up first.');
+        }
+        
+        loginEmail = cleanEmail;
+        console.log('Email exists, proceeding with login:', loginEmail);
       }
 
       // 2. Sign in with Supabase Auth
