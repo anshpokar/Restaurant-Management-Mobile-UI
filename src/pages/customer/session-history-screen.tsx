@@ -84,24 +84,65 @@ export function SessionHistoryScreen() {
       const sessionsWithOrders = await Promise.all(
         sessionsData.map(async (session) => {
           try {
-            // Fetch orders linked to this session via notes or session_name
-            const { data: ordersData } = await supabase
+            // Fetch orders linked to this session via notes field
+            // Using LIKE query to match "Dine-in Session: {session_id}"
+            const { data: ordersData, error: ordersError } = await supabase
               .from('orders')
               .select(`
                 id,
-                order_items,
+                order_items (
+                  name,
+                  quantity,
+                  price,
+                  image
+                ),
                 total_amount,
-                status
+                status,
+                payment_status,
+                is_paid
               `)
               .eq('user_id', userId)
-              .or(`notes.like.%Dine-in Session: ${session.id}%,session_name.eq.${session.session_name}`);
+              .like('notes', `%Dine-in Session: ${session.id}%`);
+
+            if (ordersError) {
+              console.warn(`Error fetching orders for session ${session.id}:`, ordersError);
+              return { ...session, orders: [] };
+            }
+
+            // If no orders found by notes, try by session_name
+            let finalOrders = ordersData || [];
+            if (finalOrders.length === 0 && session.session_name) {
+              const { data: nameMatchedOrders, error: nameError } = await supabase
+                .from('orders')
+                .select(`
+                  id,
+                  order_items (
+                    name,
+                    quantity,
+                    price,
+                    image
+                  ),
+                  total_amount,
+                  status,
+                  payment_status,
+                  is_paid
+                `)
+                .eq('user_id', userId)
+                .eq('session_name', session.session_name);
+
+              if (!nameError && nameMatchedOrders) {
+                finalOrders = nameMatchedOrders;
+              }
+            }
+
+            console.log(`Session ${session.id} has ${finalOrders.length} order(s)`);
 
             return { 
               ...session, 
-              orders: ordersData || [] 
+              orders: finalOrders 
             };
           } catch (orderError) {
-            console.warn(`Error fetching orders for session ${session.id}:`, orderError);
+            console.warn(`Failed to fetch orders for session ${session.id}:`, orderError);
             return { ...session, orders: [] };
           }
         })

@@ -35,28 +35,73 @@ export function PaymentHistoryScreen() {
     try {
       if (!userId) return;
 
-      console.log('Fetching payment history for user:', userId);
+      console.log('📜 Fetching payment history for user:', userId);
 
-      const { data, error } = await supabase
+      // Step 1: Fetch UPI payments (without orders join to avoid FK error)
+      const { data: paymentsData, error: paymentsError } = await supabase
         .from('upi_payments')
-        .select(`
-          *,
-          orders (
-            id,
-            order_type,
-            total_amount,
-            status as order_status
-          )
-        `)
-        .eq('user_id', userId)
+        .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (paymentsError) throw paymentsError;
 
-      console.log('Payment history fetched:', data);
-      setPayments(data || []);
+      // Step 2: Enrich with order/session data separately
+      if (paymentsData && paymentsData.length > 0) {
+        const enrichedPayments = await Promise.all(
+          paymentsData.map(async (payment) => {
+            try {
+              // Try to find matching order first
+              const { data: orderData } = await supabase
+                .from('orders')
+                .select('id, order_type, total_amount, status, payment_status, is_paid')
+                .eq('id', payment.order_id)
+                .single();
+
+              // If no order found, try dine_in_sessions
+              let sessionData = null;
+              if (!orderData) {
+                const { data: session } = await supabase
+                  .from('dine_in_sessions')
+                  .select('id, session_status, payment_status, total_amount, session_name')
+                  .eq('id', payment.order_id)
+                  .single();
+                sessionData = session;
+              }
+
+              console.log(`✅ Payment ${payment.id}:`, {
+                type: orderData ? 'ORDER' : sessionData ? 'SESSION' : 'UNKNOWN',
+                amount: orderData?.total_amount || sessionData?.total_amount || payment.amount
+              });
+
+              return {
+                ...payment,
+                order_type: orderData ? 'ORDER' : sessionData ? 'SESSION' : 'UNKNOWN',
+                order_details: orderData || sessionData || {},
+                display_amount: orderData?.total_amount || sessionData?.total_amount || payment.amount,
+                display_status: orderData?.payment_status || sessionData?.payment_status || payment.status
+              };
+            } catch (err) {
+              console.warn(`⚠️ Failed to fetch details for payment ${payment.id}:`, err);
+              return {
+                ...payment,
+                order_type: 'UNKNOWN',
+                order_details: {},
+                display_amount: payment.amount,
+                display_status: payment.status
+              };
+            }
+          })
+        );
+
+        console.log('✅ Payment history loaded:', enrichedPayments.length, 'payments');
+        setPayments(enrichedPayments);
+      } else {
+        console.log('ℹ️ No payment history found');
+        setPayments([]);
+      }
     } catch (error) {
-      console.error('Error fetching payment history:', error);
+      console.error('❌ Error fetching payment history:', error);
+      setPayments([]);
     } finally {
       setLoading(false);
     }
@@ -64,9 +109,10 @@ export function PaymentHistoryScreen() {
 
   const filteredPayments = payments.filter(payment => {
     if (filter === 'all') return true;
-    if (filter === 'approved') return payment.payment_status === 'paid';
-    if (filter === 'rejected') return payment.payment_status === 'failed' || payment.payment_status === 'refunded';
-    if (filter === 'pending') return payment.payment_status === 'pending' || payment.payment_status === 'confirming_payment';
+    // Use display_status from enriched data, fallback to status
+    if (filter === 'approved') return payment.display_status === 'paid' || payment.status === 'verified';
+    if (filter === 'rejected') return payment.display_status === 'failed' || payment.display_status === 'refunded' || payment.status === 'failed';
+    if (filter === 'pending') return ['pending', 'confirming_payment'].includes(payment.display_status) || ['pending', 'verification_requested'].includes(payment.status);
     return true;
   });
 
@@ -116,7 +162,7 @@ export function PaymentHistoryScreen() {
                 <span className="text-xs text-muted-foreground">Approved</span>
               </div>
               <p className="text-lg font-bold text-green-600">
-                {payments.filter(p => p.payment_status === 'paid').length}
+                {payments.filter(p => p.display_status === 'paid' || p.status === 'verified').length}
               </p>
             </CardBody>
           </Card>
@@ -127,7 +173,10 @@ export function PaymentHistoryScreen() {
                 <span className="text-xs text-muted-foreground">Pending</span>
               </div>
               <p className="text-lg font-bold text-orange-600">
-                {payments.filter(p => ['pending', 'confirming_payment'].includes(p.payment_status)).length}
+                {payments.filter(p => 
+                  ['pending', 'confirming_payment'].includes(p.display_status) || 
+                  ['pending', 'verification_requested'].includes(p.status)
+                ).length}
               </p>
             </CardBody>
           </Card>
@@ -156,15 +205,15 @@ export function PaymentHistoryScreen() {
                       <div className="flex items-center gap-2 mb-1">
                         <Package className="w-4 h-4 text-muted-foreground" />
                         <span className="text-xs font-mono text-muted-foreground">
-                          Order: {payment.order_id?.slice(0, 8)}...
+                          {payment.order_type === 'SESSION' ? 'Session' : 'Order'}: {payment.order_id?.slice(0, 8)}...
                         </span>
                       </div>
                       <h3 className="font-bold text-base">
-                        ₹{payment.amount}
+                        ₹{payment.display_amount || payment.amount}
                       </h3>
                     </div>
                     <div className="flex flex-col items-end gap-1">
-                      {getStatusBadge(payment.payment_status)}
+                      {getStatusBadge(payment.display_status || payment.status)}
                     </div>
                   </div>
 
