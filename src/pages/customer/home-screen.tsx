@@ -12,12 +12,22 @@ import { CUSTOMER_TEXT, COMMON_TEXT } from '@/constants/text';
 export function HomeScreen() {
   const navigate = useNavigate();
   const { addToCart, profile } = useOutletContext<{
-    addToCart: (item: MenuItem) => void,
-    profile: Profile | null
+    addToCart: (item: MenuItem) => void;
+    profile: Profile | null;
   }>();
 
   // Define onNavigate locally or just use navigate
   const onNavigate = (tab: string) => navigate(`/customer/${tab}`);
+
+  // Function to capitalize first letter of each word
+  const capitalizeName = (name?: string) => {
+    if (!name) return '';
+    return name
+      .toLowerCase()
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
   const [bestsellers, setBestsellers] = useState<MenuItem[]>([]);
   const [specials, setSpecials] = useState<MenuItem[]>([]);
   const [offers, setOffers] = useState<Offer[]>([]);
@@ -100,12 +110,12 @@ export function HomeScreen() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-black text-foreground">
-              {CUSTOMER_TEXT.GREETING}, {profile?.full_name || 'Guest'}! 👋
+              {CUSTOMER_TEXT.GREETING}, {capitalizeName(profile?.full_name) || 'Guest'}! 👋
             </h2>
             <p className="text-muted-foreground text-sm">{CUSTOMER_TEXT.SUB_GREETING}</p>
           </div>
           <button className="w-12 h-12 bg-primary/10 text-primary rounded-2xl flex items-center justify-center font-bold text-lg">
-            {profile?.full_name?.[0] || '👤'}
+            {profile?.full_name ? capitalizeName(profile.full_name)[0].toUpperCase() : '👤'}
           </button>
         </div>
 

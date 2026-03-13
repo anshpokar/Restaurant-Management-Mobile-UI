@@ -43,7 +43,14 @@ export function CustomerApp({ onLogout, profile }: CustomerAppProps) {
   return (
     <div className="relative min-h-screen bg-background pb-16">
       <div className="flex-1">
-        <Outlet context={{ addToCart, cartItems, totalItems, totalAmount, onLogout }} />
+        <Outlet context={{ 
+          addToCart, 
+          cartItems, 
+          totalItems, 
+          totalAmount, 
+          onLogout,
+          profile  // ✅ ADD profile to context
+        }} />
       </div>
 
       {/* Floating Cart Button */}

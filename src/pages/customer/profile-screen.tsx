@@ -9,8 +9,21 @@ import { useNotifications } from '@/hooks/use-notifications';
 
 export function ProfileScreen() {
   const navigate = useNavigate();
-  const { onLogout, profile } = useOutletContext<{ onLogout: () => void, profile: Profile | null }>();
+  const { onLogout, profile } = useOutletContext<{
+    onLogout: () => void,
+    profile: Profile | null
+  }>();
   const { unreadCount } = useNotifications(profile?.id || null);
+  
+  // Function to capitalize first letter of each word
+  const capitalizeName = (name?: string) => {
+    if (!name) return '';
+    return name
+      .toLowerCase()
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
   
   const menuItems = [
     { icon: User, label: 'Edit Profile', action: () => {} },
@@ -54,7 +67,7 @@ export function ProfileScreen() {
               <User className="w-10 h-10 text-primary" />
             </div>
             <h3 className="text-xl font-bold text-foreground mb-1">
-              {profile?.full_name || 'Guest User'}
+              {capitalizeName(profile?.full_name) || 'Guest User'}
             </h3>
             <p className="text-sm text-muted-foreground mb-1">
               {profile?.email || 'No email available'}
@@ -64,7 +77,7 @@ export function ProfileScreen() {
             </p>
             {profile?.username && (
               <p className="text-xs text-primary mt-2 font-medium">
-                @{profile.username}
+                @{profile.username.toLowerCase()}
               </p>
             )}
           </CardBody>
