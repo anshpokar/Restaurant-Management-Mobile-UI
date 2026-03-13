@@ -28,7 +28,7 @@ interface BottomNavProps {
 export function BottomNav({ children }: BottomNavProps) {
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-divider safe-area-inset-bottom">
-      <div className="flex items-center justify-around h-16 max-w-md mx-auto">
+      <div className="flex items-center justify-around h-16 max-w-md mx-auto overflow-x-auto px-2">
         {children}
       </div>
     </div>

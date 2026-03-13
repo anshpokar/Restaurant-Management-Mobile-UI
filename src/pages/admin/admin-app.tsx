@@ -1,6 +1,6 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { BottomNav, BottomNavItem } from '@/components/design-system/bottom-nav';
-import { LayoutDashboard, ShoppingBag, Menu, Table, BarChart3, Users, LogOut } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Menu, Table, BarChart3, Users, LogOut, Calendar, CreditCard } from 'lucide-react';
 
 interface AdminAppProps {
   onLogout: () => void;
@@ -17,6 +17,8 @@ export function AdminApp({ onLogout }: AdminAppProps) {
     if (path.includes('/admin/tables')) return 'tables';
     if (path.includes('/admin/reports')) return 'reports';
     if (path.includes('/admin/users')) return 'users';
+    if (path.includes('/admin/bookings')) return 'bookings';
+    if (path.includes('/admin/payment-verification')) return 'payment';
     return 'dashboard';
   };
 
@@ -56,6 +58,18 @@ export function AdminApp({ onLogout }: AdminAppProps) {
             label="Tables"
             active={activeTab === 'tables'}
             onClick={() => navigate('/admin/tables')}
+          />
+          <SidebarItem
+            icon={<Calendar className="w-5 h-5" />}
+            label="Bookings"
+            active={activeTab === 'bookings'}
+            onClick={() => navigate('/admin/bookings')}
+          />
+          <SidebarItem
+            icon={<CreditCard className="w-5 h-5" />}
+            label="Payment Verification"
+            active={activeTab === 'payment'}
+            onClick={() => navigate('/admin/payment-verification')}
           />
           <SidebarItem
             icon={<Users className="w-5 h-5" />}
@@ -116,16 +130,28 @@ export function AdminApp({ onLogout }: AdminAppProps) {
               onClick={() => navigate('/admin/tables')}
             />
             <BottomNavItem
-              icon={<BarChart3 className="w-6 h-6" />}
-              label="Reports"
-              active={activeTab === 'reports'}
-              onClick={() => navigate('/admin/reports')}
+              icon={<Calendar className="w-6 h-6" />}
+              label="Bookings"
+              active={activeTab === 'bookings'}
+              onClick={() => navigate('/admin/bookings')}
+            />
+            <BottomNavItem
+              icon={<CreditCard className="w-6 h-6" />}
+              label="Payment"
+              active={activeTab === 'payment'}
+              onClick={() => navigate('/admin/payment-verification')}
             />
             <BottomNavItem
               icon={<Users className="w-6 h-6" />}
               label="Users"
               active={activeTab === 'users'}
               onClick={() => navigate('/admin/users')}
+            />
+            <BottomNavItem
+              icon={<BarChart3 className="w-6 h-6" />}
+              label="Reports"
+              active={activeTab === 'reports'}
+              onClick={() => navigate('/admin/reports')}
             />
           </BottomNav>
         </div>

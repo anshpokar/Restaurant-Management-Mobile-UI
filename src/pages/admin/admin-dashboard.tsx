@@ -177,6 +177,15 @@ export function AdminDashboard() {
 
   const quickActions = [
     {
+      label: 'Table Bookings',
+      value: stats.bookingsCount.toString() + ' today',
+      icon: Calendar,
+      color: 'text-orange-600',
+      bg: 'bg-orange-100',
+      action: () => navigate('/admin/bookings'),
+      badge: false
+    },
+    {
       label: 'Payment Verifications',
       value: stats.pendingUpiVerifications > 0 ? `${stats.pendingUpiVerifications} pending` : 'No pending',
       icon: CreditCard,

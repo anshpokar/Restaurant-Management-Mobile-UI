@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { AppHeader } from '@/components/design-system/app-header';
 import { Card, CardBody } from '@/components/design-system/card';
 import { Button } from '@/components/design-system/button';
-import { Calendar, Users, Clock, CheckCircle2, XCircle } from 'lucide-react';
+import { Calendar, Users, Clock, CheckCircle2, XCircle, Phone, Gift, MessageSquare } from 'lucide-react';
 import { supabase, type RestaurantTable, type TableBooking } from '@/lib/supabase';
 import { Badge } from '@/components/design-system/badge';
 
@@ -18,6 +18,12 @@ export function BookingsScreen({ hideHeader = false }: { hideHeader?: boolean })
   const [time, setTime] = useState('11:00');
   const [guests, setGuests] = useState(2);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
+  
+  // Enhanced fields
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [occasion, setOccasion] = useState('');
+  const [specialRequests, setSpecialRequests] = useState('');
+  const [duration, setDuration] = useState(90); // Default 90 minutes
 
   useEffect(() => {
     fetchTables();
@@ -25,6 +31,13 @@ export function BookingsScreen({ hideHeader = false }: { hideHeader?: boolean })
       fetchMyBookings();
     }
   }, [view]);
+
+  // Update filtered tables when date, time, or guests change
+  useEffect(() => {
+    if (view === 'book' && tables.length > 0) {
+      getFilteredTables();
+    }
+  }, [date, time, guests, view, tables]);
 
   const fetchTables = async () => {
     setLoading(true);
@@ -67,19 +80,48 @@ export function BookingsScreen({ hideHeader = false }: { hideHeader?: boolean })
     }
   };
 
-  const getFilteredTables = () => {
-    const availableTables = tables.filter(t => t.status === 'available' && t.capacity >= guests);
+  const [filteredTables, setFilteredTables] = useState<RestaurantTable[]>([]);
 
-    if (availableTables.length === 0) return [];
+  const getFilteredTables = async () => {
+    if (!date || !time) {
+      setFilteredTables([]);
+      return;
+    }
+    
+    try {
+      // Use the database function to check real-time availability
+      const { data, error } = await supabase.rpc('get_available_tables_for_booking', {
+        target_date: date,
+        target_time: time,
+        min_guests: guests,
+        duration: duration  // Pass the selected duration
+      });
 
-    // Find the smallest capacity that can accommodate the guests
-    const minCapacity = Math.min(...availableTables.map(t => t.capacity));
+      if (error) {
+        console.error('Error checking availability:', error);
+        // Fallback to client-side filtering if RPC fails
+        const fallback = tables.filter(t => t.capacity >= guests);
+        setFilteredTables(fallback);
+        return;
+      }
 
-    // Return tables that match this minimum capacity
-    return availableTables.filter(t => t.capacity === minCapacity);
+      // Filter only available tables from the result
+      const availableTablesWithDetails = data
+        .filter((table: any) => table.is_available)
+        .map((table: any) => ({
+          id: table.id,
+          table_number: table.table_number,
+          capacity: table.capacity,
+          status: table.status
+        }));
+
+      console.log(`✅ Found ${availableTablesWithDetails.length} available tables for ${guests} guests at ${time} (${duration} min)`);
+      setFilteredTables(availableTablesWithDetails);
+    } catch (error) {
+      console.error('Error in getFilteredTables:', error);
+      setFilteredTables([]);
+    }
   };
-
-  const filteredTables = getFilteredTables();
 
   const handleBooking = async () => {
     // Time Validation: 11:00 AM to 10:00 PM
@@ -93,6 +135,11 @@ export function BookingsScreen({ hideHeader = false }: { hideHeader?: boolean })
       return;
     }
 
+    if (!phoneNumber) {
+      alert('Please enter your phone number');
+      return;
+    }
+
     setBookingLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -100,6 +147,13 @@ export function BookingsScreen({ hideHeader = false }: { hideHeader?: boolean })
         alert('You must be logged in to book a table');
         return;
       }
+
+      // Get user profile for name and email
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name, email')
+        .eq('id', user.id)
+        .single();
 
       const { error } = await supabase
         .from('table_bookings')
@@ -109,14 +163,23 @@ export function BookingsScreen({ hideHeader = false }: { hideHeader?: boolean })
           booking_date: date,
           booking_time: time,
           guests_count: guests,
-          status: 'pending'
+          status: 'pending',
+          phone_number: phoneNumber,
+          occasion: occasion || null,
+          special_requests: specialRequests || null,
+          customer_name: profile?.full_name || null,
+          customer_email: profile?.email || null,
+          booking_duration: duration  // Add duration to booking
         });
 
       if (error) throw error;
 
-      alert('Booking request sent successfully!');
+      alert('🎉 Booking request sent to the restaurant! You\'ll receive a confirmation once it\'s approved.');
       setView('my-bookings');
       setSelectedTableId(null);
+      setPhoneNumber('');
+      setOccasion('');
+      setSpecialRequests('');
     } catch (error: any) {
       console.error('Booking Error:', error);
       alert(error.message || 'Failed to book table');
@@ -198,6 +261,7 @@ export function BookingsScreen({ hideHeader = false }: { hideHeader?: boolean })
                     />
                   </div>
                 </div>
+                
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground flex items-center gap-2">
                     <Users className="w-4 h-4 text-primary" />
@@ -212,6 +276,73 @@ export function BookingsScreen({ hideHeader = false }: { hideHeader?: boolean })
                       <option key={num} value={num}>{num} Guests</option>
                     ))}
                   </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-primary" />
+                    Booking Duration
+                  </label>
+                  <select
+                    className="w-full px-3 py-2 bg-surface border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none"
+                    value={duration}
+                    onChange={(e) => setDuration(Number(e.target.value))}
+                  >
+                    <option value={60}>⏱️ Quick Visit - 60 minutes</option>
+                    <option value={90}>🍽️ Standard Dining - 90 minutes</option>
+                    <option value={120}>🎉 Long Celebration - 2 hours</option>
+                    <option value={150}>👨‍👩‍👧‍👦 Family Gathering - 2.5 hours</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground">Standard dining is 90 minutes</p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                    <Phone className="w-4 h-4 text-primary" />
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    className="w-full px-3 py-2 bg-surface border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    placeholder="Enter your phone number"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                    <Gift className="w-4 h-4 text-primary" />
+                    Occasion (Optional)
+                  </label>
+                  <select
+                    className="w-full px-3 py-2 bg-surface border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none"
+                    value={occasion}
+                    onChange={(e) => setOccasion(e.target.value)}
+                  >
+                    <option value="">Select Occasion</option>
+                    <option value="birthday">🎂 Birthday</option>
+                    <option value="anniversary">💍 Anniversary</option>
+                    <option value="business_meeting">💼 Business Meeting</option>
+                    <option value="date_night">❤️ Date Night</option>
+                    <option value="family_gathering">👨‍👩‍👧‍👦 Family Gathering</option>
+                    <option value="celebration">🎉 Celebration</option>
+                    <option value="other">📝 Other</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-primary" />
+                    Special Requests (Optional)
+                  </label>
+                  <textarea
+                    className="w-full px-3 py-2 bg-surface border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none resize-none"
+                    value={specialRequests}
+                    onChange={(e) => setSpecialRequests(e.target.value)}
+                    placeholder="Any special requests? (e.g., window seat, high chair, etc.)"
+                    rows={3}
+                  />
                 </div>
               </CardBody>
             </Card>
