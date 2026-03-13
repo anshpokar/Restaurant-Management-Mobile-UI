@@ -62,19 +62,33 @@ export function BookingsScreen({ hideHeader = false }: { hideHeader?: boolean })
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      console.log('🔍 Fetching bookings for user:', user.id);
+
       const { data, error } = await supabase
         .from('table_bookings')
         .select(`
           *,
-          restaurant_tables!inner (*)
+          restaurant_tables (
+            id,
+            table_number,
+            capacity,
+            status
+          )
         `)
         .eq('user_id', user.id)
         .order('booking_date', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Error fetching bookings:', error);
+        throw error;
+      }
+      
+      console.log('📦 Found bookings:', data?.length || 0);
+      console.log('Booking details:', data);
       setMyBookings(data || []);
     } catch (error: any) {
-      console.error('Error fetching bookings:', error);
+      console.error('❌ Error in fetchMyBookings:', error);
+      alert('Failed to load your bookings: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -89,21 +103,28 @@ export function BookingsScreen({ hideHeader = false }: { hideHeader?: boolean })
     }
     
     try {
+      console.log('🔍 Checking availability for:', { date, time, guests, duration });
+      
       // Use the database function to check real-time availability
       const { data, error } = await supabase.rpc('get_available_tables_for_booking', {
         target_date: date,
         target_time: time,
-        min_guests: guests,
-        duration: duration  // Pass the selected duration
+        min_guests: guests
+        // Temporarily removed duration until we add it back properly
       });
 
       if (error) {
-        console.error('Error checking availability:', error);
+        console.error('❌ Error from RPC:', error);
+        console.warn('⚠️ Falling back to client-side filtering. Make sure to run ADD_BOOKING_DURATION_COLUMN.sql in Supabase!');
+        
         // Fallback to client-side filtering if RPC fails
         const fallback = tables.filter(t => t.capacity >= guests);
+        console.log(`✅ Fallback: Found ${fallback.length} tables`);
         setFilteredTables(fallback);
         return;
       }
+
+      console.log('📦 Raw RPC response:', data);
 
       // Filter only available tables from the result
       const availableTablesWithDetails = data
@@ -116,9 +137,10 @@ export function BookingsScreen({ hideHeader = false }: { hideHeader?: boolean })
         }));
 
       console.log(`✅ Found ${availableTablesWithDetails.length} available tables for ${guests} guests at ${time} (${duration} min)`);
+      console.log('Available tables:', availableTablesWithDetails);
       setFilteredTables(availableTablesWithDetails);
     } catch (error) {
-      console.error('Error in getFilteredTables:', error);
+      console.error('❌ Error in getFilteredTables:', error);
       setFilteredTables([]);
     }
   };
