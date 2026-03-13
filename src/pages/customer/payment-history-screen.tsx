@@ -37,40 +37,163 @@ export function PaymentHistoryScreen() {
 
       console.log('📜 Fetching payment history for user:', userId);
 
-      // Step 1: Fetch UPI payments (without orders join to avoid FK error)
-      const { data: paymentsData, error: paymentsError } = await supabase
+      // Step 1: Fetch UPI payments
+      const { data: upiPaymentsData, error: upiError } = await supabase
         .from('upi_payments')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (paymentsError) throw paymentsError;
+      if (upiError) {
+        console.error('Error fetching UPI payments:', upiError);
+      }
 
-      // Step 2: Enrich with order/session data separately
-      if (paymentsData && paymentsData.length > 0) {
+      // Step 2: Fetch COD orders (cash payments that don't have UPI records)
+      const { data: codOrdersData, error: codOrdersError } = await supabase
+        .from('orders')
+        .select(`
+          id,
+          total_amount,
+          status,
+          payment_status,
+          is_paid,
+          payment_method,
+          created_at,
+          paid_at
+        `)
+        .eq('user_id', userId)
+        .eq('payment_method', 'cod')
+        .order('created_at', { ascending: false });
+
+      if (codOrdersError) {
+        console.error('Error fetching COD orders:', codOrdersError);
+      }
+
+      // Step 3: Fetch COD sessions (cash dine-in sessions)
+      const { data: codSessionsData, error: codSessionsError } = await supabase
+        .from('dine_in_sessions')
+        .select(`
+          id,
+          total_amount,
+          session_status,
+          payment_status,
+          payment_method,
+          created_at,
+          payment_completed_at
+        `)
+        .eq('user_id', userId)
+        .eq('payment_method', 'cod')
+        .order('created_at', { ascending: false });
+
+      if (codSessionsError) {
+        console.error('Error fetching COD sessions:', codSessionsError);
+      }
+
+      // Combine all payments
+      const allPayments = [];
+
+      // Add UPI payments
+      if (upiPaymentsData && upiPaymentsData.length > 0) {
+        allPayments.push(...upiPaymentsData);
+      }
+
+      // Add COD orders as pseudo-payments
+      if (codOrdersData && codOrdersData.length > 0) {
+        const codOrderPayments = codOrdersData.map(order => ({
+          id: `cod_order_${order.id}`,
+          order_id: order.id,
+          amount: order.total_amount,
+          payment_method: 'cod',
+          status: order.payment_status === 'paid' ? 'verified' : 'pending',
+          created_at: order.created_at,
+          paid_at: order.paid_at,
+          is_cod: true,
+          type: 'ORDER'
+        }));
+        allPayments.push(...codOrderPayments);
+      }
+
+      // Add COD sessions as pseudo-payments
+      if (codSessionsData && codSessionsData.length > 0) {
+        const codSessionPayments = codSessionsData.map(session => ({
+          id: `cod_session_${session.id}`,
+          order_id: session.id,
+          amount: session.total_amount,
+          payment_method: 'cod',
+          status: session.payment_status === 'paid' ? 'verified' : 'pending',
+          created_at: session.created_at,
+          paid_at: session.payment_completed_at,
+          is_cod: true,
+          type: 'SESSION'
+        }));
+        allPayments.push(...codSessionPayments);
+      }
+
+      console.log('📊 Combined payments:', {
+        upi: upiPaymentsData?.length || 0,
+        cod_orders: codOrdersData?.length || 0,
+        cod_sessions: codSessionsData?.length || 0,
+        total: allPayments.length
+      });
+
+      // Step 4: Enrich with order/session details
+      if (allPayments.length > 0) {
         const enrichedPayments = await Promise.all(
-          paymentsData.map(async (payment) => {
+          allPayments.map(async (payment) => {
             try {
+              // Skip enrichment for COD payments (we already have the data)
+              if ((payment as any).is_cod) {
+                console.log(`✅ COD Payment ${payment.id}:`, {
+                  type: (payment as any).type,
+                  amount: payment.amount,
+                  status: payment.status
+                });
+                
+                return {
+                  ...payment,
+                  order_type: (payment as any).type,
+                  order_details: {},
+                  display_amount: payment.amount,
+                  display_status: payment.status,
+                  payment_method: 'cod'
+                };
+              }
+
+              // For UPI payments, enrich with order/session data
               // Try to find matching order first
-              const { data: orderData } = await supabase
+              const { data: orderData, error: orderError } = await supabase
                 .from('orders')
-                .select('id, order_type, total_amount, status, payment_status, is_paid')
+                .select('id, total_amount, status, payment_status, is_paid, payment_method')
                 .eq('id', payment.order_id)
                 .single();
 
               // If no order found, try dine_in_sessions
               let sessionData = null;
               if (!orderData) {
-                const { data: session } = await supabase
+                // Try with payment_method first (if column exists)
+                const { data: session, error: sessionError } = await supabase
                   .from('dine_in_sessions')
-                  .select('id, session_status, payment_status, total_amount, session_name')
+                  .select('id, session_status, payment_status, total_amount, session_name, payment_method')
                   .eq('id', payment.order_id)
                   .single();
-                sessionData = session;
+                
+                // If 406 error (column doesn't exist), retry without payment_method
+                if (sessionError?.code === 'PGRST200' || sessionError?.message?.includes('406')) {
+                  console.warn('⚠️ payment_method column missing, retrying without it');
+                  const { data: sessionFallback } = await supabase
+                    .from('dine_in_sessions')
+                    .select('id, session_status, payment_status, total_amount, session_name')
+                    .eq('id', payment.order_id)
+                    .single();
+                  sessionData = sessionFallback;
+                } else {
+                  sessionData = session;
+                }
               }
 
-              console.log(`✅ Payment ${payment.id}:`, {
+              console.log(`✅ UPI Payment ${payment.id}:`, {
                 type: orderData ? 'ORDER' : sessionData ? 'SESSION' : 'UNKNOWN',
-                amount: orderData?.total_amount || sessionData?.total_amount || payment.amount
+                amount: orderData?.total_amount || sessionData?.total_amount || payment.amount,
+                paymentMethod: (orderData as any)?.payment_method || (sessionData as any)?.payment_method || 'unknown'
               });
 
               return {
@@ -78,7 +201,8 @@ export function PaymentHistoryScreen() {
                 order_type: orderData ? 'ORDER' : sessionData ? 'SESSION' : 'UNKNOWN',
                 order_details: orderData || sessionData || {},
                 display_amount: orderData?.total_amount || sessionData?.total_amount || payment.amount,
-                display_status: orderData?.payment_status || sessionData?.payment_status || payment.status
+                display_status: orderData?.payment_status || sessionData?.payment_status || payment.status,
+                payment_method: (orderData as any)?.payment_method || (sessionData as any)?.payment_method || payment.payment_method
               };
             } catch (err) {
               console.warn(`⚠️ Failed to fetch details for payment ${payment.id}:`, err);
@@ -109,10 +233,27 @@ export function PaymentHistoryScreen() {
 
   const filteredPayments = payments.filter(payment => {
     if (filter === 'all') return true;
-    // Use display_status from enriched data, fallback to status
-    if (filter === 'approved') return payment.display_status === 'paid' || payment.status === 'verified';
-    if (filter === 'rejected') return payment.display_status === 'failed' || payment.display_status === 'refunded' || payment.status === 'failed';
-    if (filter === 'pending') return ['pending', 'confirming_payment'].includes(payment.display_status) || ['pending', 'verification_requested'].includes(payment.status);
+    
+    // Determine if payment is approved/completed
+    const isApproved = 
+      payment.display_status === 'paid' ||        // COD paid
+      payment.status === 'verified' ||            // UPI verified
+      payment.display_status === 'completed';     // Session completed
+    
+    // Determine if payment is rejected/failed
+    const isRejected = 
+      payment.display_status === 'failed' ||
+      payment.display_status === 'refunded' ||
+      payment.status === 'failed';
+    
+    // Determine if payment is pending
+    const isPending = 
+      ['pending', 'confirming_payment'].includes(payment.display_status) || 
+      ['pending', 'verification_requested'].includes(payment.status);
+    
+    if (filter === 'approved') return isApproved;
+    if (filter === 'rejected') return isRejected;
+    if (filter === 'pending') return isPending;
     return true;
   });
 
@@ -154,7 +295,7 @@ export function PaymentHistoryScreen() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <Card>
             <CardBody className="p-3">
               <div className="flex items-center gap-2 mb-1">
@@ -162,7 +303,11 @@ export function PaymentHistoryScreen() {
                 <span className="text-xs text-muted-foreground">Approved</span>
               </div>
               <p className="text-lg font-bold text-green-600">
-                {payments.filter(p => p.display_status === 'paid' || p.status === 'verified').length}
+                {payments.filter(p => 
+                  p.display_status === 'paid' ||        // COD paid
+                  p.status === 'verified' ||            // UPI verified
+                  p.display_status === 'completed'      // Session completed
+                ).length}
               </p>
             </CardBody>
           </Card>
@@ -176,6 +321,21 @@ export function PaymentHistoryScreen() {
                 {payments.filter(p => 
                   ['pending', 'confirming_payment'].includes(p.display_status) || 
                   ['pending', 'verification_requested'].includes(p.status)
+                ).length}
+              </p>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardBody className="p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <XCircle className="w-4 h-4 text-red-600" />
+                <span className="text-xs text-muted-foreground">Rejected</span>
+              </div>
+              <p className="text-lg font-bold text-red-600">
+                {payments.filter(p => 
+                  p.display_status === 'failed' ||
+                  p.display_status === 'refunded' ||
+                  p.status === 'failed'
                 ).length}
               </p>
             </CardBody>
@@ -246,7 +406,7 @@ export function PaymentHistoryScreen() {
                         <span className="text-xs text-muted-foreground">Amount</span>
                       </div>
                       <p className="text-sm font-bold text-primary">
-                        ₹{payment.amount}
+                        ₹{payment.display_amount || payment.amount}
                       </p>
                     </div>
                     <div>
@@ -255,7 +415,12 @@ export function PaymentHistoryScreen() {
                         <span className="text-xs text-muted-foreground">Method</span>
                       </div>
                       <p className="text-sm font-medium">
-                        {payment.payment_method === 'cod' ? '💵 COD' : '📱 UPI'}
+                        {payment.order_type === 'SESSION' ? '🍽️ Dine-in' : '📦 Order'}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {payment.order_details?.payment_method === 'cod' ? '💵 Cash' : 
+                         payment.order_details?.payment_method === 'upi' ? '📱 UPI' : 
+                         payment.payment_method === 'cod' ? '💵 Cash' : '📱 UPI'}
                       </p>
                     </div>
                   </div>
