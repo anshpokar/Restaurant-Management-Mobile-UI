@@ -150,27 +150,57 @@ export function AdminBookingsScreen() {
       console.log('✅ Updated booking data:', updateData);
 
       // If confirming, create a table_session for that date
+      let createdSessionId = null;
+      
       if (newStatus === 'confirmed' && bookingData.table_id) {
         console.log('📅 Creating table session...');
         console.log('🏷️ Table ID:', bookingData.table_id);
+        console.log('📅 Booking Date:', bookingData.booking_date);
+        console.log('⏰ Booking Time:', bookingData.booking_time);
         
-        const { error: sessionError } = await supabase
+        // Calculate start time with date and time combined
+        const sessionStartTime = bookingData.booking_time 
+          ? new Date(`${bookingData.booking_date}T${bookingData.booking_time}`).toISOString()
+          : new Date(bookingData.booking_date).toISOString();
+        
+        const { data: sessionData, error: sessionError } = await supabase
           .from('table_sessions')
           .insert({
             table_id: bookingData.table_id,
-            started_at: new Date(bookingData.booking_date).toISOString(),
+            started_at: sessionStartTime,
             status: 'active',
             payment_status: 'pending',
             total_amount: 0,
-          });
+          })
+          .select('id')
+          .single();
 
         if (sessionError) {
-          console.warn('⚠️ Could not create table session:', sessionError.message);
+          console.error('❌ Failed to create table session:', sessionError.message);
+          console.error('❌ Session error details:', sessionError);
+          alert(`Booking confirmed but could not create session: ${sessionError.message}`);
         } else {
-          console.log('✅ Table session created successfully');
+          console.log('✅ Table session created successfully!');
+          console.log('🎯 Session ID:', sessionData?.id);
+          createdSessionId = sessionData?.id;
+          
+          // Show success message with option to view session
+          const viewSession = confirm(
+            `Booking confirmed successfully!\n\n` +
+            `Table session has been created.\n\n` +
+            `Would you like to view the session details?`
+          );
+          
+          if (viewSession && createdSessionId) {
+            // Navigate to tables page or show session details
+            // For now, we'll just refresh to show updated status
+            console.log('📋 Session created - ID:', createdSessionId);
+          }
         }
       } else if (newStatus === 'confirmed' && !bookingData.table_id) {
         console.warn('⚠️ No table_id found in booking data!');
+        alert('Cannot confirm booking: No table assigned!');
+        return;
       }
 
       alert(`Booking ${newStatus} successfully!`);
