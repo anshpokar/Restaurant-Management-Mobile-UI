@@ -160,23 +160,22 @@ BEGIN
     rt.capacity as p_capacity,
     -- Only show 'reserved' status if actually reserved (not expired)
     CASE 
-      WHEN rt.is_reserved = TRUE AND rt.auto_release_at > NOW() THEN 'reserved'
+      WHEN rt.is_reserved = TRUE AND rt.auto_release_at IS NOT NULL AND rt.auto_release_at > NOW() THEN 'reserved'
       ELSE 'available'
     END::TEXT as p_status,
     CASE 
-      -- Table is NOT available if:
+      -- Table is NOT available ONLY if:
       -- 1. It's reserved AND not expired AND
-      -- 2. The requested time falls within the reservation window
+      -- 2. The requested START time falls within the reservation window
       WHEN rt.is_reserved = TRUE 
+        AND rt.auto_release_at IS NOT NULL
         AND rt.auto_release_at > NOW()
-        AND (
-          (p_time >= rt.reservation_start_time AND p_time < rt.reservation_end_time)
-          OR
-          (p_time + INTERVAL '90 minutes' > rt.reservation_start_time 
-           AND p_time + INTERVAL '90 minutes' <= rt.reservation_end_time)
-        )
-      THEN FALSE  -- Table is reserved during this time
-      ELSE TRUE   -- Table is available (including expired reservations)
+        AND rt.reservation_start_time IS NOT NULL
+        AND rt.reservation_end_time IS NOT NULL
+        AND p_time >= rt.reservation_start_time 
+        AND p_time < rt.reservation_end_time
+      THEN FALSE  -- Requested time is during reservation
+      ELSE TRUE   -- Available (before, after, or no reservation)
     END as p_is_available
   FROM restaurant_tables rt
   WHERE rt.capacity >= p_min_guests

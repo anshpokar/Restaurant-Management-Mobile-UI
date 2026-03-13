@@ -19,6 +19,7 @@ export function AdminApp({ onLogout }: AdminAppProps) {
     if (path.includes('/admin/users')) return 'users';
     if (path.includes('/admin/bookings')) return 'bookings';
     if (path.includes('/admin/payment-verification')) return 'payment';
+    if (path.includes('/admin/table-reservations')) return 'reservations';
     return 'dashboard';
   };
 
@@ -70,6 +71,12 @@ export function AdminApp({ onLogout }: AdminAppProps) {
             label="Payment Verification"
             active={activeTab === 'payment'}
             onClick={() => navigate('/admin/payment-verification')}
+          />
+          <SidebarItem
+            icon={<Table className="w-5 h-5" />}
+            label="Table Reservations"
+            active={activeTab === 'reservations'}
+            onClick={() => navigate('/admin/table-reservations')}
           />
           <SidebarItem
             icon={<Users className="w-5 h-5" />}
@@ -140,6 +147,12 @@ export function AdminApp({ onLogout }: AdminAppProps) {
               label="Payment"
               active={activeTab === 'payment'}
               onClick={() => navigate('/admin/payment-verification')}
+            />
+            <BottomNavItem
+              icon={<Table className="w-6 h-6" />}
+              label="Reservations"
+              active={activeTab === 'reservations'}
+              onClick={() => navigate('/admin/table-reservations')}
             />
             <BottomNavItem
               icon={<Users className="w-6 h-6" />}

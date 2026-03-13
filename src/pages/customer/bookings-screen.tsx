@@ -10,6 +10,15 @@ export function BookingsScreen({ hideHeader = false }: { hideHeader?: boolean })
   const [view, setView] = useState<'book' | 'my-bookings'>('book');
   const [tables, setTables] = useState<RestaurantTable[]>([]);
   const [myBookings, setMyBookings] = useState<TableBooking[]>([]);
+
+  // Helper function to calculate end time
+  const calculateEndTime = (startTime: string, durationMinutes: number): string => {
+    const [hours, minutes] = startTime.split(':').map(Number);
+    const totalMinutes = hours * 60 + minutes + durationMinutes;
+    const endHours = Math.floor(totalMinutes / 60) % 24;
+    const endMinutes = totalMinutes % 60;
+    return `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
+  };
   const [loading, setLoading] = useState(false);
   const [bookingLoading, setBookingLoading] = useState(false);
 
@@ -106,16 +115,16 @@ export function BookingsScreen({ hideHeader = false }: { hideHeader?: boolean })
       console.log('🔍 Checking availability for:', { date, time, guests, duration });
       
       // Use the database function to check real-time availability
+      // Note: Parameter names must match the SQL function exactly!
       const { data, error } = await supabase.rpc('get_available_tables_for_booking', {
-        target_date: date,
-        target_time: time,
-        min_guests: guests
-        // Temporarily removed duration until we add it back properly
+        p_date: date,
+        p_time: time,
+        p_min_guests: guests
       });
 
       if (error) {
         console.error('❌ Error from RPC:', error);
-        console.warn('⚠️ Falling back to client-side filtering. Make sure to run ADD_BOOKING_DURATION_COLUMN.sql in Supabase!');
+        console.warn('⚠️ Falling back to client-side filtering. Make sure functions exist in Supabase!');
         
         // Fallback to client-side filtering if RPC fails
         const fallback = tables.filter(t => t.capacity >= guests);
@@ -128,15 +137,23 @@ export function BookingsScreen({ hideHeader = false }: { hideHeader?: boolean })
 
       // Filter only available tables from the result
       const availableTablesWithDetails = data
-        .filter((table: any) => table.is_available)
+        .filter((table: any) => {
+          const isAvailable = table.p_is_available === true;
+          console.log(`Table ${table.p_table_number}:`, {
+            is_available: table.p_is_available,
+            status: table.p_status,
+            filtered_out: !isAvailable
+          });
+          return isAvailable;
+        })
         .map((table: any) => ({
-          id: table.id,
-          table_number: table.table_number,
-          capacity: table.capacity,
-          status: table.status
+          id: table.p_id,
+          table_number: table.p_table_number,
+          capacity: table.p_capacity,
+          status: table.p_status
         }));
 
-      console.log(`✅ Found ${availableTablesWithDetails.length} available tables for ${guests} guests at ${time} (${duration} min)`);
+      console.log(`✅ Found ${availableTablesWithDetails.length} available tables for ${guests} guests at ${time}`);
       console.log('Available tables:', availableTablesWithDetails);
       setFilteredTables(availableTablesWithDetails);
     } catch (error) {
@@ -177,7 +194,10 @@ export function BookingsScreen({ hideHeader = false }: { hideHeader?: boolean })
         .eq('id', user.id)
         .single();
 
-      const { error } = await supabase
+      console.log('📝 Creating booking with duration:', duration);
+
+      // Step 1: Create the booking record
+      const { error: insertError } = await supabase
         .from('table_bookings')
         .insert({
           user_id: user.id,
@@ -191,10 +211,26 @@ export function BookingsScreen({ hideHeader = false }: { hideHeader?: boolean })
           special_requests: specialRequests || null,
           customer_name: profile?.full_name || null,
           customer_email: profile?.email || null,
-          booking_duration: duration  // Add duration to booking
+          booking_duration: duration
         });
 
-      if (error) throw error;
+      if (insertError) throw insertError;
+
+      // Step 2: Reserve the table in restaurant_tables (time-slot reservation)
+      const endTime = calculateEndTime(time, duration);
+      console.log('⏰ Reserving table from', time, 'to', endTime);
+      
+      const { error: reserveError } = await supabase.rpc('reserve_table_for_time_slot', {
+        p_table_id: selectedTableId,
+        p_start_time: time,
+        p_end_time: endTime,
+        p_duration_minutes: duration
+      });
+
+      if (reserveError) {
+        console.error('Warning: Could not reserve time slot:', reserveError);
+        // Don't fail the booking, just log it
+      }
 
       alert('🎉 Booking request sent to the restaurant! You\'ll receive a confirmation once it\'s approved.');
       setView('my-bookings');
