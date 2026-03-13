@@ -274,3 +274,166 @@ export function getStoredUser() {
   }
   return null;
 }
+
+/**
+ * =====================================================
+ * CACHE MANAGEMENT UTILITIES
+ * Automatic stale cache detection and recovery
+ * =====================================================
+ */
+
+interface CachedUser {
+  id: string;
+  email: string;
+  full_name: string;
+  username: string;
+  phone_number: string;
+  role: string;
+  timestamp: number;
+}
+
+/**
+ * Check if cached user profile is stale (older than 24 hours)
+ */
+export function isStaleCache(timestamp?: number): boolean {
+  if (!timestamp) return true;
+  const age = Date.now() - timestamp;
+  const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000; // 86400000ms
+  return age > TWENTY_FOUR_HOURS;
+}
+
+/**
+ * Safely get stored user with validation
+ * Returns null if cache is stale or invalid
+ */
+export function getValidStoredUser(): CachedUser | null {
+  try {
+    const stored = localStorage.getItem('userProfile');
+    if (!stored) return null;
+    
+    const parsed = JSON.parse(stored) as CachedUser;
+    
+    // Validate required fields
+    if (!parsed.id || !parsed.email || !parsed.role) {
+      console.warn('🗑️ Invalid cached user data, clearing');
+      localStorage.removeItem('userProfile');
+      return null;
+    }
+    
+    // Check if stale (>24 hours old)
+    if (isStaleCache(parsed.timestamp)) {
+      console.log('🕰️ Cache is stale (>24h), clearing');
+      localStorage.removeItem('userProfile');
+      return null;
+    }
+    
+    return parsed;
+  } catch (error) {
+    console.error('❌ Error parsing cached user:', error);
+    localStorage.removeItem('userProfile');
+    return null;
+  }
+}
+
+/**
+ * Clear ALL application cache safely
+ * Preserves only essential non-app data
+ */
+export function clearApplicationCache() {
+  console.group('🗑️ Clearing Application Cache');
+  
+  try {
+    // Clear localStorage app keys
+    const appKeys = [
+      'userProfile',
+      'cart',
+      'activeSession',
+      'checkoutData',
+      'selectedAddress',
+      'favorites'
+    ];
+    
+    appKeys.forEach(key => {
+      if (localStorage.getItem(key)) {
+        console.log(`  ✓ Cleared: ${key}`);
+        localStorage.removeItem(key);
+      }
+    });
+    
+    // Clear sessionStorage completely (temporary data)
+    const sessionCount = sessionStorage.length;
+    sessionStorage.clear();
+    console.log(`  ✓ Cleared ${sessionCount} sessionStorage items`);
+    
+    console.log('✅ Cache cleared successfully');
+  } catch (error) {
+    console.error('❌ Error clearing cache:', error);
+  } finally {
+    console.groupEnd();
+  }
+}
+
+/**
+ * Attempt to recover from connection errors
+ * Returns true if recovery was successful
+ */
+export async function attemptRecovery(maxRetries = 3): Promise<boolean> {
+  console.group('🔄 Attempting Connection Recovery');
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`Attempt ${attempt}/${maxRetries}`);
+      
+      // Wait with exponential backoff
+      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      
+      // Test connection with simple query
+      const { error } = await supabase.from('profiles').select('count').limit(1);
+      
+      if (!error) {
+        console.log('✅ Connection recovered!');
+        console.groupEnd();
+        return true;
+      }
+      
+      console.warn(`⚠️ Attempt ${attempt} failed:`, error?.message);
+      
+    } catch (error: any) {
+      console.warn(`⚠️ Attempt ${attempt} error:`, error.message);
+      
+      // If all retries exhausted, clear cache
+      if (attempt === maxRetries) {
+        console.warn('⚠️ All retries failed, clearing stale cache');
+        clearApplicationCache();
+      }
+    }
+  }
+  
+  console.groupEnd();
+  return false;
+}
+
+/**
+ * Smart logout - clears everything and redirects
+ */
+export async function smartLogout(navigate?: (path: string, options?: { replace: boolean }) => void) {
+  console.log('🚪 Smart logout initiated');
+  
+  try {
+    // Sign out from Supabase
+    await supabase.auth.signOut();
+  } catch (error) {
+    console.warn('⚠️ Error signing out, continuing with cache clear:', error);
+  }
+  
+  // Clear all cache
+  clearApplicationCache();
+  
+  // Redirect to login
+  if (navigate) {
+    navigate('/login', { replace: true });
+  } else if (typeof window !== 'undefined') {
+    window.location.href = '/login';
+  }
+}
