@@ -444,45 +444,72 @@ export function BookingsScreen({ hideHeader = false }: { hideHeader?: boolean })
               </div>
             ) : (
               myBookings.map((booking) => (
-                <Card key={booking.id} className="overflow-hidden">
-                  <CardBody className="p-0">
-                    <div className="flex">
-                      <div className={`w-2 ${booking.status === 'confirmed' ? 'bg-green-500' :
-                          booking.status === 'pending' ? 'bg-yellow-500' :
-                            booking.status === 'cancelled' ? 'bg-red-500' : 'bg-blue-500'
-                        }`} />
-                      <div className="flex-1 p-4">
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <p className="font-bold text-lg">Table {booking.restaurant_tables?.table_number || '?'}</p>
-                            <p className="text-sm text-muted-foreground flex items-center gap-1">
-                              <Calendar className="w-3 h-3" /> {new Date(booking.booking_date).toLocaleDateString()} at {booking.booking_time}
-                            </p>
-                          </div>
-                          <Badge variant={
-                            booking.status === 'confirmed' ? 'success' :
-                              booking.status === 'pending' ? 'warning' :
-                                booking.status === 'cancelled' ? 'error' : 'info'
-                          }>
-                            {booking.status.toUpperCase()}
-                          </Badge>
+                <Card key={booking.id} className="overflow-hidden border-none shadow-md rounded-[2.5rem]">
+                  <CardBody className="p-6">
+                    {/* Header: Avatar, Table Info, Status */}
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 bg-[#F8F2F2] rounded-full flex items-center justify-center">
+                          <Users className="w-7 h-7 text-[#6B5353]" />
                         </div>
-
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground mt-3 pt-3 border-t border-divider">
-                          <span className="flex items-center gap-1">
-                            <Users className="w-4 h-4" /> {booking.guests_count} Guests
-                          </span>
-                          {booking.status === 'pending' && (
-                            <button
-                              onClick={() => cancelBooking(booking.id)}
-                              className="ml-auto text-red-500 font-medium text-xs flex items-center gap-1 hover:underline"
-                            >
-                              <XCircle className="w-3 h-3" /> Cancel
-                            </button>
-                          )}
+                        <div>
+                          <h3 className="text-xl font-bold text-[#1F2937]">Table {booking.restaurant_tables?.table_number || '?'}</h3>
+                          <p className="text-sm text-[#9CA3AF]">
+                            {new Date(booking.booking_date).toLocaleDateString()} at {booking.booking_time}
+                          </p>
                         </div>
                       </div>
+                      <div className={`flex items-center gap-1.5 px-4 py-2 rounded-full font-bold text-sm ${
+                        booking.status === 'pending' ? 'bg-[#F97316] text-white' :
+                        booking.status === 'confirmed' ? 'bg-[#16A34A] text-white' :
+                        booking.status === 'cancelled' ? 'bg-[#DC2626] text-white' : 'bg-[#3B82F6] text-white'
+                      }`}>
+                        <div className="w-4 h-4 rounded-full border-2 border-white flex items-center justify-center">
+                          <span className="text-[10px] transform -translate-y-[0.5px]">i</span>
+                        </div>
+                        {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                      </div>
                     </div>
+
+                    <div className="h-px bg-[#F3F4F6] w-full mb-6" />
+
+                    {/* Content: Guests and Booked Date */}
+                    <div className="grid grid-cols-2 mb-8">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-[#9CA3AF] text-sm">
+                          <Users className="w-4 h-4" />
+                          <span>Guests</span>
+                        </div>
+                        <p className="font-bold text-[#1F2937] text-lg">{booking.guests_count} people</p>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-[#9CA3AF] text-sm">
+                          <Clock className="w-4 h-4" />
+                          <span>Booked</span>
+                        </div>
+                        <p className="font-medium text-[#9CA3AF] text-lg">
+                          {new Date(booking.created_at || booking.booking_date).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="h-px bg-[#F3F4F6] w-full mb-6" />
+
+                    {/* Action: Cancel Button */}
+                    <button
+                      onClick={() => booking.status === 'pending' && cancelBooking(booking.id)}
+                      disabled={booking.status !== 'pending'}
+                      className={`w-full py-3 rounded-full border gap-2 font-bold text-lg flex items-center justify-center transition-all ${
+                        booking.status === 'pending' 
+                        ? 'border-[#F87171] text-[#EF4444] active:bg-red-50' 
+                        : 'border-[#E5E7EB] text-[#9CA3AF] cursor-not-allowed'
+                      }`}
+                    >
+                      <div className="w-6 h-6 rounded-full border-2 border-current flex items-center justify-center">
+                        <span className="text-sm">✕</span>
+                      </div>
+                      Cancel Booking
+                    </button>
                   </CardBody>
                 </Card>
               ))
