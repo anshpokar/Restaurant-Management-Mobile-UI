@@ -21,7 +21,8 @@ export function AdminDashboard() {
     activeTables: 0,
     totalTables: 0,
     bookingsCount: 0,
-    pendingUpiVerifications: 0
+    pendingUpiVerifications: 0,
+    pendingTableBookings: 0
   });
 
   useEffect(() => {
@@ -77,24 +78,35 @@ export function AdminDashboard() {
           console.warn('UPI payments query error:', upiError.message);
         }
         
+        // 6. Pending Table Bookings
+        const { count: bookingCount, error: bookingError } = await supabase
+          .from('table_bookings')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'pending');
+        
+        if (bookingError) {
+          console.warn('Table bookings query error:', bookingError.message);
+        }
+        
         setStats({
           ordersCount: ordersCount || 0,
           revenue: totalRevenue,
           activeTables,
           totalTables,
           bookingsCount: bookingsCount || 0,
-          pendingUpiVerifications: upiCount || 0
+          pendingUpiVerifications: upiCount || 0,
+          pendingTableBookings: bookingCount || 0
         });
       } catch (error) {
         console.warn('Error fetching UPI verifications (table may not exist or RLS issue):', error);
-        // Set to 0 if table doesn't exist yet or access issue
         setStats({
           ordersCount: ordersCount || 0,
           revenue: totalRevenue,
           activeTables,
           totalTables,
           bookingsCount: bookingsCount || 0,
-          pendingUpiVerifications: 0
+          pendingUpiVerifications: 0,
+          pendingTableBookings: 0
         });
       }
     } catch (error) {
@@ -177,13 +189,13 @@ export function AdminDashboard() {
 
   const quickActions = [
     {
-      label: 'Table Bookings',
-      value: stats.bookingsCount.toString() + ' today',
+      label: 'Table Reservations',
+      value: stats.pendingTableBookings > 0 ? `${stats.pendingTableBookings} pending` : `${stats.bookingsCount} today`,
       icon: Calendar,
       color: 'text-orange-600',
       bg: 'bg-orange-100',
       action: () => navigate('/admin/bookings'),
-      badge: false
+      badge: stats.pendingTableBookings > 0
     },
     {
       label: 'Payment Verifications',
@@ -226,18 +238,18 @@ export function AdminDashboard() {
           })}
         </div>
 
-        {/* Quick Actions - UPI Verifications */}
+        {/* Quick Actions */}
         <div>
           <h3 className="text-xl font-black text-foreground mb-4 flex items-center gap-2">
             <CreditCard className="w-5 h-5 text-pink-600" /> Quick Actions
           </h3>
-          <div className="grid grid-cols-1 gap-3">
+          <div className="flex flex-row gap-3 overflow-x-auto pb-2">
             {quickActions.map((action, index) => {
               const Icon = action.icon;
               return (
-                <Card 
+                <div 
                   key={index} 
-                  className={`border-2 border-pink-200 bg-pink-50 hover:bg-pink-100 transition-colors cursor-pointer ${action.badge ? 'animate-pulse' : ''}`}
+                  className={`min-w-[280px] flex-1 border-2 ${action.badge ? 'border-orange-200 bg-orange-50 hover:bg-orange-100 animate-pulse' : 'border-border bg-card hover:bg-muted'} transition-colors cursor-pointer rounded-2xl`}
                   onClick={action.action}
                 >
                   <CardBody className="p-4 flex items-center justify-between">
@@ -247,21 +259,21 @@ export function AdminDashboard() {
                       </div>
                       <div>
                         <p className="font-bold text-base text-foreground">{action.label}</p>
-                        <p className={`text-sm ${action.badge ? 'text-pink-600 font-bold' : 'text-muted-foreground'}`}>
+                        <p className={`text-sm ${action.badge ? 'text-orange-600 font-bold' : 'text-muted-foreground'}`}>
                           {action.value}
                         </p>
                       </div>
                     </div>
                     {action.badge && (
                       <div className="flex items-center gap-2">
-                        <Clock className="w-5 h-5 text-pink-600 animate-pulse" />
-                        <span className="px-3 py-1 bg-pink-600 text-white text-xs font-bold rounded-full">
-                          {stats.pendingUpiVerifications}
+                        <Clock className="w-5 h-5 text-orange-600 animate-pulse" />
+                        <span className="px-3 py-1 bg-orange-600 text-white text-xs font-bold rounded-full">
+                          {stats.pendingTableBookings}
                         </span>
                       </div>
                     )}
                   </CardBody>
-                </Card>
+                </div>
               );
             })}
           </div>

@@ -98,6 +98,14 @@ export interface TableBooking {
   guests_count: number;
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
   created_at: string;
+  updated_at?: string;
+  // Enhanced fields
+  phone_number?: string;
+  customer_name?: string;
+  customer_email?: string;
+  occasion?: string;
+  special_requests?: string;
+  booking_duration?: number;
   // Join data
   restaurant_tables?: RestaurantTable;
 }

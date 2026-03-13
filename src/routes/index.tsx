@@ -30,6 +30,7 @@ import { AdminMenu } from '@/pages/admin/admin-menu';
 import { AdminTables } from '@/pages/admin/admin-tables';
 import { AdminReports } from '@/pages/admin/admin-reports';
 import { AdminUserManagement } from '@/pages/admin/admin-user-management';
+import { AdminBookingsScreen } from '@/pages/admin/admin-bookings-screen';
 import { DeliveryAssignmentScreen } from '@/pages/admin/delivery-assignment-screen';
 import { AdminPaymentVerificationScreen } from '@/pages/admin/payment-verification-screen';
 import { AdminTableReservationsScreen } from '@/pages/admin/admin-table-reservations-screen';
@@ -133,6 +134,7 @@ export function AppRoutes({ userRole, userProfile, isLoadingAuth, handleLogout }
                 <Route path="orders" element={<AdminOrders />} />
                 <Route path="menu" element={<AdminMenu />} />
                 <Route path="tables" element={<AdminTables />} />
+                <Route path="bookings" element={<AdminBookingsScreen />} />
                 <Route path="reports" element={<AdminReports />} />
                 <Route path="users" element={<AdminUserManagement />} />
                 <Route path="delivery-assignment" element={<DeliveryAssignmentScreen />} />

@@ -36,20 +36,50 @@ export function AdminBookingsScreen() {
     try {
       setLoading(true);
       
-      let query;
+      console.log('🔄 Fetching bookings with view:', view);
       
+      // Direct query instead of RPC for better reliability
+      let query = supabase
+        .from('table_bookings')
+        .select(`
+          *,
+          restaurant_tables (
+            id,
+            table_number,
+            capacity,
+            status
+          )
+        `)
+        .order('created_at', { ascending: false });
+      
+      // Apply filters based on view
       if (view === 'today') {
-        query = supabase.rpc('get_todays_bookings');
+        const today = new Date().toISOString().split('T')[0];
+        query = query.eq('booking_date', today);
       } else if (view === 'upcoming') {
-        query = supabase.rpc('get_upcoming_bookings');
-      } else {
-        query = supabase.rpc('get_all_bookings_with_details');
+        const today = new Date().toISOString().split('T')[0];
+        query = query.gt('booking_date', today)
+                     .in('status', ['pending', 'confirmed']);
       }
 
       const { data, error } = await query;
 
-      if (error) throw error;
-      setBookings(data || []);
+      if (error) {
+        console.error('❌ Error fetching bookings:', error);
+        throw error;
+      }
+      
+      console.log('📦 Fetched bookings:', data?.length || 0);
+      if (data && data.length > 0) {
+        console.log('📋 First booking sample:', data[0]);
+        console.log('🔑 First booking ID:', data[0].id);
+        console.log('🏷️ First booking keys:', Object.keys(data[0]));
+      }
+      
+      // Ensure data has proper structure
+      const bookingsData = data || [];
+      
+      setBookings(bookingsData);
     } catch (error: any) {
       console.error('Error fetching bookings:', error);
       alert('Failed to fetch bookings: ' + error.message);
@@ -60,7 +90,17 @@ export function AdminBookingsScreen() {
 
   const handleUpdateBooking = async (bookingId: string, newStatus: 'confirmed' | 'cancelled' | 'completed') => {
     try {
-      console.log('🔍 Attempting to update booking:', bookingId);
+      console.log('🔍 handleUpdateBooking called with:', { bookingId, newStatus });
+      
+      // Validate bookingId first
+      if (!bookingId || bookingId === 'undefined' || bookingId === 'null') {
+        console.error('❌ Invalid booking ID:', bookingId);
+        console.error('📋 Type of bookingId:', typeof bookingId);
+        alert('Error: Booking ID is missing or invalid. Please refresh the page and try again.');
+        return;
+      }
+
+      console.log('✅ Booking ID validated:', bookingId);
       
       // First, get the booking details
       const { data: bookingData, error: fetchError } = await supabase
@@ -74,6 +114,7 @@ export function AdminBookingsScreen() {
       if (fetchError) throw fetchError;
       
       if (!bookingData) {
+        console.warn('⚠️ Booking not found:', bookingId);
         alert('Booking not found! It may have been deleted or already processed.');
         fetchBookings();
         return;
@@ -82,18 +123,36 @@ export function AdminBookingsScreen() {
       console.log('✅ Found booking:', bookingData);
 
       // Update booking status
-      const { error: updateError } = await supabase
+      console.log('📝 Attempting to update booking status...');
+      console.log('🏷️ Booking ID:', bookingId);
+      console.log('🎯 New Status:', newStatus);
+      
+      const { data: updateData, error: updateError } = await supabase
         .from('table_bookings')
         .update({ status: newStatus })
-        .eq('id', bookingId);
+        .eq('id', bookingId)
+        .select();  // Get updated data back
 
-      if (updateError) throw updateError;
+      console.log('📊 Update result:', { updateData, updateError });
+
+      if (updateError) {
+        console.error('❌ Update failed with error:', updateError);
+        console.error('❌ Error details:', {
+          message: updateError.message,
+          code: updateError.code,
+          details: updateError.details,
+          hint: updateError.hint
+        });
+        throw updateError;
+      }
 
       console.log(`✅ Status updated to: ${newStatus}`);
+      console.log('✅ Updated booking data:', updateData);
 
       // If confirming, create a table_session for that date
       if (newStatus === 'confirmed' && bookingData.table_id) {
         console.log('📅 Creating table session...');
+        console.log('🏷️ Table ID:', bookingData.table_id);
         
         const { error: sessionError } = await supabase
           .from('table_sessions')
@@ -110,12 +169,20 @@ export function AdminBookingsScreen() {
         } else {
           console.log('✅ Table session created successfully');
         }
+      } else if (newStatus === 'confirmed' && !bookingData.table_id) {
+        console.warn('⚠️ No table_id found in booking data!');
       }
 
       alert(`Booking ${newStatus} successfully!`);
       fetchBookings();
     } catch (error: any) {
       console.error('❌ Error updating booking:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint
+      });
       alert('Failed to update booking: ' + (error.message || 'Unknown error'));
     }
   };
@@ -167,25 +234,25 @@ export function AdminBookingsScreen() {
       <div className="px-4 py-4 space-y-4">
         {/* Statistics Cards */}
         <div className="grid grid-cols-2 gap-3">
-          <Card>
+          <Card key="total">
             <CardBody className="p-3 text-center">
               <p className="text-2xl font-bold text-primary">{stats.total}</p>
               <p className="text-xs text-muted-foreground">Total Bookings</p>
             </CardBody>
           </Card>
-          <Card>
+          <Card key="pending">
             <CardBody className="p-3 text-center">
               <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
               <p className="text-xs text-muted-foreground">Pending</p>
             </CardBody>
           </Card>
-          <Card>
+          <Card key="confirmed">
             <CardBody className="p-3 text-center">
               <p className="text-2xl font-bold text-green-600">{stats.confirmed}</p>
               <p className="text-xs text-muted-foreground">Confirmed</p>
             </CardBody>
           </Card>
-          <Card>
+          <Card key="today">
             <CardBody className="p-3 text-center">
               <p className="text-2xl font-bold text-blue-600">{stats.today}</p>
               <p className="text-xs text-muted-foreground">Today</p>
