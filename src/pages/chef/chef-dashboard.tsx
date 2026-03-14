@@ -64,8 +64,8 @@ export function ChefDashboardScreen() {
     };
   }, []);
 
-  const fetchOrders = async () => {
-    setLoading(true);
+  const fetchOrders = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       // First, fetch orders without the join
       const { data: ordersData, error: ordersError } = await supabase
@@ -122,7 +122,7 @@ export function ChefDashboardScreen() {
     } catch (error) {
       console.error('Error fetching orders:', error);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
@@ -139,26 +139,33 @@ export function ChefDashboardScreen() {
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
-      const { error } = await supabase
-        .from('orders')
-        .update({ status: newStatus })
-        .eq('id', orderId);
-
-      if (error) throw error;
-
-      // Optimistic update - update state immediately for better UX
+      // Optimistic update - update state immediately for instant feedback
       setOrders(prevOrders => 
         prevOrders.map(order => 
           order.id === orderId ? { ...order, status: newStatus } : order
         )
       );
       
-      // Then refetch to ensure data consistency
+      // Update database in background
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: newStatus })
+        .eq('id', orderId);
+
+      if (error) throw error;
+      
+      // Refetch silently in background without showing loading state
       setTimeout(() => {
-        fetchOrders();
-      }, 500);
+        fetchOrders(false);
+      }, 1000);
     } catch (error: any) {
       console.error('Error updating order:', error);
+      // Revert on error
+      setOrders(prevOrders => 
+        prevOrders.map(order => 
+          order.id === orderId ? { ...order, status: order.status } : order
+        )
+      );
       alert('Failed to update order status');
     }
   };
