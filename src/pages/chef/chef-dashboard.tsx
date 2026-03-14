@@ -11,27 +11,30 @@ interface OrderItem {
   name: string;
   quantity: number;
   price: number;
-  image: string;
-  special_instructions?: string;
-  spice_level?: string;
+  image?: string;
 }
 
 interface Order {
   id: string;
-  table_number: number;
+  table_number: number | null;
   customer_name: string;
   customer_email?: string;
   total_amount: number;
   status: string;
   created_at: string;
+  order_type: string;
+  table_id: string | null;
+  delivery_address: string | null;
   order_items: OrderItem[];
   elapsed_minutes: number;
+  restaurant_tables?: { table_number: number } | null;
+  is_delivery?: boolean;
 }
 
 export function ChefDashboardScreen() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'preparing' | 'ready'>('all');
+  const [filter, setFilter] = useState<'all' | 'placed' | 'preparing' | 'prepared'>('all');
   const [audioPermission, setAudioPermission] = useState(false);
 
   useEffect(() => {
@@ -64,30 +67,56 @@ export function ChefDashboardScreen() {
   const fetchOrders = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // First, fetch orders without the join
+      const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
         .select(`
-          *,
-          restaurant_tables!left (
-            table_number
-          ),
-          order_items (*)
+          id,
+          status,
+          total_amount,
+          created_at,
+          order_type,
+          table_id,
+          delivery_address,
+          customer_name,
+          customer_email,
+          order_items (
+            id,
+            name,
+            quantity,
+            price,
+            image
+          )
         `)
-        // Remove order_type filter to show both dine_in and delivery
-        // Only exclude completed/cancelled orders
-        .neq('status', 'delivered')
-        .neq('status', 'cancelled')
+        .in('status', ['placed', 'preparing', 'prepared'])
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (ordersError) throw ordersError;
 
-      // Transform data
-      const transformedOrders = data?.map(order => ({
-        ...order,
-        table_number: (order.restaurant_tables as any)?.table_number || null,
-        is_delivery: order.order_type === 'delivery',
-        elapsed_minutes: Math.floor((Date.now() - new Date(order.created_at).getTime()) / 60000)
-      })) || [];
+      // Then, fetch table information separately for orders with table_id
+      const transformedOrders = await Promise.all(
+        (ordersData || []).map(async (order) => {
+          let table_number = null;
+          
+          // If it's a dine-in order with table_id, fetch table info
+          if (order.order_type === 'dine_in' && order.table_id) {
+            const { data: tableData } = await supabase
+              .from('restaurant_tables')
+              .select('table_number')
+              .eq('id', order.table_id)
+              .single();
+            
+            table_number = tableData?.table_number || null;
+          }
+
+          return {
+            ...order,
+            table_number,
+            is_delivery: order.order_type === 'delivery',
+            elapsed_minutes: Math.floor((Date.now() - new Date(order.created_at).getTime()) / 60000)
+          };
+        })
+      );
 
       setOrders(transformedOrders);
     } catch (error) {
@@ -117,10 +146,17 @@ export function ChefDashboardScreen() {
 
       if (error) throw error;
 
-      await fetchOrders();
+      // Optimistic update - update state immediately for better UX
+      setOrders(prevOrders => 
+        prevOrders.map(order => 
+          order.id === orderId ? { ...order, status: newStatus } : order
+        )
+      );
       
-      // Show success feedback
-      alert(`Order status updated to ${newStatus}`);
+      // Then refetch to ensure data consistency
+      setTimeout(() => {
+        fetchOrders();
+      }, 500);
     } catch (error: any) {
       console.error('Error updating order:', error);
       alert('Failed to update order status');
@@ -164,12 +200,12 @@ export function ChefDashboardScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-4">
+    <div className="min-h-screen bg-background pb-4 w-full">
       <AppHeader title="Kitchen Dashboard" />
 
-      <div className="px-4 py-4 space-y-4">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-3 gap-3">
+      <div className="px-4 sm:px-6 lg:px-8 py-4 space-y-4">
+        {/* Stats Cards - Full Width on Desktop */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4 w-full max-w-7xl mx-auto">
           <Card>
             <CardBody className="p-3 text-center">
               <div className="w-8 h-8 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-2">
@@ -219,19 +255,19 @@ export function ChefDashboardScreen() {
           </button>
         </div>
 
-        {/* Filter Tabs */}
-        <div className="flex gap-2">
-          {(['all', 'pending', 'preparing', 'ready'] as const).map((f) => (
+        {/* Filter Tabs - Responsive */}
+        <div className="flex flex-wrap gap-2">
+          {(['all', 'placed', 'preparing', 'prepared'] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`flex-1 px-3 py-2 rounded-xl text-sm font-bold transition-all ${
+              className={`flex-1 min-w-[100px] px-3 py-2 rounded-xl text-sm font-bold transition-all ${
                 filter === f
                   ? 'bg-primary text-white shadow-md'
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
               }`}
             >
-              {f.charAt(0).toUpperCase() + f.slice(1)}
+              {f === 'placed' ? 'Pending' : f === 'prepared' ? 'Ready' : f.charAt(0).toUpperCase() + f.slice(1)}
               {f !== 'all' && (
                 <span className="ml-1 text-xs opacity-80">
                   ({stats[f as keyof typeof stats]})
@@ -241,7 +277,7 @@ export function ChefDashboardScreen() {
           ))}
         </div>
 
-        {/* Orders Queue */}
+        {/* Orders Queue - Responsive Grid Layout */}
         {loading ? (
           <div className="text-center py-10 text-muted-foreground">Loading orders...</div>
         ) : filteredOrders.length === 0 ? (
@@ -253,106 +289,94 @@ export function ChefDashboardScreen() {
             </p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 w-full max-w-[1800px] mx-auto">
             {filteredOrders.map((order) => (
               <Card key={order.id} className="border-l-4 border-l-primary">
                 <CardBody className="p-4 space-y-3">
                   {/* Header */}
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center">
-                        <Utensils className="w-6 h-6 text-primary" />
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="w-10 h-10 bg-primary/10 rounded-2xl flex items-center justify-center flex-shrink-0">
+                        <Utensils className="w-5 h-5 text-primary" />
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-bold text-lg text-foreground">
-                            Table {order.table_number}
-                          </h3>
-                          <Badge variant={getStatusBadgeVariant(order.status)}>
-                            {order.status.toUpperCase()}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-bold text-base text-foreground truncate">
+                          {order.is_delivery ? '🚚 Delivery' : `Table ${order.table_number || 'N/A'}`}
+                        </h3>
+                        <p className="text-sm text-muted-foreground truncate">
                           {order.customer_name}
-                          {order.customer_email && ' ✓'}
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-lg font-black text-primary">₹{order.total_amount}</p>
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Clock className="w-3 h-3" />
-                        {order.elapsed_minutes}m ago
-                      </div>
+                    <div className="w-fit">
+                      <Badge variant={getStatusBadgeVariant(order.status)}>
+                        {order.status.toUpperCase()}
+                      </Badge>
                     </div>
+                  </div>
+
+                  {/* Timing Info */}
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground bg-surface p-2 rounded-lg">
+                    <Clock className="w-3 h-3" />
+                    <span>{order.elapsed_minutes} minutes ago</span>
                   </div>
 
                   {/* Order Items */}
                   <div className="bg-surface rounded-xl p-3 space-y-2">
+                    <h4 className="text-xs font-bold text-muted-foreground uppercase">Items:</h4>
                     {order.order_items.map((item, idx) => (
-                      <div key={idx} className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-foreground">{item.quantity}x</span>
-                            <span className="text-foreground">{item.name}</span>
-                          </div>
-                          {item.special_instructions && (
-                            <p className="text-xs text-orange-600 mt-1">
-                              📝 {item.special_instructions}
-                            </p>
-                          )}
-                          {item.spice_level && (
-                            <div className="flex items-center gap-1 mt-1">
-                              <div className={`w-2 h-2 rounded-full ${
-                                item.spice_level === 'mild' ? 'bg-green-500' :
-                                item.spice_level === 'medium' ? 'bg-yellow-500' :
-                                item.spice_level === 'spicy' ? 'bg-orange-500' :
-                                'bg-red-500'
-                              }`} />
-                              <span className="text-xs text-muted-foreground capitalize">
-                                {item.spice_level.replace('_', ' ')}
-                              </span>
-                            </div>
-                          )}
-                        </div>
+                      <div key={idx} className="flex items-center gap-2">
+                        <span className="font-bold text-primary text-sm bg-primary/10 px-2 py-0.5 rounded">
+                          {item.quantity}x
+                        </span>
+                        <span className="text-sm text-foreground flex-1">{item.name}</span>
                       </div>
                     ))}
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex gap-2 pt-2 border-t border-divider">
+                  {/* Action Buttons - Clickable */}
+                  <div className="flex flex-col gap-2 pt-2 border-t border-divider">
                     {order.status === 'placed' && (
                       <>
-                        <Button
-                          onClick={() => updateOrderStatus(order.id, 'preparing')}
-                          className="flex-1"
-                          size="sm"
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            updateOrderStatus(order.id, 'preparing');
+                          }}
+                          className="w-full px-4 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors active:scale-95"
                         >
                           Start Preparing
-                        </Button>
-                        <Button
-                          onClick={() => updateOrderStatus(order.id, 'prepared')}
-                          variant="outline"
-                          size="sm"
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            updateOrderStatus(order.id, 'prepared');
+                          }}
+                          className="w-full px-4 py-2 bg-transparent border-2 border-primary text-primary rounded-lg font-medium hover:bg-primary/5 transition-colors active:scale-95"
                         >
                           Mark Ready
-                        </Button>
+                        </button>
                       </>
                     )}
                     
                     {order.status === 'preparing' && (
-                      <Button
-                        onClick={() => updateOrderStatus(order.id, 'prepared')}
-                        className="w-full"
-                        size="sm"
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          updateOrderStatus(order.id, 'prepared');
+                        }}
+                        className="w-full px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors active:scale-95 flex items-center justify-center gap-2"
                       >
-                        <CheckCircle2 className="w-4 h-4 mr-2" />
+                        <CheckCircle2 className="w-4 h-4" />
                         Ready to Serve
-                      </Button>
+                      </button>
                     )}
 
                     {order.status === 'prepared' && (
-                      <div className="w-full text-center text-green-600 text-sm font-medium py-2">
+                      <div className="w-full text-center text-green-600 text-sm font-medium py-3 bg-green-50 rounded-lg border-2 border-green-200">
                         ✓ Ready for serving
                       </div>
                     )}

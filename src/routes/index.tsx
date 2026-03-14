@@ -50,6 +50,7 @@ import { WaiterCustomerSelectionScreen } from '@/pages/waiter/customer-selection
 import { WaiterOTPVerificationScreen } from '@/pages/waiter/otp-verification-screen';
 import { WaiterCustomerSignupScreen } from '@/pages/waiter/customer-signup-screen';
 import { WaiterSessionStartScreen } from '@/pages/waiter/session-start-screen';
+import { WaiterSessionManagementScreen } from '@/pages/waiter/session-management-screen';
 
 // Delivery Screens
 import { DeliveryApp } from '@/pages/delivery/delivery-app';
@@ -166,6 +167,7 @@ export function AppRoutes({ userRole, userProfile, isLoadingAuth, handleLogout }
                 
                 {/* Session management flow */}
                 <Route path="session/start/:tableId" element={<WaiterSessionStartScreen />} />
+                <Route path="session/:sessionId" element={<WaiterSessionManagementScreen />} />
                 <Route path="take-order/:tableId" element={<WaiterTakeOrderScreen />} />
                 <Route path="ordering/:tableId" element={<WaiterOrdering />} />
             </Route>

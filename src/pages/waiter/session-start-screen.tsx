@@ -52,26 +52,27 @@ export function WaiterSessionStartScreen() {
 
     setLoading(true);
     try {
-      // Create session with proper user linking
+      // ✅ Use dine_in_sessions (same table as customer flow)
       const { data: session, error } = await supabase
-        .from('table_sessions')
+        .from('dine_in_sessions')
         .insert({
           table_id: tableId,
-          user_id: userId || null, // Link to user if available
-          session_name: sessionName.trim(),
-          status: 'active',
+          user_id: userId || null,              // Link to customer if available
+          session_status: 'active',             // Match customer field name
           payment_status: 'pending',
-          total_amount: 0,
-          started_at: new Date().toISOString(),
-          notes: `Created by waiter for ${customerType} customer` + 
-                 (email ? ` - ${email}` : '')
+          total_amount: 0,                      // No orders yet
+          paid_amount: 0,
+          session_name: sessionName.trim(),
+          notes: `Waiter-created session for ${customerType} customer` + 
+                 (email ? ` - ${email}` : '') +
+                 (fullName ? ` - ${fullName}` : ''),
         })
-        .select()
+        .select('id, session_name, table_id')
         .single();
 
       if (error) throw error;
 
-      // Update table status to occupied
+      // Update table status to occupied (same as customer flow)
       await supabase
         .from('restaurant_tables')
         .update({
@@ -79,7 +80,7 @@ export function WaiterSessionStartScreen() {
           occupied_at: new Date().toISOString(),
           occupied_by_customer_name: fullName || sessionName.trim(),
           occupied_by_customer_email: email || null,
-          current_session_id: session.id
+          current_session_id: session.id  // Link to the session
         })
         .eq('id', tableId);
 
