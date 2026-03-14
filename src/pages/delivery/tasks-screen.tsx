@@ -149,17 +149,26 @@ export function DeliveryTasksScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Load from delivery_personnel table
       const { data, error } = await supabase
-        .from('profiles')
+        .from('delivery_personnel')
         .select('is_available, is_on_duty')
-        .eq('id', user.id)
+        .eq('profile_id', user.id)
         .single();
 
-      if (error) throw error;
+      if (error && error.code !== 'PGRST116') throw error; // PGRST116 = not found
       
       if (data) {
-        setIsAvailable(data.is_available || true);
-        setIsOnDuty(data.is_on_duty || true);
+        setIsAvailable(data.is_available ?? true);
+        setIsOnDuty(data.is_on_duty ?? false);
+      } else {
+        // Create initial record if doesn't exist
+        await supabase.rpc('update_delivery_person_status', {
+          p_is_available: true,
+          p_is_on_duty: false
+        });
+        setIsAvailable(true);
+        setIsOnDuty(false);
       }
     } catch (error) {
       console.error('Error loading profile:', error);
@@ -210,15 +219,18 @@ export function DeliveryTasksScreen() {
 
       const newStatus = !isAvailable;
       
-      const { error } = await supabase.from('profiles').update({
-        is_available: newStatus
-      }).eq('id', user.id);
+      // Use the RPC function to update delivery_personnel
+      const { error } = await supabase.rpc('update_delivery_person_status', {
+        p_is_available: newStatus,
+        p_is_on_duty: isOnDuty
+      });
 
       if (error) throw error;
       
       setIsAvailable(newStatus);
     } catch (error) {
       console.error('Error toggling availability:', error);
+      alert('Failed to update availability status');
     }
   }
 
@@ -229,15 +241,18 @@ export function DeliveryTasksScreen() {
 
       const newStatus = !isOnDuty;
       
-      const { error } = await supabase.from('profiles').update({
-        is_on_duty: newStatus
-      }).eq('id', user.id);
+      // Use the RPC function to update delivery_personnel
+      const { error } = await supabase.rpc('update_delivery_person_status', {
+        p_is_available: isAvailable,
+        p_is_on_duty: newStatus
+      });
 
       if (error) throw error;
       
       setIsOnDuty(newStatus);
     } catch (error) {
       console.error('Error toggling duty:', error);
+      alert('Failed to update duty status');
     }
   }
 

@@ -182,7 +182,7 @@ SELECT
     dp.profile_id,
     p.full_name,
     p.email,
-    p.phone,
+    p.phone_number,
     dp.is_available,
     dp.is_on_duty,
     dp.current_order_id,
