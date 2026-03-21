@@ -3,17 +3,20 @@ import { useOutletContext, useNavigate } from 'react-router-dom';
 import { AppHeader } from '@/components/design-system/app-header';
 import { Card, CardBody } from '@/components/design-system/card';
 import { VegBadge } from '@/components/design-system/badge';
-import { Search, SlidersHorizontal, Star, Plus, RefreshCw, ShoppingBag } from 'lucide-react';
+import { ItemCustomizationModal } from '@/components/customer/ItemCustomizationModal';
+import { Search, SlidersHorizontal, Star, Plus, RefreshCw, ShoppingBag, Minus } from 'lucide-react';
 import { supabase, type MenuItem } from '@/lib/supabase';
 import { useCart } from '@/contexts/cart-context';
 
 export function MenuScreen() {
   const navigate = useNavigate();
-  const { addToCart, cartItems, getTotalItems, getTotalAmount } = useCart();
+  const { addToCart, cartItems, getTotalItems, getTotalAmount, updateQuantity } = useCart();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
 
   const categories = ['All', 'Starters', 'Main Course', 'Biryani', 'Breads', 'Desserts'];
 
@@ -131,13 +134,43 @@ export function MenuScreen() {
                         <div className="flex items-center justify-between">
                           <span className="text-lg font-bold text-foreground">₹{item.price}</span>
                           {item.is_available ? (
-                            <button
-                              onClick={() => addToCart?.(item)}
-                              className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-xl text-sm font-medium hover:opacity-90 active:scale-95 transition-all"
-                            >
-                              <Plus className="w-4 h-4" />
-                              Add
-                            </button>
+                            (() => {
+                              const cartItem = cartItems.find(i => i.menu_item_id === item.id);
+                              if (cartItem && cartItem.quantity > 0) {
+                                return (
+                                  <div className="flex items-center gap-2 bg-primary/10 rounded-xl p-1">
+                                    <button
+                                      onClick={() => updateQuantity(item.id, cartItem.quantity - 1)}
+                                      className="w-8 h-8 bg-white text-primary rounded-lg font-bold hover:bg-primary hover:text-white transition-all active:scale-95 flex items-center justify-center"
+                                    >
+                                      <Minus className="w-4 h-4" />
+                                    </button>
+                                    <span className="text-sm font-black text-primary min-w-[2rem] text-center">
+                                      {cartItem.quantity}
+                                    </span>
+                                    <button
+                                      onClick={() => addToCart(item, cartItem.special_instructions, cartItem.spice_level)}
+                                      className="w-8 h-8 bg-white text-primary rounded-lg font-bold hover:bg-primary hover:text-white transition-all active:scale-95 flex items-center justify-center"
+                                    >
+                                      <Plus className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                );
+                              } else {
+                                return (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedItem(item);
+                                      setModalOpen(true);
+                                    }}
+                                    className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-xl text-sm font-medium hover:opacity-90 active:scale-95 transition-all"
+                                  >
+                                    <Plus className="w-4 h-4" />
+                                    Add
+                                  </button>
+                                );
+                              }
+                            })()
                           ) : (
                             <span className="text-xs font-black text-red-500 bg-red-50 px-3 py-2 rounded-xl border border-red-100 uppercase tracking-tighter">
                               Sold Out
@@ -151,6 +184,25 @@ export function MenuScreen() {
               ))
           )}
         </div>
+
+        {/* Customization Modal */}
+        {selectedItem && (
+          <ItemCustomizationModal
+            isOpen={modalOpen}
+            itemName={selectedItem.name}
+            onClose={() => {
+              setModalOpen(false);
+              setSelectedItem(null);
+            }}
+            onConfirm={(specialInstructions, spiceLevel) => {
+              if (selectedItem) {
+                addToCart?.(selectedItem, specialInstructions, spiceLevel);
+              }
+              setModalOpen(false);
+              setSelectedItem(null);
+            }}
+          />
+        )}
       </div>
     </div>
   );

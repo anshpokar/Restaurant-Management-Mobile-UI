@@ -37,10 +37,11 @@ export function PaymentHistoryScreen() {
 
       console.log('📜 Fetching payment history for user:', userId);
 
-      // Step 1: Fetch UPI payments
+      // Step 1: Fetch UPI payments for this user only
       const { data: upiPaymentsData, error: upiError } = await supabase
         .from('upi_payments')
         .select('*')
+        .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
       if (upiError) {

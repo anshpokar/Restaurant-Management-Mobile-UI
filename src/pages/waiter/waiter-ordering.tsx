@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardBody } from '@/components/design-system/card';
 import { Button } from '@/components/design-system/button';
 import { Badge } from '@/components/design-system/badge';
+import { ItemCustomizationModal } from '@/components/customer/ItemCustomizationModal';
 import {
     Search,
     UtensilsCrossed,
@@ -17,6 +18,8 @@ import { supabase, type RestaurantTable, type Profile, type MenuItem, type Order
 
 interface WaiterCartItem extends MenuItem {
     quantity: number;
+    special_instructions?: string;
+    spice_level?: 'mild' | 'medium' | 'spicy' | 'extra_spicy';
 }
 
 export function WaiterOrdering() {
@@ -31,6 +34,8 @@ export function WaiterOrdering() {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+    const [modalOpen, setModalOpen] = useState(false);
+    const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
 
     const categories = ['All', 'Starters', 'Main Course', 'Biryani', 'Breads', 'Desserts'];
 
@@ -86,13 +91,18 @@ export function WaiterOrdering() {
         }
     };
 
-    const addToCart = (item: MenuItem) => {
+    const addToCart = (item: MenuItem, specialInstructions?: string, spiceLevel?: 'mild' | 'medium' | 'spicy' | 'extra_spicy') => {
         setCart(prev => {
             const existing = prev.find(i => i.id === item.id);
             if (existing) {
                 return prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i);
             }
-            return [...prev, { ...item, quantity: 1 }];
+            return [...prev, { 
+                ...item, 
+                quantity: 1,
+                special_instructions: specialInstructions,
+                spice_level: spiceLevel || 'medium'
+            }];
         });
     };
 
@@ -229,12 +239,42 @@ export function WaiterOrdering() {
                                         </div>
                                     </div>
                                     <p className="text-sm font-black text-primary mt-1">₹{item.price}</p>
-                                    <button
-                                        onClick={() => addToCart(item)}
-                                        className="mt-3 w-full bg-primary/10 text-primary py-2 rounded-xl text-xs font-bold hover:bg-primary hover:text-white transition-all active:scale-95 flex items-center justify-center gap-1"
-                                    >
-                                        <Plus className="w-3 h-3" /> ADD ITEM
-                                    </button>
+                                    {(() => {
+                                        const cartItem = cart.find(i => i.id === item.id);
+                                        if (cartItem && cartItem.quantity > 0) {
+                                            return (
+                                                <div className="mt-3 w-full flex items-center justify-between gap-2 bg-primary/10 rounded-xl p-1">
+                                                    <button
+                                                        onClick={() => updateQuantity(item.id, -1)}
+                                                        className="w-8 h-8 bg-white text-primary rounded-lg font-bold hover:bg-primary hover:text-white transition-all active:scale-95 flex items-center justify-center"
+                                                    >
+                                                        <Minus className="w-4 h-4" />
+                                                    </button>
+                                                    <span className="text-sm font-black text-primary min-w-[2rem] text-center">
+                                                        {cartItem.quantity}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => addToCart(item, cartItem.special_instructions, cartItem.spice_level)}
+                                                        className="w-8 h-8 bg-white text-primary rounded-lg font-bold hover:bg-primary hover:text-white transition-all active:scale-95 flex items-center justify-center"
+                                                    >
+                                                        <Plus className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            );
+                                        } else {
+                                            return (
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedItem(item);
+                                                        setModalOpen(true);
+                                                    }}
+                                                    className="mt-3 w-full bg-primary/10 text-primary py-2 rounded-xl text-xs font-bold hover:bg-primary hover:text-white transition-all active:scale-95 flex items-center justify-center gap-1"
+                                                >
+                                                    <Plus className="w-3 h-3" /> ADD ITEM
+                                                </button>
+                                            );
+                                        }
+                                    })()}
                                 </div>
                             </CardBody>
                         </Card>
@@ -371,6 +411,25 @@ export function WaiterOrdering() {
                     </div>
                 </div>
             </div>
+
+            {/* Customization Modal */}
+            {selectedItem && (
+                <ItemCustomizationModal
+                    isOpen={modalOpen}
+                    itemName={selectedItem.name}
+                    onClose={() => {
+                        setModalOpen(false);
+                        setSelectedItem(null);
+                    }}
+                    onConfirm={(specialInstructions, spiceLevel) => {
+                        if (selectedItem) {
+                            addToCart(selectedItem, specialInstructions, spiceLevel);
+                        }
+                        setModalOpen(false);
+                        setSelectedItem(null);
+                    }}
+                />
+            )}
         </div>
     );
 }

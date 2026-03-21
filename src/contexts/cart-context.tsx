@@ -8,11 +8,13 @@ export interface CartItem {
   price: number;
   image?: string;
   veg?: boolean;
+  special_instructions?: string;
+  spice_level?: 'mild' | 'medium' | 'spicy' | 'extra_spicy';
 }
 
 interface CartContextType {
   cartItems: CartItem[];
-  addToCart: (item: MenuItem) => void;
+  addToCart: (item: MenuItem, specialInstructions?: string, spiceLevel?: 'mild' | 'medium' | 'spicy' | 'extra_spicy') => void;
   removeFromCart: (menuItemId: number) => void;
   updateQuantity: (menuItemId: number, quantity: number) => void;
   clearCart: () => void;
@@ -25,7 +27,7 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export function CartProvider({ children }: { children: ReactNode }) {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
 
-  const addToCart = (item: MenuItem) => {
+  const addToCart = (item: MenuItem, specialInstructions?: string, spiceLevel?: 'mild' | 'medium' | 'spicy' | 'extra_spicy') => {
     setCartItems(prev => {
       const existing = prev.find(i => i.menu_item_id === item.id);
       if (existing) {
@@ -41,7 +43,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
           quantity: 1,
           price: item.price,
           image: item.image,
-          veg: item.veg
+          veg: item.veg,
+          special_instructions: specialInstructions,
+          spice_level: spiceLevel || 'medium'
         }];
       }
     });
