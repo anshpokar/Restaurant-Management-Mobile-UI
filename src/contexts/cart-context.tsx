@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { MenuItem } from '@/lib/supabase';
 
 export interface CartItem {
@@ -14,18 +14,110 @@ export interface CartItem {
 
 interface CartContextType {
   cartItems: CartItem[];
+  tableId: string | null;
+  sessionId: string | null;
+  customerInfo: any | null;
   addToCart: (item: MenuItem, specialInstructions?: string, spiceLevel?: 'mild' | 'medium' | 'spicy' | 'extra_spicy') => void;
   removeFromCart: (menuItemId: number) => void;
   updateQuantity: (menuItemId: number, quantity: number) => void;
+  updateSpecialInstructions: (menuItemId: number, instructions: string) => void;
+  updateSpiceLevel: (menuItemId: number, level: 'mild' | 'medium' | 'spicy' | 'extra_spicy') => void;
   clearCart: () => void;
+  setWaiterContext: (tableId: string | null, sessionId: string | null, customerInfo: any | null) => void;
   getTotalItems: () => number;
   getTotalAmount: () => number;
+  previousOrders: any[];
+  isLoadingHistory: boolean;
+  fetchOrderHistory: () => Promise<void>;
+  getTotalSessionItems: () => number;
+  getTotalSessionAmount: () => number;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [cartItems, setCartItems] = useState<CartItem[]>(() => {
+    const saved = localStorage.getItem('waiter_cart_items');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [tableId, setTableId] = useState<string | null>(() => localStorage.getItem('waiter_table_id'));
+  const [sessionId, setSessionId] = useState<string | null>(() => localStorage.getItem('waiter_session_id'));
+  const [customerInfo, setCustomerInfo] = useState<any | null>(() => {
+    const saved = localStorage.getItem('waiter_customer_info');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [previousOrders, setPreviousOrders] = useState<any[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+  // Persist changes to localStorage
+  useEffect(() => {
+    localStorage.setItem('waiter_cart_items', JSON.stringify(cartItems));
+  }, [cartItems]);
+
+  useEffect(() => {
+    if (tableId) localStorage.setItem('waiter_table_id', tableId);
+    else localStorage.removeItem('waiter_table_id');
+  }, [tableId]);
+
+  useEffect(() => {
+    if (sessionId) localStorage.setItem('waiter_session_id', sessionId);
+    else localStorage.removeItem('waiter_session_id');
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (customerInfo) localStorage.setItem('waiter_customer_info', JSON.stringify(customerInfo));
+    else localStorage.removeItem('waiter_customer_info');
+  }, [customerInfo]);
+
+  const fetchOrderHistory = async () => {
+    if (!tableId && !sessionId) return;
+    
+    setIsLoadingHistory(true);
+    try {
+      // Need dynamic import or use supabase from lib
+      const { supabase } = await import('@/lib/supabase');
+      
+      const query = supabase
+        .from('orders')
+        .select(`
+          id,
+          status,
+          total_amount,
+          created_at,
+          order_items (
+            id,
+            name,
+            quantity,
+            price
+          )
+        `);
+
+      if (sessionId) {
+        query.eq('session_id', sessionId);
+      } else {
+        query.eq('table_id', tableId).eq('is_paid', false);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ Error fetching order history:', error);
+        throw error;
+      }
+      
+      setPreviousOrders(data || []);
+    } catch (err) {
+      console.error('Error fetching history:', err);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  useEffect(() => {
+    if (tableId || sessionId) {
+      fetchOrderHistory();
+    }
+  }, [tableId, sessionId]);
 
   const addToCart = (item: MenuItem, specialInstructions?: string, spiceLevel?: 'mild' | 'medium' | 'spicy' | 'extra_spicy') => {
     setCartItems(prev => {
@@ -60,10 +152,25 @@ export function CartProvider({ children }: { children: ReactNode }) {
       removeFromCart(menuItemId);
       return;
     }
-    
     setCartItems(prev =>
       prev.map(item =>
         item.menu_item_id === menuItemId ? { ...item, quantity } : item
+      )
+    );
+  };
+
+  const updateSpecialInstructions = (menuItemId: number, instructions: string) => {
+    setCartItems(prev =>
+      prev.map(item =>
+        item.menu_item_id === menuItemId ? { ...item, special_instructions: instructions } : item
+      )
+    );
+  };
+
+  const updateSpiceLevel = (menuItemId: number, level: 'mild' | 'medium' | 'spicy' | 'extra_spicy') => {
+    setCartItems(prev =>
+      prev.map(item =>
+        item.menu_item_id === menuItemId ? { ...item, spice_level: level } : item
       )
     );
   };
@@ -72,23 +179,50 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setCartItems([]);
   };
 
-  const getTotalItems = () => {
-    return cartItems.reduce((sum, item) => sum + item.quantity, 0);
+  const setWaiterContext = (tId: string | null, sId: string | null, cInfo: any | null) => {
+    if (tId !== tableId) {
+      setCartItems([]);
+    }
+    setTableId(tId);
+    setSessionId(sId);
+    setCustomerInfo(cInfo);
   };
 
-  const getTotalAmount = () => {
-    return cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const getTotalItems = () => cartItems.reduce((sum: number, item: CartItem) => sum + item.quantity, 0);
+  const getTotalAmount = () => cartItems.reduce((sum: number, item: CartItem) => sum + (item.price * item.quantity), 0);
+
+  const getTotalSessionItems = () => {
+    const newItems = getTotalItems();
+    const prevItems = previousOrders.reduce((sum, o) => sum + (o.order_items?.reduce((s: number, i: any) => s + i.quantity, 0) || 0), 0);
+    return newItems + prevItems;
+  };
+
+  const getTotalSessionAmount = () => {
+    const newAmount = getTotalAmount();
+    const prevAmount = previousOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+    return newAmount + prevAmount;
   };
 
   return (
     <CartContext.Provider value={{
       cartItems,
+      tableId,
+      sessionId,
+      customerInfo,
       addToCart,
       removeFromCart,
       updateQuantity,
+      updateSpecialInstructions,
+      updateSpiceLevel,
       clearCart,
+      setWaiterContext,
       getTotalItems,
-      getTotalAmount
+      getTotalAmount,
+      previousOrders,
+      isLoadingHistory,
+      fetchOrderHistory,
+      getTotalSessionItems,
+      getTotalSessionAmount
     }}>
       {children}
     </CartContext.Provider>

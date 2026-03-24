@@ -287,6 +287,7 @@ export const verifyUPIPayment = async (
       success: true,
       message: 'Payment verified successfully',
       type: orderCheck ? 'ORDER' : 'SESSION',
+      sessionId: orderCheck ? null : upiPayment.order_id,
       updatedUPI
     };
     

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardBody } from '@/components/design-system/card';
 import { Button } from '@/components/design-system/button';
 import { Badge } from '@/components/design-system/badge';
@@ -15,22 +15,29 @@ import {
     ArrowLeft
 } from 'lucide-react';
 import { supabase, type RestaurantTable, type Profile, type MenuItem, type Order } from '@/lib/supabase';
+import { useCart, type CartItem } from '@/contexts/cart-context';
 
-interface WaiterCartItem extends MenuItem {
-    quantity: number;
-    special_instructions?: string;
-    spice_level?: 'mild' | 'medium' | 'spicy' | 'extra_spicy';
-}
 
 export function WaiterOrdering() {
     const navigate = useNavigate();
     const { tableId } = useParams<{ tableId: string }>();
+    const location = useLocation();
+    const sessionId = (location.state as any)?.sessionId;
     const [selectedTable, setSelectedTable] = useState<RestaurantTable | null>(null);
     const [activeOrder, setActiveOrder] = useState<Order | null>(null);
     const [customerSearch, setCustomerSearch] = useState('');
     const [linkedCustomer, setLinkedCustomer] = useState<Profile | null>(null);
     const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
-    const [cart, setCart] = useState<WaiterCartItem[]>([]);
+    
+    const { 
+        cartItems: cart, 
+        addToCart,
+        clearCart, 
+        previousOrders, 
+        fetchOrderHistory,
+        updateQuantity, 
+        setWaiterContext
+    } = useCart();
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -45,7 +52,15 @@ export function WaiterOrdering() {
             fetchTableInfo();
             fetchActiveOrder();
         }
-    }, [tableId]);
+    }, [tableId, sessionId]); // removed linkedCustomer
+
+    // Separate effect for syncing context and order history to prevent infinite fetch loops
+    useEffect(() => {
+        fetchOrderHistory();
+        if (tableId) {
+            setWaiterContext(tableId, sessionId || null, linkedCustomer || null);
+        }
+    }, [tableId, sessionId, linkedCustomer]);
 
     const fetchMenu = async () => {
         try {
@@ -63,57 +78,76 @@ export function WaiterOrdering() {
     };
 
     const fetchTableInfo = async () => {
-        const { data } = await supabase.from('restaurant_tables').select('*').eq('id', tableId).single();
+        const { data } = await supabase.from('restaurant_tables').select('*').eq('id', tableId).maybeSingle();
         if (data) setSelectedTable(data);
     };
 
     const fetchActiveOrder = async () => {
         try {
-            const { data, error } = await supabase
+            // First, fetch session info to get user_id if linked
+            if (sessionId) {
+                const { data: sessionData } = await supabase
+                    .from('dine_in_sessions')
+                    .select('*, profiles(*)')
+                    .eq('id', sessionId)
+                    .maybeSingle();
+                
+                if (sessionData?.profiles) {
+                    setLinkedCustomer(sessionData.profiles);
+                }
+            } else if (tableId) {
+                // If no sessionId, check if table has an active session
+                const { data: tableData } = await supabase
+                    .from('restaurant_tables')
+                    .select('current_session_id')
+                    .eq('id', tableId)
+                    .maybeSingle();
+                
+                if (tableData?.current_session_id) {
+                    const { data: sessionData } = await supabase
+                        .from('dine_in_sessions')
+                        .select('*, profiles(*)')
+                        .eq('id', tableData.current_session_id)
+                        .maybeSingle();
+                    
+                    if (sessionData?.profiles) {
+                        setLinkedCustomer(sessionData.profiles);
+                    }
+                }
+            }
+
+            const query = supabase
                 .from('orders')
-                .select('*, order_items(*), profiles(*)')
-                .eq('table_id', tableId)
-                .eq('is_paid', false)
+                .select('*, order_items(*), profiles(*)');
+
+            if (sessionId) {
+                query.eq('session_id', sessionId);
+            } else {
+                query.eq('table_id', tableId).eq('is_paid', false);
+            }
+
+            const { data, error } = await query
                 .order('created_at', { ascending: false })
                 .limit(1)
-                .single();
+                .maybeSingle();
 
             if (data && !error) {
                 setActiveOrder(data);
                 if (data.profiles) setLinkedCustomer(data.profiles);
-            } else {
+            } else if (!linkedCustomer) {
                 setActiveOrder(null);
                 setLinkedCustomer(null);
             }
         } catch (err) {
-            setActiveOrder(null);
-            setLinkedCustomer(null);
+            console.error('Error fetching active order/session:', err);
         }
     };
 
-    const addToCart = (item: MenuItem, specialInstructions?: string, spiceLevel?: 'mild' | 'medium' | 'spicy' | 'extra_spicy') => {
-        setCart(prev => {
-            const existing = prev.find(i => i.id === item.id);
-            if (existing) {
-                return prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i);
-            }
-            return [...prev, { 
-                ...item, 
-                quantity: 1,
-                special_instructions: specialInstructions,
-                spice_level: spiceLevel || 'medium'
-            }];
-        });
-    };
-
-    const updateQuantity = (id: number, delta: number) => {
-        setCart(prev => prev.map(i => {
-            if (i.id === id) {
-                const newQty = Math.max(0, i.quantity + delta);
-                return { ...i, quantity: newQty };
-            }
-            return i;
-        }).filter(i => i.quantity > 0));
+    const handleUpdateQuantity = (id: number, delta: number) => {
+        const item = cart.find(i => i.menu_item_id === id);
+        if (item) {
+            updateQuantity(id, item.quantity + delta);
+        }
     };
 
     const searchCustomer = async () => {
@@ -124,7 +158,7 @@ export function WaiterOrdering() {
                 .from('profiles')
                 .select('*')
                 .or(`email.eq.${customerSearch},phone_number.eq.${customerSearch},username.eq.${customerSearch}`)
-                .single();
+                .maybeSingle();
 
             if (data) setLinkedCustomer(data);
             else alert('Customer not found');
@@ -146,6 +180,7 @@ export function WaiterOrdering() {
                     .from('orders')
                     .insert({
                         table_id: tableId,
+                        session_id: sessionId || null,
                         user_id: linkedCustomer?.id || null,
                         total_amount: cart.reduce((s, i) => s + (i.price * i.quantity), 0),
                         status: 'placed',
@@ -158,25 +193,33 @@ export function WaiterOrdering() {
                 orderId = newOrder.id;
                 await supabase.from('restaurant_tables').update({ status: 'occupied' }).eq('id', tableId);
             } else {
-                const newTotal = activeOrder!.total_amount + cart.reduce((s, i) => s + (i.price * i.quantity), 0);
-                await supabase.from('orders').update({ total_amount: newTotal, status: 'placed' }).eq('id', orderId);
+                const newTotal = activeOrder!.total_amount + cart.reduce((s: number, i: CartItem) => s + (i.price * i.quantity), 0);
+                const { error: updateError } = await supabase.from('orders').update({ total_amount: newTotal, status: 'placed' }).eq('id', orderId);
+                if (updateError) throw updateError;
             }
 
-            const items = cart.map(i => ({
+            const items = cart.map((i: CartItem) => ({
                 order_id: orderId,
-                menu_item_id: i.id,
+                menu_item_id: i.menu_item_id,
                 name: i.name,
                 quantity: i.quantity,
                 price: i.price,
-                image: i.image
+                image: i.image,
+                special_instructions: i.special_instructions || null,
+                spice_level: i.spice_level || null
             }));
 
             const { error: itemsError } = await supabase.from('order_items').insert(items);
             if (itemsError) throw itemsError;
 
             alert('Order updated successfully!');
-            setCart([]);
-            navigate('/waiter');
+            clearCart();
+            // Navigate back to session management if coming from a session, otherwise to waiter dashboard
+            if (sessionId) {
+                navigate(`/waiter/session/${sessionId}`);
+            } else {
+                navigate('/waiter');
+            }
         } catch (err) {
             console.error(err);
             alert('Failed to place order');
@@ -193,7 +236,7 @@ export function WaiterOrdering() {
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden bg-muted/20">
             <div className="flex-1 flex flex-col p-4 overflow-hidden">
                 <div className="flex items-center gap-4 mb-4">
-                    <Button variant="outline" size="sm" onClick={() => navigate('/waiter')}>
+                    <Button variant="outline" size="sm" onClick={() => sessionId ? navigate(`/waiter/session/${sessionId}`) : navigate('/waiter')}>
                         <ArrowLeft className="w-4 h-4 mr-1" /> Back
                     </Button>
                     <h2 className="text-xl font-black text-foreground">Ordering for Table {selectedTable?.table_number}</h2>
@@ -240,12 +283,12 @@ export function WaiterOrdering() {
                                     </div>
                                     <p className="text-sm font-black text-primary mt-1">₹{item.price}</p>
                                     {(() => {
-                                        const cartItem = cart.find(i => i.id === item.id);
+                                        const cartItem = cart.find(i => i.menu_item_id === item.id);
                                         if (cartItem && cartItem.quantity > 0) {
                                             return (
                                                 <div className="mt-3 w-full flex items-center justify-between gap-2 bg-primary/10 rounded-xl p-1">
                                                     <button
-                                                        onClick={() => updateQuantity(item.id, -1)}
+                                                        onClick={() => handleUpdateQuantity(item.id, -1)}
                                                         className="w-8 h-8 bg-white text-primary rounded-lg font-bold hover:bg-primary hover:text-white transition-all active:scale-95 flex items-center justify-center"
                                                     >
                                                         <Minus className="w-4 h-4" />
@@ -354,16 +397,25 @@ export function WaiterOrdering() {
                         </div>
                     ) : (
                         cart.map(item => (
-                            <div key={item.id} className="flex items-center gap-3 bg-muted/30 p-3 rounded-2xl">
+                            <div key={item.menu_item_id} className="flex items-center gap-3 bg-muted/30 p-3 rounded-2xl">
                                 <span className="text-2xl">{item.image}</span>
                                 <div className="flex-1">
                                     <p className="text-sm font-bold text-foreground">{item.name}</p>
                                     <p className="text-xs text-muted-foreground">₹{item.price} x {item.quantity}</p>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <button onClick={() => updateQuantity(item.id, -1)} className="p-1 hover:bg-muted rounded-lg"><Minus className="w-4 h-4" /></button>
+                                    <button onClick={() => handleUpdateQuantity(item.menu_item_id, -1)} className="p-1 hover:bg-muted rounded-lg"><Minus className="w-4 h-4" /></button>
                                     <span className="text-sm font-black w-4 text-center">{item.quantity}</span>
-                                    <button onClick={() => addToCart(item)} className="p-1 hover:bg-muted rounded-lg text-primary"><Plus className="w-4 h-4" /></button>
+                                    <button onClick={() => addToCart({
+                                        id: item.menu_item_id,
+                                        name: item.name,
+                                        price: item.price,
+                                        image: item.image || '',
+                                        category: '',
+                                        veg: item.veg || false,
+                                        rating: 0,
+                                        is_available: true
+                                    })} className="p-1 hover:bg-muted rounded-lg text-primary"><Plus className="w-4 h-4" /></button>
                                 </div>
                             </div>
                         ))
@@ -385,7 +437,7 @@ export function WaiterOrdering() {
                         <div className="flex justify-between items-center text-lg pt-2 border-t border-divider">
                             <span className="font-bold text-foreground">Grand Total</span>
                             <span className="font-black text-2xl text-primary">
-                                ₹{(activeOrder?.total_amount || 0) + cart.reduce((s, i) => s + (i.price * i.quantity), 0)}
+                                ₹{previousOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0) + cart.reduce((s, i) => s + (i.price * i.quantity), 0)}
                             </span>
                         </div>
                     </div>
@@ -395,7 +447,7 @@ export function WaiterOrdering() {
                             variant="outline"
                             className="flex-1"
                             onClick={() => {
-                                if (confirm('Clear all items?')) setCart([]);
+                                if (confirm('Clear all items?')) clearCart();
                             }}
                             disabled={cart.length === 0}
                         >

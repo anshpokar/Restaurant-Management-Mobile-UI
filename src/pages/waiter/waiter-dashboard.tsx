@@ -42,11 +42,11 @@ export function WaiterDashboard() {
     const fetchActiveSessions = async () => {
         setSessionsLoading(true);
         try {
-            // Fetch all active sessions with table details
+            // Fetch all active dine-in sessions with table details
             const { data: sessions, error } = await supabase
-                .from('table_sessions')
+                .from('dine_in_sessions')
                 .select('*')
-                .in('status', ['active', 'pending'])
+                .in('session_status', ['active', 'pending'])
                 .order('started_at', { ascending: false });
 
             if (error) throw error;
@@ -56,7 +56,15 @@ export function WaiterDashboard() {
                 const session = sessions?.find(s => s.table_id === table.id);
                 return {
                     ...table,
-                    active_session: session || null
+                    active_session: session ? {
+                        id: session.id,
+                        table_id: session.table_id,
+                        user_id: session.user_id,
+                        session_name: session.session_name,
+                        status: session.session_status as 'active' | 'pending' | 'completed',
+                        total_amount: session.total_amount,
+                        started_at: session.started_at
+                    } : null
                 };
             });
 
@@ -127,10 +135,12 @@ export function WaiterDashboard() {
                                 {/* Session Status */}
                                 {table.active_session ? (
                                     <div className="space-y-1.5">
-                                        <Badge variant="paid" className="text-[8px] px-1.5 py-0.5">
-                                            <Users className="w-2 h-2 mr-0.5 inline" />
-                                            ACTIVE
-                                        </Badge>
+                                        <div className="w-fit">
+                                            <Badge variant="paid">
+                                                <Users className="w-2 h-2 mr-0.5 inline" />
+                                                ACTIVE
+                                            </Badge>
+                                        </div>
                                         {table.active_session.session_name && (
                                             <div className="bg-white/80 rounded-md p-1.5">
                                                 <p className="text-[9px] font-bold text-primary truncate leading-tight">
@@ -143,9 +153,11 @@ export function WaiterDashboard() {
                                         )}
                                     </div>
                                 ) : (
-                                    <Badge variant={table.status === 'occupied' ? 'occupied' : table.status === 'reserved' ? 'warning' : 'success'} className="text-[8px] px-1.5 py-0.5">
-                                        {table.status.toUpperCase()}
-                                    </Badge>
+                                    <div className="w-fit">
+                                        <Badge variant={table.status === 'occupied' ? 'occupied' : table.status === 'reserved' ? 'warning' : 'success'}>
+                                            {table.status.toUpperCase()}
+                                        </Badge>
+                                    </div>
                                 )}
                             </CardBody>
                         </Card>

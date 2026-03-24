@@ -4,21 +4,20 @@ import { AppHeader } from '@/components/design-system/app-header';
 import { Card, CardBody } from '@/components/design-system/card';
 import { Button } from '@/components/design-system/button';
 import { Input } from '@/components/design-system/input';
-import { ShoppingBag, Users, Calendar, Clock, CheckCircle } from 'lucide-react';
-import { supabase, type Profile } from '@/lib/supabase';
-import { useOutletContext } from 'react-router-dom';
+import { ShoppingBag, Users, CheckCircle } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import { useCart } from '@/contexts/cart-context';
 
 export function WaiterSessionStartScreen() {
   const navigate = useNavigate();
   const { tableId } = useParams<{ tableId: string }>();
-  const location = useLocation();
-  const { profile } = useOutletContext<{ profile: Profile | null }>();
+  const location = useLocation(); // Added this line to define 'location'
+  const { customerInfo } = useCart();
   
-  const customerType = location.state?.customerType || 'guest'; // 'existing', 'new', 'guest'
-  const userId = location.state?.userId || null;
-  const email = location.state?.email || '';
-  const fullName = location.state?.fullName || '';
-  const verified = location.state?.verified || false;
+  const customerType = location.state?.customerType || (customerInfo ? 'existing' : 'guest');
+  const userId = location.state?.userId || customerInfo?.id || null;
+  const email = location.state?.email || customerInfo?.email || '';
+  const fullName = location.state?.fullName || customerInfo?.full_name || '';
 
   const [sessionName, setSessionName] = useState('');
   const [loading, setLoading] = useState(false);
@@ -87,7 +86,7 @@ export function WaiterSessionStartScreen() {
       alert('✅ Session started successfully!');
 
       // Navigate to session menu/ordering screen
-      navigate(`/waiter/session/${session.id}/menu`, {
+      navigate(`/waiter/ordering/${tableId}`, {
         state: {
           sessionId: session.id,
           tableId: tableId,

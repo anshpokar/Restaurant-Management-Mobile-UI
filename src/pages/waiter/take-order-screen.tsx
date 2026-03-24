@@ -1,17 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useCart, type CartItem } from '@/contexts/cart-context';
 import { AppHeader } from '@/components/design-system/app-header';
 import { Card, CardBody } from '@/components/design-system/card';
 import { Button } from '@/components/design-system/button';
 import { Badge } from '@/components/design-system/badge';
 import { supabase, type Profile, getStoredUser, type MenuItem } from '@/lib/supabase';
-import { ShoppingBag, Plus, Minus, Trash2, ChefHat, Utensils, Flame } from 'lucide-react';
+import { ShoppingBag, Plus, Minus, Trash2, ChefHat, Flame } from 'lucide-react';
 
-interface CartItem extends MenuItem {
-  quantity: number;
-  specialInstructions?: string;
-  spiceLevel?: 'mild' | 'medium' | 'spicy' | 'extra_spicy';
-}
 
 export function WaiterTakeOrderScreen() {
   const navigate = useNavigate();
@@ -24,7 +20,16 @@ export function WaiterTakeOrderScreen() {
   const userId = profile?.id || getStoredUser()?.id;
 
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const { 
+    cartItems, 
+    addToCart, 
+    removeFromCart, 
+    updateQuantity, 
+    updateSpecialInstructions, 
+    updateSpiceLevel,
+    clearCart,
+    setWaiterContext
+  } = useCart();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -32,7 +37,10 @@ export function WaiterTakeOrderScreen() {
 
   useEffect(() => {
     fetchMenuItems();
-  }, []);
+    if (tableId) {
+      setWaiterContext(tableId, null, customerInfo);
+    }
+  }, [tableId, customerInfo]);
 
   const fetchMenuItems = async () => {
     setLoading(true);
@@ -53,58 +61,16 @@ export function WaiterTakeOrderScreen() {
     }
   };
 
-  const addToCart = (item: MenuItem) => {
-    setCartItems(prev => {
-      const existing = prev.find(i => i.id === item.id);
-      if (existing) {
-        return prev.map(i => 
-          i.id === item.id 
-            ? { ...i, quantity: i.quantity + 1 }
-            : i
-        );
-      }
-      return [...prev, { ...item, quantity: 1 }];
-    });
+  const handleUpdateSpecialInstructions = (itemId: number, instructions: string) => {
+    updateSpecialInstructions(itemId, instructions);
   };
 
-  const removeFromCart = (itemId: number) => {
-    setCartItems(prev => prev.filter(i => i.id !== itemId));
+  const handleUpdateSpiceLevel = (itemId: number, level: 'mild' | 'medium' | 'spicy' | 'extra_spicy') => {
+    updateSpiceLevel(itemId, level);
   };
 
-  const updateQuantity = (itemId: number, delta: number) => {
-    setCartItems(prev => {
-      return prev.map(item => {
-        if (item.id === itemId) {
-          const newQty = Math.max(1, item.quantity + delta);
-          return { ...item, quantity: newQty };
-        }
-        return item;
-      });
-    });
-  };
-
-  const updateSpecialInstructions = (itemId: number, instructions: string) => {
-    setCartItems(prev => {
-      return prev.map(item => 
-        item.id === itemId 
-          ? { ...item, specialInstructions: instructions }
-          : item
-      );
-    });
-  };
-
-  const updateSpiceLevel = (itemId: number, level: 'mild' | 'medium' | 'spicy' | 'extra_spicy') => {
-    setCartItems(prev => {
-      return prev.map(item => 
-        item.id === itemId 
-          ? { ...item, spiceLevel: level }
-          : item
-      );
-    });
-  };
-
-  const totalAmount = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const totalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+  const totalAmount = cartItems.reduce((sum: number, item: CartItem) => sum + (item.price * item.quantity), 0);
+  const totalItems = cartItems.reduce((sum: number, item: CartItem) => sum + item.quantity, 0);
 
   const handleSubmitOrder = async () => {
     if (!tableId || cartItems.length === 0) {
@@ -136,15 +102,15 @@ export function WaiterTakeOrderScreen() {
       if (orderError) throw orderError;
 
       // Create order items
-      const orderItemsData = cartItems.map(item => ({
+      const orderItemsData = cartItems.map((item: CartItem) => ({
         order_id: order.id,
-        menu_item_id: item.id,
+        menu_item_id: item.menu_item_id,
         name: item.name,
         quantity: item.quantity,
         price: item.price,
         image: item.image,
-        special_instructions: item.specialInstructions || null,
-        spice_level: item.spiceLevel || null
+        special_instructions: item.special_instructions || null,
+        spice_level: item.spice_level || null
       }));
 
       const { error: itemsError } = await supabase
@@ -166,9 +132,9 @@ export function WaiterTakeOrderScreen() {
         .eq('id', tableId);
 
       alert('Order placed successfully! Sent to kitchen.');
-      
+      clearCart();
       // Navigate back to table selection
-      navigate('/waiter/tables');
+      navigate('/waiter/dashboard');
     } catch (error: any) {
       console.error('Error placing order:', error);
       alert('Failed to place order: ' + error.message);
@@ -210,7 +176,7 @@ export function WaiterTakeOrderScreen() {
                     {customerInfo.customerEmail && ' ✓'}
                   </p>
                 </div>
-                <Badge variant={customerInfo.customerEmail ? 'success' : 'default'}>
+                <Badge variant={customerInfo.customerEmail ? 'success' : 'info'}>
                   {customerInfo.customerEmail ? 'Linked' : 'Walk-in'}
                 </Badge>
               </div>
@@ -240,8 +206,8 @@ export function WaiterTakeOrderScreen() {
           <div className="text-center py-10 text-muted-foreground">Loading menu...</div>
         ) : (
           <div className="grid grid-cols-1 gap-3">
-            {filteredItems.map((item) => {
-              const inCart = cartItems.find(i => i.id === item.id);
+            {filteredItems.map((item: MenuItem) => {
+              const inCart = cartItems.find((i: CartItem) => i.menu_item_id === item.id);
               
               return (
                 <Card key={item.id} className="overflow-hidden">
@@ -257,11 +223,6 @@ export function WaiterTakeOrderScreen() {
                         <div className="flex items-start justify-between mb-2">
                           <div>
                             <h3 className="font-bold text-foreground">{item.name}</h3>
-                            {item.description && (
-                              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                                {item.description}
-                              </p>
-                            )}
                           </div>
                           <div className="text-right">
                             <p className="text-lg font-black text-primary">₹{item.price}</p>
@@ -284,32 +245,31 @@ export function WaiterTakeOrderScreen() {
                         ) : (
                           <div className="flex items-center gap-2 mt-2">
                             <button
-                              onClick={() => {
-                                if (inCart.quantity === 1) {
-                                  removeFromCart(item.id);
-                                } else {
-                                  updateQuantity(item.id, -1);
-                                }
-                              }}
-                              className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center hover:bg-muted/80"
-                            >
-                              <Minus className="w-4 h-4" />
-                            </button>
-                            <span className="font-bold text-foreground min-w-[30px] text-center">
-                              {inCart.quantity}
-                            </span>
-                            <button
-                              onClick={() => updateQuantity(item.id, 1)}
-                              className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center hover:bg-muted/80"
-                            >
-                              <Plus className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => removeFromCart(item.id)}
-                              className="ml-auto text-red-500 hover:bg-red-50 p-2 rounded-lg"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                               onClick={() => {
+                                 const itemInCart = cartItems.find((i: CartItem) => i.menu_item_id === item.id);
+                                 if (itemInCart) {
+                                   updateQuantity(item.id, itemInCart.quantity - 1);
+                                 }
+                               }}
+                               className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center hover:bg-muted/80"
+                             >
+                               <Minus className="w-4 h-4" />
+                             </button>
+                             <span className="font-bold text-foreground min-w-[30px] text-center">
+                               {inCart.quantity}
+                             </span>
+                             <button
+                               onClick={() => updateQuantity(item.id, inCart.quantity + 1)}
+                               className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center hover:bg-muted/80"
+                             >
+                               <Plus className="w-4 h-4" />
+                             </button>
+                             <button
+                               onClick={() => removeFromCart(item.id)}
+                               className="ml-auto text-red-500 hover:bg-red-50 p-2 rounded-lg"
+                             >
+                               <Trash2 className="w-4 h-4" />
+                             </button>
                           </div>
                         )}
 
@@ -319,16 +279,16 @@ export function WaiterTakeOrderScreen() {
                             <input
                               type="text"
                               placeholder="Special instructions (optional)"
-                              value={inCart.specialInstructions || ''}
-                              onChange={(e) => updateSpecialInstructions(item.id, e.target.value)}
+                              value={inCart.special_instructions || ''}
+                              onChange={(e) => handleUpdateSpecialInstructions(item.id, e.target.value)}
                               className="w-full px-3 py-1.5 bg-surface border border-border rounded-lg text-xs focus:ring-2 focus:ring-primary outline-none"
                             />
                             
                             <div className="flex items-center gap-2">
                               <Flame className="w-3 h-3 text-muted-foreground" />
                               <select
-                                value={inCart.spiceLevel || 'medium'}
-                                onChange={(e) => updateSpiceLevel(item.id, e.target.value as any)}
+                                value={inCart.spice_level || 'medium'}
+                                onChange={(e) => handleUpdateSpiceLevel(item.id, e.target.value as any)}
                                 className="px-2 py-1 bg-surface border border-border rounded-lg text-xs focus:ring-2 focus:ring-primary outline-none"
                               >
                                 <option value="mild">Mild</option>
@@ -336,7 +296,7 @@ export function WaiterTakeOrderScreen() {
                                 <option value="spicy">Spicy</option>
                                 <option value="extra_spicy">Extra Spicy</option>
                               </select>
-                              <div className={`w-2 h-2 rounded-full ${getSpiceLevelColor(inCart.spiceLevel || 'medium')}`} />
+                              <div className={`w-2 h-2 rounded-full ${getSpiceLevelColor(inCart.spice_level || 'medium')}`} />
                             </div>
                           </div>
                         )}
@@ -373,8 +333,8 @@ export function WaiterTakeOrderScreen() {
 
             {showCart && (
               <div className="max-h-48 overflow-y-auto space-y-2 mb-3 text-sm">
-                {cartItems.map(item => (
-                  <div key={item.id} className="flex justify-between items-center">
+                {cartItems.map((item: CartItem) => (
+                  <div key={item.menu_item_id} className="flex justify-between items-center">
                     <span className="text-foreground">
                       {item.quantity}x {item.name}
                     </span>

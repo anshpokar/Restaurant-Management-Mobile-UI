@@ -86,7 +86,7 @@ export function CheckoutScreen() {
 
   async function fetchTables() {
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('restaurant_tables')
         .select('id, table_number, capacity')
         .eq('status', 'available')
@@ -103,16 +103,16 @@ export function CheckoutScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data, error } = await supabase
+      const { data: addressesData } = await supabase
         .from('addresses')
-        .select('id, address_line1, city, state, pincode')
+        .select('id, address_line1, city, pincode')
         .eq('user_id', user.id)
         .order('is_default', { ascending: false });
       
-      if (data) {
-        setAddresses(data);
-        if (data.length > 0) {
-          setSelectedAddress(data[0].id);
+      if (addressesData) {
+        setAddresses(addressesData);
+        if (addressesData.length > 0) {
+          setSelectedAddress(addressesData[0].id);
         }
       }
     } catch (error) {
@@ -236,9 +236,10 @@ export function CheckoutScreen() {
               payment_status: 'pending',
               payment_method: 'cod', // Will update when paying
               is_paid: false,
-              placed_by: 'customer',
-              notes: `Dine-in Session: ${sessionId}`,
-              session_name: sessionName.trim() // Add session_name for easier lookup
+               placed_by: 'customer',
+               session_id: sessionId,
+               notes: `Dine-in Session: ${sessionId}`,
+               session_name: sessionName.trim() // Add session_name for easier lookup
             })
             .select()
             .single();

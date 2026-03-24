@@ -5,20 +5,27 @@ import { Card, CardBody } from '@/components/design-system/card';
 import { Button } from '@/components/design-system/button';
 import { Badge } from '@/components/design-system/badge';
 import { supabase } from '@/lib/supabase';
-import { ShoppingBag, Clock, DollarSign, Plus, Utensils, User, Mail, Phone } from 'lucide-react';
+import { ShoppingBag, Clock, Plus, Utensils, User, Mail, Phone } from 'lucide-react';
+import { useAuth } from '@/hooks/use-auth';
+import { useCart } from '@/contexts/cart-context';
+import { SessionPaymentModal } from '@/components/customer/SessionPaymentModal';
+import { toast } from 'sonner';
 
 export function WaiterSessionManagementScreen() {
   const navigate = useNavigate();
+  const { userProfile } = useAuth();
   const { sessionId } = useParams<{ sessionId: string }>();
+  const { setWaiterContext, previousOrders: orders, fetchOrderHistory } = useCart();
   
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [orders, setOrders] = useState<any[]>([]);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   useEffect(() => {
     if (sessionId) {
+      setLoading(true);
       fetchSessionDetails();
-      fetchSessionOrders();
+      fetchOrderHistory();
     }
   }, [sessionId]);
 
@@ -67,7 +74,7 @@ export function WaiterSessionManagementScreen() {
         // Get table info
         const { data: tableData, error: tableError } = await supabase
           .from('restaurant_tables')
-          .select('table_number, capacity')
+          .select('id, table_number, capacity')
           .eq('id', sessionSingle.table_id);
 
         if (tableError) {
@@ -83,64 +90,35 @@ export function WaiterSessionManagementScreen() {
           ...sessionSingle,
           restaurant_tables: tableSingle
         });
+
+        // Sync with global cart context
+        if (tableSingle) {
+          setWaiterContext(tableSingle.id, sessionSingle.id, sessionSingle);
+        }
       } else {
         console.log('✅ RPC success:', rpcData);
         const sessionSingle = Array.isArray(rpcData) ? rpcData[0] : rpcData;
         
         const { data: tableData } = await supabase
           .from('restaurant_tables')
-          .select('table_number, capacity')
+          .select('id, table_number, capacity')
           .eq('id', sessionSingle.table_id);
 
         setSession({
           ...sessionSingle,
           restaurant_tables: tableData?.[0] || null
         });
+
+        // Sync with global cart context
+        if (tableData?.[0]) {
+          setWaiterContext(tableData[0].id, sessionSingle.id, sessionSingle);
+        }
       }
     } catch (error: any) {
       console.error('❌ Error fetching session:', error);
       alert('Failed to load session details: ' + error.message);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchSessionOrders = async () => {
-    if (!session?.restaurant_tables?.id) {
-      console.log('⚠️ No table ID available for fetching orders');
-      return;
-    }
-
-    try {
-      console.log('🔍 Fetching orders for table:', session.restaurant_tables.id);
-      
-      const { data, error } = await supabase
-        .from('orders')
-        .select(`
-          id,
-          status,
-          total_amount,
-          created_at,
-          order_items (
-            name,
-            quantity,
-            price
-          )
-        `)
-        .eq('table_id', session.restaurant_tables.id)
-        .eq('order_type', 'dine_in')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('❌ Orders fetch error:', error);
-        throw error;
-      }
-      
-      console.log('✅ Orders fetched:', data?.length || 0, 'orders');
-      setOrders(data || []);
-    } catch (error: any) {
-      console.error('❌ Error fetching orders:', error);
-      // Don't alert user, just log - orders are not critical
     }
   };
 
@@ -155,36 +133,8 @@ export function WaiterSessionManagementScreen() {
     });
   };
 
-  const handleCloseSession = async () => {
-    if (!confirm('Are you sure you want to close this session?')) return;
-
-    try {
-      const { error } = await supabase
-        .from('dine_in_sessions')
-        .update({
-          session_status: 'completed',
-          payment_status: 'paid',
-          completed_at: new Date().toISOString()
-        })
-        .eq('id', sessionId);
-
-      if (error) throw error;
-
-      // Update table status
-      await supabase
-        .from('restaurant_tables')
-        .update({
-          status: 'vacant',
-          current_session_id: null
-        })
-        .eq('id', session.restaurant_tables.id);
-
-      alert('Session closed successfully!');
-      navigate('/waiter/dashboard');
-    } catch (error: any) {
-      console.error('Error closing session:', error);
-      alert('Failed to close session: ' + error.message);
-    }
+  const handleCloseSession = () => {
+    setShowPaymentModal(true);
   };
 
   if (loading) {
@@ -212,7 +162,7 @@ export function WaiterSessionManagementScreen() {
   const totalAmount = orders.reduce((sum, order) => sum + (order.total_amount || 0), 0);
   const totalItems = orders.reduce((sum, order) => {
     const items = order.order_items || [];
-    return sum + items.reduce((itemSum, item) => itemSum + item.quantity, 0);
+    return sum + items.reduce((itemSum: number, item: any) => itemSum + item.quantity, 0);
   }, 0);
 
   return (
@@ -397,13 +347,69 @@ export function WaiterSessionManagementScreen() {
           </Button>
         </div>
 
+        {/* Admin Actions */}
+        {userProfile?.role === 'admin' && (
+          <div className="pt-4 border-t border-divider">
+            <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
+              <User className="w-4 h-4 text-primary" /> Admin Controls
+            </h3>
+            <Button 
+              variant="outline" 
+              className="w-full border-red-200 text-red-600 hover:bg-red-50"
+              onClick={async () => {
+                if (!confirm('ADMIN: Force vacate this table? This will not mark payment as completed.')) return;
+                try {
+                  // 1. Mark the session as completed/cancelled
+                  const { error: sessionError } = await supabase
+                    .from('dine_in_sessions')
+                    .update({ 
+                      session_status: 'completed',
+                      completed_at: new Date().toISOString()
+                    })
+                    .eq('id', session.id);
+
+                  if (sessionError) throw sessionError;
+
+                  // 2. Clear the table
+                  const { error: tableError } = await supabase
+                    .from('restaurant_tables')
+                    .update({ 
+                      status: 'available', 
+                      current_session_id: null 
+                    })
+                    .eq('id', session.restaurant_tables.id);
+                  
+                  if (tableError) throw tableError;
+
+                  toast.success('Table vacated successfully');
+                  navigate('/admin/tables');
+                } catch (e: any) {
+                  console.error('Force vacate error:', e);
+                  toast.error(`Error: ${e.message || 'Failed to vacate table'}`);
+                }
+              }}
+            >
+              Force Vacate Table
+            </Button>
+          </div>
+        )}
+
         {/* Info Box */}
         <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
           <p className="text-sm text-blue-800">
-            <strong>Note:</strong> Closing this session will mark the table as vacant and prompt for payment completion.
+            <strong>Note:</strong> Closing this session will initiate the payment process. The table will be marked as vacant once the payment is verified by the admin.
           </p>
         </div>
       </div>
+
+      {/* Payment Modal */}
+      {showPaymentModal && (
+        <SessionPaymentModal
+          sessionId={sessionId!}
+          totalAmount={totalAmount}
+          onClose={() => setShowPaymentModal(false)}
+        />
+      )}
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { AppHeader } from '@/components/design-system/app-header';
 import { Card, CardBody } from '@/components/design-system/card';
 import { Button } from '@/components/design-system/button';
 import { Input } from '@/components/design-system/input';
-import { UserPlus, Mail, Phone, User, Shield, CheckCircle, RefreshCw } from 'lucide-react';
+import { UserPlus, Shield, CheckCircle, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { generateOTP, sendOTPEmail } from '@/lib/send-otp-email';
 
@@ -63,15 +63,14 @@ export function WaiterCustomerSignupScreen() {
 
   const handleCreateAccount = async () => {
     if (!validateForm()) return;
-
     setLoading(true);
     try {
-      // Check if email already exists
+      // 1. Check if email already exists in profiles
       const { data: existingProfile } = await supabase
         .from('profiles')
         .select('id')
-        .eq('email', formData.email)
-        .single();
+        .eq('email', formData.email.toLowerCase())
+        .maybeSingle();
 
       if (existingProfile) {
         alert('This email is already registered. Please use "Already a Customer" option instead.');
@@ -79,38 +78,52 @@ export function WaiterCustomerSignupScreen() {
         return;
       }
 
-      // Create new profile
-      const { data: newProfile, error } = await supabase
-        .from('profiles')
-        .insert({
-          email: formData.email,
-          full_name: formData.full_name,
-          phone_number: formData.phone_number,
-          username: formData.username,
-          role: 'customer'
-        })
-        .select('id')
-        .single();
+      // 2. Generate a random temporary password
+      const tempPassword = Math.random().toString(36).slice(-10) + '!A1';
+      
+      // 3. Sign up with Supabase Auth
+      // This sends the confirmation email automatically
+      const { data, error: authError } = await supabase.auth.signUp({
+        email: formData.email.toLowerCase(),
+        password: tempPassword,
+        options: {
+          data: {
+            full_name: formData.full_name,
+            username: formData.username,
+            phone_number: formData.phone_number,
+            role: 'customer'
+          }
+        }
+      });
 
-      if (error) throw error;
+      if (authError) throw authError;
 
-      setCreatedUserId(newProfile.id);
+      if (!data.user) {
+        throw new Error('Failed to create account');
+      }
+
+      setCreatedUserId(data.user.id);
       setStep('otp');
       
-      // Auto-send OTP after account creation
-      sendOTP(newProfile.id);
+      // We still use our internal OTP flow for immediate waiter verification if needed,
+      // but the main account creation is now handled by Supabase Auth + Trigger.
+      sendOTP();
       
-      alert('✅ Account created successfully! Now verifying email...');
+      alert(
+        '✅ Account created successfully!\n\n' +
+        '📧 A confirmation email has been sent to ' + formData.email + '.\n\n' +
+        'Now verifying with phone/internal OTP for immediate session start...'
+      );
 
     } catch (error: any) {
       console.error('Error creating account:', error);
-      alert('❌ Failed to create account: ' + error.message);
+      alert('❌ Failed to create account: ' + (error.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
   };
 
-  const sendOTP = async (userId?: string) => {
+  const sendOTP = async () => {
     if (countdown > 0) return;
 
     setSending(true);
@@ -118,7 +131,7 @@ export function WaiterCustomerSignupScreen() {
       const otpCode = generateOTP();
       
       // Send OTP (stores in DB, should email customer)
-      const { success, error } = await sendOTPEmail(
+      const { error } = await sendOTPEmail(
         formData.email,
         otpCode,
         'customer_verification'
@@ -350,7 +363,7 @@ export function WaiterCustomerSignupScreen() {
                 Didn't receive the code?
               </p>
               <Button
-                onClick={() => sendOTP(createdUserId || undefined)}
+                onClick={() => sendOTP()}
                 variant="outline"
                 size="sm"
                 disabled={sending || countdown > 0}

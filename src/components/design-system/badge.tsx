@@ -5,9 +5,10 @@ interface BadgeProps {
   variant?: 'veg' | 'nonveg' | 'success' | 'warning' | 'error' | 'info' | 'paid' | 'pending' | 'vacant' | 'occupied' | 'destructive' | 'secondary';
   children?: React.ReactNode;
   size?: 'sm' | 'md';
+  className?: string;
 }
 
-export function Badge({ variant = 'info', children, size = 'md' }: BadgeProps) {
+export function Badge({ variant = 'info', children, size = 'md', className = '' }: BadgeProps) {
   const baseStyles = 'inline-flex items-center justify-center rounded-full font-medium';
   
   const sizeStyles = {
@@ -31,7 +32,7 @@ export function Badge({ variant = 'info', children, size = 'md' }: BadgeProps) {
   };
   
   return (
-    <span className={`${baseStyles} ${sizeStyles[size]} ${variantStyles[variant]}`}>
+    <span className={`${baseStyles} ${sizeStyles[size]} ${variantStyles[variant]} ${className}`}>
       {variant === 'veg' && <Leaf className="w-3 h-3 mr-1" />}
       {variant === 'nonveg' && <Drumstick className="w-3 h-3 mr-1" />}
       {children}

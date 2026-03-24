@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/design-system/button';
-import { Card, CardBody } from '@/components/design-system/card';
+import { CardBody } from '@/components/design-system/card'
 import { IndianRupee, CreditCard, X } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -27,8 +27,8 @@ export function SessionPaymentModal({ sessionId, totalAmount, onClose }: Session
           .from('dine_in_sessions')
           .update({
             payment_method: 'upi',
-            payment_status: 'pending', // Valid value: pending, paid, or partial
-            // Keep session_status as 'active' until payment is verified
+            payment_status: 'pending', // Waiting for customer to scan and admin to verify
+            // Keep session_status as 'active' until payment is verified by admin
             updated_at: new Date().toISOString()
           })
           .eq('id', sessionId);
@@ -40,15 +40,10 @@ export function SessionPaymentModal({ sessionId, totalAmount, onClose }: Session
           return;
         }
 
-        // Navigate to UPI payment page immediately
+        // Navigate to UPI payment page
         navigate(`/customer/payment/session/${sessionId}`);
       } else {
-        // COD - Mark order as COD and notify admin
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('Not authenticated');
-
-        // Update session with PENDING payment status (waiting for admin confirmation)
-        // Keep session as 'active' until admin confirms payment
+        // COD / Cash - Notify admin
         const { error: sessionError } = await supabase
           .from('dine_in_sessions')
           .update({
@@ -62,19 +57,26 @@ export function SessionPaymentModal({ sessionId, totalAmount, onClose }: Session
         if (sessionError) throw sessionError;
 
         // Update all orders in session to COD
-        const { error: ordersError } = await supabase.rpc('update_session_orders_cod', {
-          p_session_id: sessionId
-        });
-
-        if (ordersError) {
-          console.error('Error updating orders:', ordersError);
-          // Continue anyway - admin can update manually
+        try {
+          const { error: ordersError } = await supabase.rpc('update_session_orders_cod', {
+            p_session_id: sessionId
+          });
+          if (ordersError) console.warn('Orders update error:', ordersError);
+        } catch (e) {
+          console.warn('RPC update_session_orders_cod failed');
         }
 
         toast.success('Payment marked as pending. Please pay at the counter.');
-        setProcessing(false); // Reset processing so button becomes clickable again
+        setProcessing(false);
         onClose();
-        navigate(`/customer/orders`);
+        
+        // If we are in the customer view, navigate to orders
+        if (window.location.pathname.includes('/customer')) {
+          navigate(`/customer/orders`);
+        } else {
+          // If waiter initiated, stay on session screen or go to dashboard
+          toast.info('Session is now awaiting admin payment confirmation.');
+        }
       }
     } catch (error: any) {
       console.error('Payment error:', error);

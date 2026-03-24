@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useNavigate, useOutletContext } from 'react-router-dom';
+import { supabase, type Order, type Profile, getStoredUser } from '@/lib/supabase';
 import { AppHeader } from '@/components/design-system/app-header';
+import { Button } from '@/components/design-system/button';
 import { Card, CardBody } from '@/components/design-system/card';
 import { Badge } from '@/components/design-system/badge';
-import { Button } from '@/components/design-system/button';
-import { Package, Clock, CheckCircle2, Truck, Phone, UtensilsCrossed, IndianRupee, ChevronRight } from 'lucide-react';
-import { supabase, type Order, type Profile, getStoredUser } from '@/lib/supabase';
-import { useOutletContext, useNavigate } from 'react-router-dom';
+import { UtensilsCrossed, Clock, Package, CheckCircle2, Truck, Phone, ChevronRight, IndianRupee } from 'lucide-react';
 import { toast } from 'sonner';
 import { SessionPaymentModal } from '@/components/customer/SessionPaymentModal';
 
@@ -17,6 +17,7 @@ export function OrdersScreen() {
   const [loading, setLoading] = useState(false);
   const [activeSessions, setActiveSessions] = useState<any[]>([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  // Payment method selection
   const [selectedSession, setSelectedSession] = useState<{id: string; amount: number} | null>(null);
   const [completedSessions, setCompletedSessions] = useState<any[]>([]);
 
@@ -128,7 +129,7 @@ export function OrdersScreen() {
               `)
               .eq('user_id', userId)
               .eq('order_type', 'dine_in')
-              .ilike('notes', `%Dine-in Session: ${session.id}%`);
+              .eq('session_id', session.id);
 
             if (ordersError) {
               console.warn(`Error fetching orders for session ${session.id}:`, ordersError);

@@ -1,200 +1,203 @@
-import React, { useState, useEffect } from 'react';
-import { AppHeader } from '@/components/design-system/app-header';
+import { LayoutGrid, Users, RefreshCw } from 'lucide-react';
 import { Card, CardBody } from '@/components/design-system/card';
-import { Badge } from '@/components/design-system/badge';
-import { Users, Clock, DollarSign, CheckCircle2, RefreshCw } from 'lucide-react';
-import { supabase, type RestaurantTable, type Order } from '@/lib/supabase';
 import { Button } from '@/components/design-system/button';
+import { Badge } from '@/components/design-system/badge';
+import { supabase, type RestaurantTable } from '@/lib/supabase';
+import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { AppHeader } from '@/components/design-system/app-header';
+
+interface TableSession {
+  id: string;
+  table_id: string;
+  user_id?: string;
+  session_name?: string;
+  status: 'active' | 'pending' | 'completed';
+  total_amount?: number;
+  started_at: string;
+}
+
+interface TableWithSession extends RestaurantTable {
+  active_session?: TableSession | null;
+}
 
 export function AdminTables() {
-  const [tables, setTables] = useState<RestaurantTable[]>([]);
-  const [activeOrders, setActiveOrders] = useState<Record<string, Order>>({});
-  const [loading, setLoading] = useState(true);
+    const navigate = useNavigate();
+    const [tablesWithSessions, setTablesWithSessions] = useState<TableWithSession[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [sessionsLoading, setSessionsLoading] = useState(false);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+    useEffect(() => {
+        fetchData();
+    }, []);
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      // 1. Fetch all tables
-      const { data: tableData } = await supabase
-        .from('restaurant_tables')
-        .select('*')
-        .order('table_number', { ascending: true });
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            const { data, error } = await supabase
+                .from('restaurant_tables')
+                .select('*')
+                .order('table_number', { ascending: true });
 
-      setTables(tableData || []);
-
-      // 2. Fetch all unpaid orders with their items and customer profiles
-      const { data: orderData } = await supabase
-        .from('orders')
-        .select('*, order_items(*), profiles(*)')
-        .eq('is_paid', false);
-
-      const orderMap: Record<string, Order> = {};
-      orderData?.forEach(order => {
-        if (order.table_id) orderMap[order.table_id] = order;
-      });
-      setActiveOrders(orderMap);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const releaseTable = async (tableId: string, orderId?: string) => {
-    if (!confirm('Mark as paid and release this table?')) return;
-
-    try {
-      // 1. Mark order as paid
-      if (orderId) {
-        await supabase
-          .from('orders')
-          .update({ is_paid: true, status: 'delivered' })
-          .eq('id', orderId);
-      }
-
-      // 2. Mark table as available
-      await supabase
-        .from('restaurant_tables')
-        .update({ status: 'available' })
-        .eq('id', tableId);
-
-      fetchData();
-    } catch (err) {
-      alert('Failed to release table');
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-background pb-24">
-      <AppHeader
-        title="Table Management"
-        actions={
-          <button onClick={fetchData} className="p-2 hover:bg-muted rounded-full">
-            <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-          </button>
+            if (error) throw error;
+            // setTables(data || []); // Removed unused state
+            await fetchActiveSessions(data || []);
+        } catch (error) {
+            console.error('Error fetching tables:', error);
+        } finally {
+            setLoading(false);
         }
-      />
+    };
 
-      <div className="px-4 py-4 space-y-6">
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-3">
-          <Card className="border-none shadow-sm">
-            <CardBody className="p-3 text-center">
-              <p className="text-2xl font-black text-green-600">
-                {tables.filter(t => t.status === 'available').length}
-              </p>
-              <p className="text-[10px] font-bold text-muted-foreground uppercase">Vacant</p>
-            </CardBody>
-          </Card>
-          <Card className="border-none shadow-sm">
-            <CardBody className="p-3 text-center">
-              <p className="text-2xl font-black text-red-600">
-                {tables.filter(t => t.status === 'occupied').length}
-              </p>
-              <p className="text-[10px] font-bold text-muted-foreground uppercase">Occupied</p>
-            </CardBody>
-          </Card>
-          <Card className="border-none shadow-sm">
-            <CardBody className="p-3 text-center">
-              <p className="text-2xl font-black text-orange-500">
-                {tables.filter(t => t.status === 'reserved').length}
-              </p>
-              <p className="text-[10px] font-bold text-muted-foreground uppercase">Reserved</p>
-            </CardBody>
-          </Card>
+    const fetchActiveSessions = async (allTables: RestaurantTable[]) => {
+        setSessionsLoading(true);
+        try {
+            const { data: sessions, error } = await supabase
+                .from('dine_in_sessions')
+                .select('*')
+                .in('session_status', ['active', 'pending'])
+                .order('started_at', { ascending: false });
+
+            if (error) throw error;
+
+            const tablesWithSessionsData = allTables.map(table => {
+                const session = sessions?.find(s => s.table_id === table.id);
+                return {
+                    ...table,
+                    active_session: session ? {
+                        id: session.id,
+                        table_id: session.table_id,
+                        user_id: session.user_id,
+                        session_name: session.session_name,
+                        status: session.session_status as 'active' | 'pending' | 'completed',
+                        total_amount: session.total_amount,
+                        started_at: session.started_at
+                    } : null
+                };
+            });
+
+            setTablesWithSessions(tablesWithSessionsData);
+        } catch (error) {
+            console.error('Error fetching sessions:', error);
+            setTablesWithSessions(allTables.map(t => ({ ...t, active_session: null })));
+        } finally {
+            setSessionsLoading(false);
+        }
+    };
+
+    const onTableClick = (table: TableWithSession) => {
+        if (table.active_session) {
+            // Admin can access waiter session management
+            navigate(`/waiter/session/${table.active_session.id}`);
+        } else {
+            // Admin can also start a session (matches waiter functionality)
+            navigate(`/waiter/customer-info/${table.id}`);
+        }
+    };
+
+    return (
+        <div className="min-h-screen bg-background pb-20 overflow-y-auto">
+            <AppHeader 
+                title="Table Management" 
+                actions={
+                    <Button variant="outline" size="sm" onClick={fetchData} isLoading={loading || sessionsLoading}>
+                        <RefreshCw className={`w-4 h-4 mr-2 ${(loading || sessionsLoading) ? 'animate-spin' : ''}`} />
+                        Refresh
+                    </Button>
+                }
+            />
+
+            <div className="p-4 space-y-6">
+                {/* Stats Summary */}
+                <div className="grid grid-cols-3 gap-3">
+                    <Card className="border-none shadow-sm bg-green-50">
+                        <CardBody className="p-3 text-center">
+                            <p className="text-2xl font-black text-green-600">
+                                {tablesWithSessions.filter(t => !t.active_session && t.status === 'available').length}
+                            </p>
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase">Available</p>
+                        </CardBody>
+                    </Card>
+                    <Card className="border-none shadow-sm bg-blue-50">
+                        <CardBody className="p-3 text-center">
+                            <p className="text-2xl font-black text-blue-600">
+                                {tablesWithSessions.filter(t => t.active_session).length}
+                            </p>
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase">Active</p>
+                        </CardBody>
+                    </Card>
+                    <Card className="border-none shadow-sm bg-orange-50">
+                        <CardBody className="p-3 text-center">
+                            <p className="text-2xl font-black text-orange-600">
+                                {tablesWithSessions.filter(t => t.status === 'reserved').length}
+                            </p>
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase">Reserved</p>
+                        </CardBody>
+                    </Card>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                    {tablesWithSessions.length === 0 && !loading && !sessionsLoading ? (
+                        <div className="col-span-full py-20 text-center bg-card rounded-3xl border-2 border-dashed border-divider">
+                            <LayoutGrid className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-20" />
+                            <p className="font-bold text-muted-foreground">No tables found</p>
+                        </div>
+                    ) : (
+                        tablesWithSessions.map(table => (
+                            <Card
+                                key={table.id}
+                                onClick={() => onTableClick(table)}
+                                className={`cursor-pointer transition-all active:scale-95 border-2 ${
+                                    table.active_session
+                                        ? 'bg-gradient-to-br from-blue-50 to-blue-100 border-blue-300 hover:border-blue-400'
+                                        : table.status === 'occupied'
+                                            ? 'bg-red-50 border-red-200 hover:border-red-300'
+                                            : table.status === 'reserved'
+                                                ? 'bg-orange-50 border-orange-200 hover:border-orange-300'
+                                                : 'bg-green-50 border-green-200 hover:border-primary'
+                                }`}
+                            >
+                                <CardBody className="p-3 text-center flex flex-col h-full justify-between gap-2">
+                                    <div>
+                                        <div className="text-2xl mb-1">
+                                            {table.active_session ? '👨‍👩‍👧‍👦' : table.status === 'occupied' ? '⚠️' : '🍽️'}
+                                        </div>
+                                        <h3 className="text-base font-black text-foreground">T{table.table_number}</h3>
+                                        <p className="text-[10px] font-medium text-muted-foreground">{table.capacity} Seats</p>
+                                    </div>
+                                    
+                                    {table.active_session ? (
+                                        <div className="space-y-1.5">
+                                            <div className="w-fit mx-auto">
+                                                <Badge variant="paid" size="sm">
+                                                    <Users className="w-2 h-2 mr-0.5 inline" />
+                                                    ACTIVE
+                                                </Badge>
+                                            </div>
+                                            {table.active_session.session_name && (
+                                                <div className="bg-white/80 rounded-md p-1.5">
+                                                    <p className="text-[9px] font-bold text-primary truncate leading-tight">
+                                                        {table.active_session.session_name}
+                                                    </p>
+                                                    <p className="text-[9px] font-semibold text-muted-foreground">
+                                                        ₹{Math.round(table.active_session.total_amount || 0)}
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="w-fit mx-auto">
+                                            <Badge variant={table.status === 'occupied' ? 'occupied' : table.status === 'reserved' ? 'warning' : 'success'} size="sm">
+                                                {table.status.toUpperCase()}
+                                            </Badge>
+                                        </div>
+                                    )}
+                                </CardBody>
+                            </Card>
+                        ))
+                    )}
+                </div>
+            </div>
         </div>
-
-        {/* Table Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {tables.map((table) => {
-            const activeOrder = activeOrders[table.id];
-            return (
-              <Card
-                key={table.id}
-                className={`transition-all border-2 ${table.status === 'available'
-                    ? 'border-green-100 hover:border-green-300'
-                    : table.status === 'occupied'
-                      ? 'border-red-100 bg-red-50/10'
-                      : 'border-orange-100'
-                  }`}
-              >
-                <CardBody className="p-4">
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <p className="text-xl font-black text-foreground">Table {table.table_number}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Users className="w-3 h-3" />
-                          <span>{table.capacity} Seats</span>
-                        </div>
-                      </div>
-                    </div>
-                    <Badge
-                      variant={
-                        table.status === 'available' ? 'success' :
-                          table.status === 'occupied' ? 'occupied' : 'warning'
-                      }
-                    >
-                      {table.status.toUpperCase()}
-                    </Badge>
-                  </div>
-
-                  {activeOrder ? (
-                    <div className="space-y-4">
-                      <div className="p-3 bg-white rounded-xl border border-divider shadow-sm">
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-xs font-black uppercase text-muted-foreground">Guest</p>
-                          <p className="text-xs font-black text-foreground">
-                            {activeOrder.profiles?.full_name || 'Walk-in Guest'}
-                          </p>
-                        </div>
-                        <div className="space-y-1 mb-3">
-                          {activeOrder.order_items?.map((item, i) => (
-                            <div key={i} className="flex justify-between text-[10px]">
-                              <span>x{item.quantity} {item.name}</span>
-                              <span className="font-bold">₹{item.price * item.quantity}</span>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="pt-2 border-t border-divider flex justify-between items-center">
-                          <span className="text-sm font-black text-primary flex items-center gap-1">
-                            <DollarSign className="w-4 h-4" /> Bill Total
-                          </span>
-                          <span className="text-lg font-black text-primary">₹{activeOrder.total_amount}</span>
-                        </div>
-                      </div>
-
-                      <Button
-                        size="sm"
-                        className="w-full bg-green-600 hover:bg-green-700"
-                        onClick={() => releaseTable(table.id, activeOrder.id)}
-                      >
-                        <CheckCircle2 className="w-4 h-4 mr-2" /> Mark Paid & Release
-                      </Button>
-                    </div>
-                  ) : table.status === 'occupied' ? (
-                    <div className="space-y-3">
-                      <p className="text-xs text-muted-foreground italic">No active order found for this table.</p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full border-red-200 text-red-600 hover:bg-red-50"
-                        onClick={() => releaseTable(table.id)}
-                      >
-                        Force Release Table
-                      </Button>
-                    </div>
-                  ) : null}
-                </CardBody>
-              </Card>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
+    );
 }

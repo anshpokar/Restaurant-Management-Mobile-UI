@@ -16,7 +16,6 @@ import { SavedAddressesScreen } from '@/pages/customer/saved-addresses-screen';
 import { FavoritesScreen } from '@/pages/customer/favorites-screen';
 import { NotificationsScreen } from '@/pages/customer/notifications-screen';
 import { HelpSupportScreen } from '@/pages/customer/help-support-screen';
-import { OrderTrackingScreen } from '@/pages/customer/order-tracking-screen';
 import { PaymentScreen } from '@/pages/customer/upi-payment-screen';
 import { CheckoutScreen } from '@/pages/customer/checkout-screen';
 import { PaymentHistoryScreen } from '@/pages/customer/payment-history-screen';
@@ -44,7 +43,6 @@ import { WaiterApp } from '@/pages/waiter/waiter-app';
 import { WaiterDashboard } from '@/pages/waiter/waiter-dashboard';
 import { WaiterOrdering } from '@/pages/waiter/waiter-ordering';
 import { WaiterTableSelectionScreen } from '@/pages/waiter/table-selection-screen';
-import { WaiterCustomerInfoScreen } from '@/pages/waiter/customer-info-screen';
 import { WaiterTakeOrderScreen } from '@/pages/waiter/take-order-screen';
 import { WaiterCustomerSelectionScreen } from '@/pages/waiter/customer-selection-screen';
 import { WaiterOTPVerificationScreen } from '@/pages/waiter/otp-verification-screen';
@@ -149,7 +147,7 @@ export function AppRoutes({ userRole, userProfile, isLoadingAuth, handleLogout }
 
             {/* Waiter Routes */}
             <Route path="/waiter" element={
-                <ProtectedRoute userRole={userRole} allowedRoles={['waiter']} isLoading={isLoadingAuth}>
+                <ProtectedRoute userRole={userRole} allowedRoles={['waiter', 'admin']} isLoading={isLoadingAuth}>
                     <WaiterApp onLogout={handleLogout} profile={userProfile} />
                 </ProtectedRoute>
             }>

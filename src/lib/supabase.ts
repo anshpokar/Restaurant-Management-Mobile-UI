@@ -114,7 +114,8 @@ export interface Order {
   id: string;
   user_id?: string; // Optional for walk-in dine-in
   table_id?: string; // Link to restaurant_tables
-  status: 'placed' | 'preparing' | 'cooking' | 'prepared' | 'out_for_delivery' | 'delivered' | 'cancelled';
+  session_id?: string; // Link to dine_in_sessions (NEW)
+  status: 'placed' | 'preparing' | 'cooking' | 'prepared' | 'served' | 'out_for_delivery' | 'delivered' | 'cancelled';
   total_amount: number;
   delivery_person_id?: string;
   delivery_address?: string;

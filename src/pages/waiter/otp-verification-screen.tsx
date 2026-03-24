@@ -3,15 +3,16 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { AppHeader } from '@/components/design-system/app-header';
 import { Card, CardBody } from '@/components/design-system/card';
 import { Button } from '@/components/design-system/button';
-import { Input } from '@/components/design-system/input';
 import { Shield, Mail, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { generateOTP, sendOTPEmail } from '@/lib/send-otp-email';
+import { useCart } from '@/contexts/cart-context';
 
 export function WaiterOTPVerificationScreen() {
   const navigate = useNavigate();
   const { tableId } = useParams<{ tableId: string }>();
   const location = useLocation();
+  const { setWaiterContext } = useCart();
   const email = (location.state as any)?.email || '';
 
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
@@ -44,39 +45,27 @@ export function WaiterOTPVerificationScreen() {
 
     setSending(true);
     try {
-      // Generate 6-digit OTP
-      const otpCode = generateOTP();
-      
-      // Send OTP (stores in DB, should email customer)
-      const { success, error } = await sendOTPEmail(
-        email,
-        otpCode,
-        'customer_verification'
-      );
+      // Call Edge Function to generate and send OTP
+      const { data, error } = await supabase.functions.invoke('custom-otp', {
+        body: {
+          action: 'generate',
+          email: email.toLowerCase()
+        }
+      });
+
+      if (error || !data?.success) {
+        throw new Error(error?.message || data?.error || 'Failed to send OTP');
+      }
 
       setSent(true);
-      setCountdown(60);
+      setCountdown(300); // 5 minutes as per requirements
       
-      // If email service failed, show OTP to waiter for manual verification
-      if (error) {
-        alert(
-          `⚠️ Email Service Unavailable\n\n` +
-          `📧 OTP Generated for ${email}\n\n` +
-          `Your OTP Code: ${otpCode}\n\n` +
-          `Please share this code with the customer, then enter it below.\n\n` +
-          `${error}`
-        );
-      } else {
-        // Email sent successfully
-        alert(
-          `📧 OTP Sent to ${email}\n\n` +
-          `The customer should provide you with the 6-digit code.\n\n` +
-          `Ask the customer: "What is your verification code?"\n\n` +
-          `Then enter the code they provide.`
-        );
-      }
-      
-      console.log('🔐 OTP Code:', otpCode);
+      alert(
+        `📧 OTP Sent to ${email}\n\n` +
+        `The customer should provide you with the 6-digit code.\n\n` +
+        `Ask the customer: "What is your verification code?"\n\n` +
+        `Then enter the code they provide.`
+      );
       
     } catch (error: any) {
       console.error('Error generating OTP:', error);
@@ -117,39 +106,35 @@ export function WaiterOTPVerificationScreen() {
 
     setLoading(true);
     try {
-      // Find valid OTP
-      const { data: otpRecord, error: fetchError } = await supabase
-        .from('otp_verifications')
-        .select('*')
-        .eq('email', email)
-        .eq('otp_code', otpCode)
-        .eq('used', false)
-        .gt('expires_at', new Date().toISOString())
-        .order('created_at', { ascending: false })
-        .single();
+      // Call Edge Function to verify OTP
+      const { data, error } = await supabase.functions.invoke('custom-otp', {
+        body: {
+          action: 'verify',
+          email: email.toLowerCase(),
+          otp: otpCode
+        }
+      });
 
-      if (fetchError || !otpRecord) {
-        throw new Error('Invalid or expired OTP');
+      if (error || !data?.success) {
+        throw new Error(error?.message || data?.error || 'Invalid or expired OTP');
       }
 
-      // Fetch user ID from profile using email
+      const verifiedUserId = data.user_id;
+      setUserId(verifiedUserId);
+
+      // Fetch profile info to update context
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('id')
-        .eq('email', email)
+        .select('*')
+        .eq('id', verifiedUserId)
         .single();
 
       if (profileError || !profile) {
-        throw new Error('Customer not found with this email');
+        throw new Error('Customer profile not found');
       }
 
-      setUserId(profile.id);
-
-      // Mark OTP as used
-      await supabase
-        .from('otp_verifications')
-        .update({ used: true })
-        .eq('id', otpRecord.id);
+      // ✅ Store in global context immediately upon verification
+      setWaiterContext(tableId || null, null, profile);
 
       alert('✅ Email verified successfully!');
 
@@ -157,7 +142,7 @@ export function WaiterOTPVerificationScreen() {
       navigate(`/waiter/session/start/${tableId}`, {
         state: {
           customerType: 'existing',
-          userId: profile.id,
+          userId: verifiedUserId,
           email: email,
           verified: true
         }

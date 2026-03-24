@@ -14,7 +14,7 @@ export function AdminOrders() {
   const [dateFilter, setDateFilter] = useState<'today' | 'yesterday' | 'last7days' | 'custom'>('today');
   const [customDate, setCustomDate] = useState('');
 
-  const statuses: Array<Order['status'] | 'all'> = ['all', 'placed', 'preparing', 'cooking', 'prepared', 'out_for_delivery', 'delivered'];
+  const statuses: Array<Order['status'] | 'all' | 'served'> = ['all', 'placed', 'preparing', 'cooking', 'prepared', 'served', 'out_for_delivery', 'delivered'];
 
   useEffect(() => {
     fetchOrders();
@@ -185,7 +185,7 @@ export function AdminOrders() {
       case 'prepared':
       case 'out_for_delivery':
         return <Truck className="w-4 h-4" />;
-      case 'delivered':
+      case 'served':
         return <CheckCircle className="w-4 h-4" />;
       default:
         return <Clock className="w-4 h-4" />;
@@ -202,7 +202,7 @@ export function AdminOrders() {
       case 'prepared':
       case 'out_for_delivery':
         return 'bg-purple-50 text-purple-700 border-purple-200';
-      case 'delivered':
+      case 'served':
         return 'bg-green-50 text-green-700 border-green-200';
       default:
         return 'bg-gray-50 text-gray-700 border-gray-200';
