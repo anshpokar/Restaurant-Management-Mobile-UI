@@ -271,7 +271,8 @@ export function DeliveryTasksScreen() {
         delivery_status: 'delivered',
         delivered_at: new Date().toISOString(),
         payment_status: 'paid',
-        payment_method: paymentMethodUsed || activeOrders.find(o => o.id === orderId)?.payment_method
+        payment_method: paymentMethodUsed || activeOrders.find(o => o.id === orderId)?.payment_method,
+        otp: null
       }).eq('id', orderId);
 
       if (error) throw error;

@@ -116,9 +116,15 @@ export interface Order {
   table_id?: string; // Link to restaurant_tables
   session_id?: string; // Link to dine_in_sessions (NEW)
   status: 'placed' | 'preparing' | 'cooking' | 'prepared' | 'served' | 'out_for_delivery' | 'delivered' | 'cancelled';
+  delivery_status: 'pending' | 'assigned' | 'accepted' | 'picked' | 'out_for_delivery' | 'delivered' | 'cancelled';
   total_amount: number;
   delivery_person_id?: string;
   delivery_address?: string;
+  delivery_latitude?: number;
+  delivery_longitude?: number;
+  restaurant_latitude?: number;
+  restaurant_longitude?: number;
+  otp?: string;
   is_paid: boolean;
   created_at: string;
   // Join data

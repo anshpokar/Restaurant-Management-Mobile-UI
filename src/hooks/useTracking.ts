@@ -47,7 +47,7 @@ export function useTracking(orderId?: string) {
             .from('delivery_locations')
             .select('latitude, longitude')
             .eq('order_id', orderId)
-            .order('created_at', { ascending: true })
+            .order('recorded_at', { ascending: true })
             .limit(100);
 
           if (locations) {

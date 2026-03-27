@@ -15,6 +15,7 @@ import {
 interface Order {
   id: string;
   order_number: string;
+  status: string;
   delivery_status: string;
   delivery_address: string;
   delivery_latitude: number;
@@ -29,7 +30,7 @@ interface Order {
 interface DeliveryPerson {
   id: string;
   full_name: string;
-  phone?: string;
+  phone_number?: string;
   rating?: number;
 }
 
@@ -71,10 +72,10 @@ export function OrderTrackingScreen() {
         .from('orders')
         .select(`
           *,
-          delivery_person:profiles (
+          delivery_person:profiles!delivery_person_id (
             id,
             full_name,
-            phone,
+            phone_number,
             rating
           )
         `)
@@ -82,6 +83,12 @@ export function OrderTrackingScreen() {
         .single();
 
       if (error) throw error;
+      console.log('DEBUG: Order data fetched:', {
+        id: orderData.id,
+        status: orderData.status,
+        delivery_status: orderData.delivery_status,
+        otp: orderData.otp
+      });
       setOrder(orderData);
       if (orderData.delivery_person) {
         setDeliveryPerson(orderData.delivery_person as any);
@@ -95,12 +102,25 @@ export function OrderTrackingScreen() {
 
   const getStatusInfo = () => {
     if (!order) return { label: 'Unknown', color: 'bg-gray-500', icon: AlertCircle };
-    switch (order.delivery_status) {
-      case 'pending': return { label: 'Preparing', color: 'bg-yellow-500', icon: Clock };
-      case 'assigned': return { label: 'Rider Assigned', color: 'bg-blue-500', icon: Truck };
-      case 'picked': return { label: 'Order Picked Up', color: 'bg-orange-500', icon: Package };
-      case 'out_for_delivery': return { label: 'On the Way', color: 'bg-primary', icon: Navigation };
-      case 'delivered': return { label: 'Delivered', color: 'bg-green-500', icon: Package };
+    
+    // Priority Logic: Show delivery status if order is prepared or beyond
+    const isPrepared = order.status === 'prepared' || ['picked', 'out_for_delivery', 'delivered'].includes(order.delivery_status as string);
+    
+    if (isPrepared && order.delivery_status) {
+      switch (order.delivery_status) {
+        case 'assigned': return { label: 'Rider at Restaurant', color: 'bg-blue-500', icon: Truck };
+        case 'picked': return { label: 'Order Picked Up', color: 'bg-orange-500', icon: Package };
+        case 'out_for_delivery': return { label: 'On the Way', color: 'bg-primary', icon: Navigation };
+        case 'delivered': return { label: 'Delivered', color: 'bg-green-500', icon: Package };
+      }
+    }
+
+    // Default to Kitchen Status
+    switch (order.status) {
+      case 'placed': return { label: 'Order Placed', color: 'bg-muted', icon: Clock };
+      case 'preparing': return { label: 'Chef Preparing', color: 'bg-yellow-500', icon: Clock };
+      case 'cooking': return { label: 'Cooking', color: 'bg-orange-400', icon: Clock };
+      case 'prepared': return { label: 'Ready for Pickup', color: 'bg-green-400', icon: Package };
       default: return { label: 'Processing', color: 'bg-gray-500', icon: Clock };
     }
   };
@@ -169,7 +189,7 @@ export function OrderTrackingScreen() {
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 bg-background rounded-t-[32px] -mt-8 relative z-[1002] shadow-[0_-8px_30px_rgb(0,0,0,0.12)] p-6 overflow-y-auto">
+        <div className="flex-1 bg-background rounded-t-[32px] -mt-8 relative z-[1002] shadow-[0_-8px_30px_rgb(0,0,0,0.12)] p-6 overflow-y-auto no-scrollbar">
           <div className="w-12 h-1.5 bg-muted rounded-full mx-auto mb-6" />
           
           <div className="space-y-6">
@@ -189,7 +209,7 @@ export function OrderTrackingScreen() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline" className="rounded-xl w-10 h-10 p-0" onClick={() => window.open(`tel:${deliveryPerson.phone}`)}>
+                  <Button size="sm" variant="outline" className="rounded-xl w-10 h-10 p-0" onClick={() => window.open(`tel:${deliveryPerson.phone_number}`)}>
                     <Phone className="w-5 h-5" />
                   </Button>
                   <Button size="sm" variant="outline" className="rounded-xl w-10 h-10 p-0" onClick={() => alert('Chat coming soon!')}>
@@ -205,20 +225,27 @@ export function OrderTrackingScreen() {
             )}
 
             {/* Delivery OTP - Swiggy Style */}
-            {['picked', 'out_for_delivery'].includes(order.delivery_status) && order.otp && (
-              <Card className="p-5 bg-primary text-white border-0 shadow-xl overflow-hidden relative">
-                <div className="relative z-10 flex items-center justify-between">
-                  <div className="space-y-1">
-                    <p className="text-[10px] uppercase font-black tracking-[0.2em] opacity-80">Delivery Verification Code</p>
-                    <h3 className="text-3xl font-black">{order.otp}</h3>
-                    <p className="text-xs font-medium opacity-70">Share this with the rider only after you receive your order</p>
+            {['picked', 'out_for_delivery'].includes(order.delivery_status) && (
+              order.otp ? (
+                <Card className="p-5 bg-primary text-white border-0 shadow-xl overflow-hidden relative">
+                  <div className="relative z-10 flex items-center justify-between">
+                    <div className="space-y-1">
+                      <p className="text-[10px] uppercase font-black tracking-[0.2em] opacity-80">Delivery Verification Code</p>
+                      <h3 className="text-3xl font-black">{order.otp}</h3>
+                      <p className="text-xs font-medium opacity-70">Share this with the rider only after you receive your order</p>
+                    </div>
+                    <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md">
+                      <ShieldCheck className="w-8 h-8 text-white" />
+                    </div>
                   </div>
-                  <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md">
-                    <ShieldCheck className="w-8 h-8 text-white" />
-                  </div>
+                  <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
+                </Card>
+              ) : (
+                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-2xl text-yellow-800 text-xs font-medium flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  OTP not generated. Please check if SQL fix was run.
                 </div>
-                <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
-              </Card>
+              )
             )}
 
             {/* Tracking Progress */}

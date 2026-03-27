@@ -20,6 +20,7 @@ import { PaymentScreen } from '@/pages/customer/upi-payment-screen';
 import { CheckoutScreen } from '@/pages/customer/checkout-screen';
 import { PaymentHistoryScreen } from '@/pages/customer/payment-history-screen';
 import { SessionHistoryScreen } from '@/pages/customer/session-history-screen';
+import { OrderTrackingScreen } from '@/pages/customer/order-tracking-screen';
 
 // Admin Screens
 import { AdminApp } from '@/pages/admin/admin-app';
@@ -125,6 +126,7 @@ export function AppRoutes({ userRole, userProfile, isLoadingAuth, handleLogout }
                 <Route path="payment/session/:sessionId" element={<PaymentScreen />} />
                 <Route path="payment-history" element={<PaymentHistoryScreen />} />
                 <Route path="session-history" element={<SessionHistoryScreen />} />
+                <Route path="tracking/:orderId" element={<OrderTrackingScreen />} />
             </Route>
 
             {/* Admin Routes */}

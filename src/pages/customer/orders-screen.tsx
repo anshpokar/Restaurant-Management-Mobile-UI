@@ -66,7 +66,8 @@ export function OrdersScreen() {
         .from('orders')
         .select(`
           *,
-          order_items (*)
+          order_items (*),
+          delivery_person:profiles!delivery_person_id (*)
         `)
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
@@ -76,7 +77,7 @@ export function OrdersScreen() {
         throw error;
       }
       
-      console.log('Fetched orders:', data);
+      console.log('Fetched orders with riders:', data?.map(o => ({ id: o.id, rider: o.delivery_person?.full_name })));
       setOrders(data || []);
     } catch (error) {
       console.error('Error fetching orders:', error);
@@ -354,13 +355,21 @@ export function OrdersScreen() {
                         {new Date(order.created_at).toLocaleDateString()} • {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
-                    <Badge variant={
-                      order.status === 'delivered' ? 'success' :
-                        order.status === 'cancelled' ? 'error' :
-                          order.status === 'out_for_delivery' ? 'paid' : 'pending'
-                    }>
-                      {order.status.replace(/_/g, ' ').toUpperCase()}
-                    </Badge>
+                    {(() => {
+                      const deliveryStatus = order.delivery_status || '';
+                      const isPrepared = order.status === 'prepared' || ['picked', 'out_for_delivery', 'delivered'].includes(deliveryStatus);
+                      const displayStatus = (isPrepared && deliveryStatus) ? deliveryStatus : (order.status || 'pending');
+                      
+                      return (
+                        <Badge variant={
+                          displayStatus === 'delivered' ? 'success' :
+                            displayStatus === 'cancelled' ? 'error' :
+                              displayStatus === 'out_for_delivery' ? 'paid' : 'pending'
+                        }>
+                          {displayStatus.replace(/_/g, ' ').toUpperCase()}
+                        </Badge>
+                      );
+                    })()}
                   </div>
 
                   <div className="space-y-2 py-3 border-y border-divider">
@@ -380,7 +389,7 @@ export function OrdersScreen() {
                   </div>
 
                   {/* Delivery Tracking Section */}
-                  {(['assigned', 'picked', 'out_for_delivery', 'delivered'].includes(order.status)) && order.delivery_person && (
+                  {order.delivery_person && (
                     <div className="bg-primary/5 p-4 rounded-2xl space-y-3">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-xl">
@@ -388,13 +397,13 @@ export function OrdersScreen() {
                         </div>
                         <div className="flex-1">
                           <p className="text-[10px] font-black text-primary uppercase">
-                            {order.status === 'delivered' ? 'Delivered By' : 'Rider Assigned'}
+                            {order.delivery_status === 'delivered' ? 'Delivered By' : 'Rider Assigned'}
                           </p>
                           <p className="font-bold text-foreground">{(order.delivery_person as any).full_name}</p>
                         </div>
                         <div className="flex gap-2">
                           <a
-                            href={`tel:${(order.delivery_person as any).phone}`}
+                            href={`tel:${(order.delivery_person as any).phone_number}`}
                             onClick={(e) => e.stopPropagation()}
                             className="w-10 h-10 bg-green-500 text-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform"
                           >
@@ -403,7 +412,7 @@ export function OrdersScreen() {
                         </div>
                       </div>
                       
-                      {order.status !== 'delivered' && (
+                      {['assigned', 'picked', 'out_for_delivery'].includes(order.delivery_status || '') && (
                         <Button 
                           className="w-full bg-primary hover:bg-primary/90 font-black text-xs uppercase tracking-widest h-12 rounded-xl shadow-lg shadow-primary/20"
                           onClick={(e) => {
@@ -421,13 +430,15 @@ export function OrdersScreen() {
                   <div className="flex items-center justify-between pt-2">
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       {order.status === 'placed' && <Clock className="w-3 h-3" />}
-                      {order.status === 'delivered' && <CheckCircle2 className="w-3 h-3 text-green-500" />}
+                      {(order.status === 'delivered' || order.delivery_status === 'delivered') && <CheckCircle2 className="w-3 h-3 text-green-500" />}
                       <span>
                         {order.status === 'placed' ? 'Waiting for kitchen' :
                           order.status === 'preparing' ? 'Chef is preparing' :
                             order.status === 'cooking' ? 'Dish is being cooked' :
-                              order.status === 'prepared' ? 'Ready for pickup' :
-                                order.status === 'out_for_delivery' ? 'On its way!' : 'Completed'}
+                              order.status === 'prepared' && !order.delivery_status ? 'Ready for pickup' :
+                                order.delivery_status === 'assigned' ? 'Rider at restaurant' :
+                                  order.delivery_status === 'picked' ? 'Rider picked up order' :
+                                    order.delivery_status === 'out_for_delivery' ? 'On its way!' : 'Completed'}
                       </span>
                     </div>
                   </div>
