@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { MapPin, User, UtensilsCrossed, Calendar, Truck, Star } from 'lucide-react';
 import { supabase, type MenuItem, type Offer } from '@/lib/supabase';
 import { type Profile } from '@/lib/supabase';
+import { useAddresses } from '@/hooks/use-addresses';
 import { CUSTOMER_TEXT, COMMON_TEXT } from '@/constants/text';
 
 export function HomeScreen() {
@@ -15,6 +16,8 @@ export function HomeScreen() {
     addToCart: (item: MenuItem) => void;
     profile: Profile | null;
   }>();
+  const { addresses } = useAddresses(profile?.id || null);
+  const defaultAddress = addresses.find(a => a.is_default) || addresses[0];
 
   // Define onNavigate locally or just use navigate
   const onNavigate = (tab: string) => navigate(`/customer/${tab}`);
@@ -120,11 +123,22 @@ export function HomeScreen() {
         </div>
 
         {/* Location Selector */}
-        <button className="flex items-center gap-2 text-foreground hover:text-primary transition-colors">
-          <MapPin className="w-5 h-5" />
+        <button 
+          onClick={() => onNavigate('addresses')}
+          className="flex items-center gap-2 text-foreground hover:text-primary transition-colors group"
+        >
+          <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all">
+            <MapPin className="w-5 h-5" />
+          </div>
           <div className="text-left">
-            <p className="text-sm font-medium">{CUSTOMER_TEXT.DELIVERING_TO}</p>
-            <p className="text-xs text-muted-foreground">Connaught Place, New Delhi</p>
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider leading-none mb-1">
+              {CUSTOMER_TEXT.DELIVERING_TO}
+            </p>
+            <p className="text-sm font-bold text-foreground line-clamp-1">
+              {defaultAddress 
+                ? [defaultAddress.building_name, defaultAddress.house_number, defaultAddress.flat_number].filter(Boolean).join(", ") 
+                : 'Set Delivery Location'}
+            </p>
           </div>
         </button>
 

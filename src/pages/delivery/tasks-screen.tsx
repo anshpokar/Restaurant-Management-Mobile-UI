@@ -1,29 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
-
-import { useNavigate } from 'react-router-dom';
-import { LoadScript, GoogleMap, Marker } from '@react-google-maps/api';
 import { supabase } from '../../lib/supabase';
 import { AppHeader } from '../../components/design-system/app-header';
 import { Button } from '../../components/design-system/button';
 import { Card } from '../../components/design-system/card';
 import { MobileContainer } from '../../components/MobileContainer';
-import { Package, MapPin, Phone, Navigation, Clock, CheckCircle, AlertCircle } from 'lucide-react';
-
+import { Package, MapPin, Phone, Navigation, CheckCircle, AlertCircle, ShieldCheck } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { MapView } from '../../components/map/MapView';
+import { OrderAssignmentPopup } from '../../components/delivery/OrderAssignmentPopup';
+import { useDriver } from '../../hooks/useDriver';
 import { toast } from 'sonner';
-
-
-const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
-
-const mapContainerStyle = {
-  width: '100%',
-  height: '250px',
-  borderRadius: '8px'
-};
-
-const defaultCenter = {
-  lat: 28.6139, // Connaught Place, New Delhi
-  lng: 77.2090
-};
 
 interface DeliveryOrder {
   id: string;
@@ -40,32 +26,38 @@ interface DeliveryOrder {
   delivery_longitude?: number;
   delivery_instructions?: string;
   assigned_at: string;
+  otp?: string;
 }
 
 export function DeliveryTasksScreen() {
   const [activeOrders, setActiveOrders] = useState<DeliveryOrder[]>([]);
   const [completedOrders, setCompletedOrders] = useState<DeliveryOrder[]>([]);
-
-
   const [loading, setLoading] = useState(true);
   const [isAvailable, setIsAvailable] = useState(true);
   const [isOnDuty, setIsOnDuty] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   
+  // OTP Verification State
+  const [verifyingOrder, setVerifyingOrder] = useState<string | null>(null);
+  const [otpInput, setOtpInput] = useState('');
+
   // GPS Tracking
-  const [currentLocation, setCurrentLocation] = useState<{lat: number, lng: number} | null>(null);
-  const [trackingInterval, setTrackingInterval] = useState<NodeJS.Timeout | null>(null);
+  const [currentLocation, setCurrentLocation] = useState<[number, number] | null>(null);
   const watchId = useRef<number | null>(null);
+
+  const { 
+    pendingAssignment, 
+    acceptOrder, 
+    rejectOrder, 
+    timeoutOrder 
+  } = useDriver();
 
   useEffect(() => {
     loadDeliveryProfile();
     loadAssignedOrders();
-    
-    // Start GPS tracking when component mounts
     startGPSTracking();
     
-    // Real-time updates
-    const channel = supabase.channel('delivery_tasks')
+    const channel = supabase.channel('delivery_tasks_updates')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'orders' },
         () => {
@@ -81,37 +73,18 @@ export function DeliveryTasksScreen() {
   }, []);
 
   async function startGPSTracking() {
-    if (!navigator.geolocation) {
-      console.warn('Geolocation not supported');
-      return;
-    }
+    if (!navigator.geolocation) return;
+    if (watchId.current !== null) navigator.geolocation.clearWatch(watchId.current);
 
-    // Clear any existing tracking
-    if (watchId.current !== null) {
-      navigator.geolocation.clearWatch(watchId.current);
-    }
-
-    // Watch position and update every 10 seconds
     watchId.current = navigator.geolocation.watchPosition(
       async (position) => {
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
-        const accuracy = position.coords.accuracy;
-        const speed = position.coords.speed;
-        
-        setCurrentLocation({ lat, lng });
-        
-        // Update location in database
-        await updateLocationInDatabase(lat, lng, accuracy, speed);
+        setCurrentLocation([lat, lng]);
+        await updateLocationInDatabase(lat, lng);
       },
-      (error) => {
-        console.error('GPS Error:', error);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
-      }
+      (error) => console.error('GPS Error:', error),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   }
 
@@ -120,30 +93,29 @@ export function DeliveryTasksScreen() {
       navigator.geolocation.clearWatch(watchId.current);
       watchId.current = null;
     }
-    if (trackingInterval) {
-      clearInterval(trackingInterval);
-      setTrackingInterval(null);
-    }
   }
 
-  async function updateLocationInDatabase(
-    lat: number, 
-    lng: number, 
-    accuracy?: number, 
-    speed?: number | null
-  ) {
+  async function updateLocationInDatabase(lat: number, lng: number) {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Update current location in profiles
-      await supabase.rpc('update_delivery_location', {
-        p_delivery_person_id: user.id,
-        p_latitude: lat,
-        p_longitude: lng,
-        p_accuracy: accuracy || null,
-        p_speed: speed ? (speed * 3.6) : null // Convert m/s to km/h
-      });
+      // Update location and history
+      await Promise.all([
+        supabase.from('profiles').update({
+          current_latitude: lat,
+          current_longitude: lng,
+          last_location_update: new Date().toISOString()
+        }).eq('id', user.id),
+        
+        // Only insert to history if there are active orders
+        activeOrders.length > 0 ? supabase.from('delivery_locations').insert({
+          delivery_person_id: user.id,
+          order_id: activeOrders[0].id,
+          latitude: lat,
+          longitude: lng
+        }) : Promise.resolve()
+      ]);
     } catch (error) {
       console.error('Error updating location:', error);
     }
@@ -154,26 +126,15 @@ export function DeliveryTasksScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Load from delivery_personnel table
       const { data, error } = await supabase
-        .from('delivery_personnel')
+        .from('profiles')
         .select('is_available, is_on_duty')
-        .eq('profile_id', user.id)
+        .eq('id', user.id)
         .single();
 
-      if (error && error.code !== 'PGRST116') throw error; // PGRST116 = not found
-      
       if (data) {
         setIsAvailable(data.is_available ?? true);
         setIsOnDuty(data.is_on_duty ?? false);
-      } else {
-        // Create initial record if doesn't exist
-        await supabase.rpc('update_delivery_person_status', {
-          p_is_available: true,
-          p_is_on_duty: false
-        });
-        setIsAvailable(true);
-        setIsOnDuty(false);
       }
     } catch (error) {
       console.error('Error loading profile:', error);
@@ -187,26 +148,20 @@ export function DeliveryTasksScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Get active orders
-      const { data: activeData, error: activeError } = await supabase
+      const { data: activeData } = await supabase
         .from('orders')
         .select('*')
         .eq('delivery_person_id', user.id)
-        .in('delivery_status', ['assigned', 'out_for_delivery'])
+        .in('delivery_status', ['assigned', 'picked', 'out_for_delivery'])
         .order('assigned_at', { ascending: false });
 
-      if (activeError) throw activeError;
-
-      // Get completed orders
-      const { data: completedData, error: completedError } = await supabase
+      const { data: completedData } = await supabase
         .from('orders')
         .select('*')
         .eq('delivery_person_id', user.id)
         .eq('delivery_status', 'delivered')
         .order('delivered_at', { ascending: false })
-        .limit(10);
-
-      if (completedError) throw completedError;
+        .limit(5);
 
       setActiveOrders(activeData || []);
       setCompletedOrders(completedData || []);
@@ -218,167 +173,55 @@ export function DeliveryTasksScreen() {
   }
 
   async function toggleAvailability() {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const newStatus = !isAvailable;
-      
-      // Use the RPC function to update delivery_personnel
-      const { error } = await supabase.rpc('update_delivery_person_status', {
-        p_is_available: newStatus,
-        p_is_on_duty: isOnDuty
-      });
-
-      if (error) throw error;
-      
-      setIsAvailable(newStatus);
-    } catch (error) {
-      console.error('Error toggling availability:', error);
-      toast.error('Failed to update availability status');
-    }
-
+    const newStatus = !isAvailable;
+    const { error } = await supabase.from('profiles').update({ is_available: newStatus }).eq('id', (await supabase.auth.getUser()).data.user?.id);
+    if (!error) setIsAvailable(newStatus);
   }
 
   async function toggleDuty() {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const newStatus = !isOnDuty;
-      
-      // Use the RPC function to update delivery_personnel
-      const { error } = await supabase.rpc('update_delivery_person_status', {
-        p_is_available: isAvailable,
-        p_is_on_duty: newStatus
-      });
-
-      if (error) throw error;
-      
-      setIsOnDuty(newStatus);
-    } catch (error) {
-      console.error('Error toggling duty:', error);
-      toast.error('Failed to update duty status');
-    }
-
+    const newStatus = !isOnDuty;
+    const { error } = await supabase.from('profiles').update({ is_on_duty: newStatus }).eq('id', (await supabase.auth.getUser()).data.user?.id);
+    if (!error) setIsOnDuty(newStatus);
   }
 
-  async function handlePickup(orderId: string) {
-    if (!confirm('Confirm that you have picked up this order?')) return;
-
-    try {
-      setUpdatingStatus(orderId);
-      
-      const { error } = await supabase.from('orders').update({
-        delivery_status: 'out_for_delivery',
-        picked_up_at: new Date().toISOString()
-      }).eq('id', orderId);
-
-      if (error) throw error;
-      
-      toast.success('Order picked up! Navigate to customer location.');
-      await loadAssignedOrders();
-    } catch (error) {
-      console.error('Error updating pickup:', error);
-      toast.error('Failed to update status.');
-    } finally {
-
-      setUpdatingStatus(null);
-    }
-  }
-
-  async function handleDeliver(orderId: string, paymentMethod: string, amount: number) {
-    // Payment confirmation
-    let paymentConfirmed = false;
+  async function handleOutForDelivery(orderId: string) {
+    setUpdatingStatus(orderId);
+    const { error } = await supabase.from('orders').update({
+      delivery_status: 'out_for_delivery'
+    }).eq('id', orderId);
     
-    if (paymentMethod === 'cod' || paymentMethod === 'upi') {
-      const confirmed = confirm(`Collect ₹${amount} from customer. Mark as paid after collection?`);
-      paymentConfirmed = confirmed;
-    } else {
-      paymentConfirmed = true; // Prepaid
+    if (!error) {
+      toast.success('Order is now out for delivery!');
+      loadAssignedOrders();
+    }
+    setUpdatingStatus(null);
+  }
+
+  async function handleVerifyAndDeliver(orderId: string, correctOtp: string) {
+    if (otpInput !== correctOtp) {
+      toast.error('Invalid OTP. Please check with the customer.');
+      return;
     }
 
-    if (!paymentConfirmed) return;
-
+    setUpdatingStatus(orderId);
     try {
-      setUpdatingStatus(orderId);
-      
       const { error } = await supabase.from('orders').update({
         delivery_status: 'delivered',
         delivered_at: new Date().toISOString(),
-        payment_status: 'paid',
-        paid_at: new Date().toISOString()
+        payment_status: 'paid'
       }).eq('id', orderId);
 
       if (error) throw error;
       
-      toast.success('Delivery completed successfully!');
-      await loadAssignedOrders();
-    } catch (error) {
-      console.error('Error marking delivery:', error);
-      toast.error('Failed to mark as delivered.');
+      toast.success('Delivery completed! ₹30 added to your earnings.');
+      setVerifyingOrder(null);
+      setOtpInput('');
+      loadAssignedOrders();
+    } catch {
+      toast.error('Failed to update status');
     } finally {
-
       setUpdatingStatus(null);
     }
-  }
-
-  async function handleRejectOrder(orderId: string) {
-    const reason = window.prompt('Please enter reason for rejection:');
-    if (!reason) return;
-
-
-    try {
-      setUpdatingStatus(orderId);
-      
-      // Update order status
-      const { error } = await supabase.from('orders').update({
-        delivery_status: 'pending',
-        delivery_person_id: null,
-        assigned_at: null
-      }).eq('id', orderId);
-
-      if (error) throw error;
-
-      // Record rejection
-      const { error: rejectError } = await supabase.from('delivery_rejections').insert({
-        order_id: orderId,
-        reason: reason,
-        delivery_person_id: (await supabase.auth.getUser()).data.user?.id
-      });
-
-      if (rejectError) throw rejectError;
-      
-      toast.success('Order rejected. Admin will reassign.');
-      await loadAssignedOrders();
-    } catch (error) {
-      console.error('Error rejecting order:', error);
-      toast.error('Failed to reject order.');
-    } finally {
-
-      setUpdatingStatus(null);
-    }
-  }
-
-  function openNavigation(latitude?: number, longitude?: number) {
-    if (!latitude || !longitude) {
-      toast.error('Coordinates not available for this address.');
-      return;
-    }
-
-    
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
-    window.open(url, '_blank');
-  }
-
-  function callCustomer(phone?: string) {
-    if (!phone) {
-      toast.error('Customer phone number not available.');
-      return;
-    }
-
-    
-    window.location.href = `tel:${phone}`;
   }
 
   if (loading) {
@@ -386,7 +229,7 @@ export function DeliveryTasksScreen() {
       <MobileContainer>
         <AppHeader title="My Deliveries" />
         <div className="flex items-center justify-center h-64">
-          <p className="text-gray-500">Loading your tasks...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
         </div>
       </MobileContainer>
     );
@@ -396,222 +239,237 @@ export function DeliveryTasksScreen() {
     <MobileContainer>
       <AppHeader title="My Deliveries" />
       
-      <div className="p-4 space-y-4 pb-24">
-        {/* Status Toggle */}
-        <Card className="bg-gradient-to-r from-orange-500 to-red-500 text-white">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-sm opacity-90">Current Status</p>
-              <p className="text-lg font-bold">
-                {isAvailable && isOnDuty ? 'Available & On Duty' : 'Unavailable'}
-              </p>
+      <div className="p-4 space-y-4 pb-32">
+        {/* Status Dashboard */}
+        <Card className="bg-gradient-to-br from-orange-500 to-red-600 text-white p-5 border-0 shadow-lg relative overflow-hidden">
+          <div className="relative z-10 flex items-center justify-between">
+            <div className="space-y-1">
+              <p className="text-xs font-bold uppercase tracking-wider opacity-80">Rider Dashboard</p>
+              <h2 className="text-2xl font-black">
+                {isOnDuty ? (isAvailable ? 'Available' : 'On Order') : 'Off Duty'}
+              </h2>
             </div>
-            <Package className="w-8 h-8 opacity-75" />
+            <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-md">
+              <Package className="w-6 h-6 text-white" />
+            </div>
           </div>
           
-          <div className="grid grid-cols-2 gap-3">
+          <div className="mt-6 flex gap-3 relative z-10">
             <Button
-              variant={isAvailable ? 'secondary' : 'outline'}
-              size="sm"
-              onClick={toggleAvailability}
-              className={isAvailable ? 'bg-white text-orange-600' : 'border-white text-white hover:bg-white/10'}
-            >
-              {isAvailable ? '✓ Available' : '○ Unavailable'}
-            </Button>
-            <Button
-              variant={isOnDuty ? 'secondary' : 'outline'}
+              variant="secondary"
               size="sm"
               onClick={toggleDuty}
-              className={isOnDuty ? 'bg-white text-orange-600' : 'border-white text-white hover:bg-white/10'}
+              className={`flex-1 ${isOnDuty ? 'bg-white text-red-600' : 'bg-white/20 text-white border-0'}`}
             >
-              {isOnDuty ? '✓ On Duty' : '○ Off Duty'}
+              {isOnDuty ? 'Go Off Duty' : 'Go On Duty'}
             </Button>
+            {isOnDuty && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={toggleAvailability}
+                className={`flex-1 ${isAvailable ? 'bg-white text-green-600' : 'bg-white/20 text-white border-0'}`}
+              >
+                {isAvailable ? 'Active' : 'Busy'}
+              </Button>
+            )}
           </div>
+          {/* Decorative background circle */}
+          <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
         </Card>
 
-        {/* Live GPS Tracking Map */}
-        {activeOrders.length > 0 && (
-          <Card className="overflow-hidden">
-            <div className="flex items-center justify-between mb-3 px-4 pt-4">
-              <h3 className="font-semibold text-gray-900">Your Location</h3>
-              <span className="text-xs text-green-600 flex items-center gap-1">
-                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                Live Tracking
-              </span>
+        {/* Live Tracking Map */}
+        {activeOrders.length > 0 && currentLocation && (
+          <Card className="p-0 overflow-hidden border-2 border-divider shadow-md">
+            <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                <span className="text-xs font-bold text-muted-foreground uppercase">Live Tracking</span>
+              </div>
+              {activeOrders[0].delivery_status === 'out_for_delivery' && (
+                <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">Route Active</span>
+              )}
             </div>
-            
-            <LoadScript googleMapsApiKey={GOOGLE_MAPS_API_KEY}>
-              <GoogleMap
-                mapContainerStyle={mapContainerStyle}
-                center={currentLocation || defaultCenter}
-                zoom={15}
-              >
-                {currentLocation && (
-                  <Marker
-                    position={currentLocation}
-                    icon={{
-                      url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png',
-                      scaledSize: { width: 32, height: 32 } as any
-                    }}
-                  />
-                )}
-              </GoogleMap>
-            </LoadScript>
-            
-            <div className="px-4 py-3 bg-gray-50">
-              <p className="text-sm text-gray-600">
-                {currentLocation 
-                  ? `Last updated: ${new Date().toLocaleTimeString()}`
-                  : 'Getting your location...'}
-              </p>
-            </div>
+            <MapView 
+              center={currentLocation}
+              zoom={15}
+              driverLocation={currentLocation}
+              customerLocation={activeOrders[0].delivery_latitude && activeOrders[0].delivery_longitude ? [activeOrders[0].delivery_latitude, activeOrders[0].delivery_longitude] : undefined}
+              className="h-[220px] w-full"
+            />
           </Card>
         )}
 
-        {/* Active Orders */}
-        <div>
-          <h2 className="text-lg font-semibold mb-3">Active Deliveries ({activeOrders.length})</h2>
+        {/* Active Orders Section */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-lg flex items-center gap-2">
+              Active Tasks
+              <span className="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-full">
+                {activeOrders.length}
+              </span>
+            </h3>
+          </div>
           
           {activeOrders.length === 0 ? (
-            <Card className="text-center py-8">
-              <CheckCircle className="w-12 h-12 text-green-300 mx-auto mb-3" />
-              <p className="text-gray-600">No active deliveries right now.</p>
-              <p className="text-sm text-gray-500 mt-1">Stay available to receive new orders!</p>
+            <Card className="text-center py-10 bg-muted/20 border-dashed border-2">
+              <CheckCircle className="w-12 h-12 text-muted/40 mx-auto mb-3" />
+              <p className="text-sm font-bold text-muted-foreground">No active orders</p>
+              <p className="text-xs text-muted-foreground mt-1">Waiting for assignments...</p>
             </Card>
           ) : (
-            <div className="space-y-3">
-              {activeOrders.map((order) => (
-                <Card key={order.id} className="space-y-3">
+            activeOrders.map((order) => (
+              <Card key={order.id} className="p-0 overflow-hidden border-divider shadow-sm">
+                <div className="p-4 space-y-4">
                   <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="font-semibold text-gray-900">#{order.order_number}</h3>
-                        <span className={`px-2 py-0.5 text-xs rounded-full ${
-                          order.delivery_status === 'assigned' 
-                            ? 'bg-blue-100 text-blue-800' 
-                            : 'bg-purple-100 text-purple-800'
-                        }`}>
-                          {order.delivery_status === 'assigned' ? 'To Pickup' : 'Out for Delivery'}
-                        </span>
-                      </div>
-                      
-                      <div className="space-y-1 text-sm text-gray-600">
-                        <div className="flex items-center gap-2">
-                          <MapPin className="w-4 h-4" />
-                          <span>{order.delivery_address}, {order.delivery_pincode}</span>
-                        </div>
-                        
-                        {order.delivery_instructions && (
-                          <div className="flex items-start gap-2">
-                            <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                            <span className="text-gray-700">{order.delivery_instructions}</span>
-                          </div>
-                        )}
-                      </div>
+                    <div>
+                      <p className="text-xs font-bold text-primary uppercase tracking-tighter">Order #{order.order_number}</p>
+                      <h4 className="font-bold text-base mt-0.5">{order.customer_name}</h4>
+                    </div>
+                    <div className={`px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${
+                      order.delivery_status === 'assigned' ? 'bg-blue-100 text-blue-700' :
+                      order.delivery_status === 'picked' ? 'bg-orange-100 text-orange-700' :
+                      'bg-green-100 text-green-700'
+                    }`}>
+                      {order.delivery_status.replace(/_/g, ' ')}
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between pt-3 border-t">
-                    <div className="text-sm">
-                      <p className="text-gray-600">Amount</p>
-                      <p className="font-bold text-gray-900">₹{order.total_amount}</p>
-                      <p className="text-xs text-gray-500">
-                        {order.payment_method === 'cod' ? 'Cash' : order.payment_method === 'upi' ? 'UPI' : 'Prepaid'}
-                      </p>
+                  <div className="space-y-2 bg-muted/30 p-3 rounded-xl">
+                    <div className="flex items-start gap-2 text-sm">
+                      <MapPin className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
+                      <span className="font-medium text-muted-foreground leading-tight">{order.delivery_address}</span>
+                    </div>
+                    {order.delivery_instructions && (
+                      <div className="flex items-start gap-2 text-xs bg-white p-2 rounded-lg border border-divider">
+                        <AlertCircle className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                        <span className="text-muted-foreground italic">"{order.delivery_instructions}"</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2">
+                    <div className="flex items-center gap-4">
+                      <div>
+                        <p className="text-[10px] text-muted-foreground font-bold uppercase">Amount</p>
+                        <p className="font-black text-lg">₹{order.total_amount}</p>
+                      </div>
+                      <div className="w-px h-8 bg-divider" />
+                      <div>
+                        <p className="text-[10px] text-muted-foreground font-bold uppercase">Payment</p>
+                        <p className="text-xs font-bold uppercase text-primary">{order.payment_method}</p>
+                      </div>
                     </div>
                     
                     <div className="flex gap-2">
-                      {order.delivery_status === 'assigned' && (
-                        <>
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => handlePickup(order.id)}
-                            disabled={updatingStatus === order.id}
-                          >
-                            Confirm Pickup
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleRejectOrder(order.id)}
-                            disabled={updatingStatus === order.id}
-                            className="text-red-600"
-                          >
-                            Reject
-                          </Button>
-                        </>
-                      )}
-                      
-                      {order.delivery_status === 'out_for_delivery' && (
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          onClick={() => handleDeliver(order.id, order.payment_method || 'cod', order.total_amount)}
-                          disabled={updatingStatus === order.id}
-                        >
-                          Complete Delivery
-                        </Button>
-                      )}
+                      <Button size="sm" variant="outline" onClick={() => window.open(`tel:${order.customer_phone}`)}>
+                        <Phone className="w-4 h-4" />
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${order.delivery_latitude},${order.delivery_longitude}`)}>
+                        <Navigation className="w-4 h-4" />
+                      </Button>
                     </div>
                   </div>
+                </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex gap-2 pt-3 border-t">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openNavigation(order.delivery_latitude, order.delivery_longitude)}
-                      className="flex-1"
+                <div className="p-1.5 bg-muted/30 border-t flex gap-2">
+                  {order.delivery_status === 'picked' && (
+                    <Button 
+                      className="w-full bg-primary hover:bg-primary/90 font-bold" 
+                      onClick={() => handleOutForDelivery(order.id)}
+                      disabled={updatingStatus === order.id}
                     >
-                      <Navigation className="w-4 h-4 mr-1" />
-                      Navigate
+                      Mark as Out for Delivery
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => callCustomer(order.customer_phone)}
-                      className="flex-1"
+                  )}
+                  {order.delivery_status === 'out_for_delivery' && (
+                    <Button 
+                      className="w-full bg-green-600 hover:bg-green-700 font-bold"
+                      onClick={() => {
+                        setVerifyingOrder(order.id);
+                        setOtpInput('');
+                      }}
                     >
-                      <Phone className="w-4 h-4 mr-1" />
-                      Call
+                      Verify OTP & Complete
                     </Button>
-                  </div>
-                </Card>
-              ))}
-            </div>
+                  )}
+                </div>
+              </Card>
+            ))
           )}
         </div>
 
-        {/* Completed Orders */}
-        <div>
-          <h2 className="text-lg font-semibold mb-3">Recent Completed</h2>
-          
-          {completedOrders.length === 0 ? (
-            <Card className="text-center py-8">
-              <Clock className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-600">No completed deliveries yet.</p>
-            </Card>
-          ) : (
-            <div className="space-y-2">
-              {completedOrders.map((order) => (
-                <Card key={order.id} className="py-3 opacity-75">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-gray-900">#{order.order_number}</p>
-                      <p className="text-sm text-gray-500">{order.delivery_address}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-green-600">₹{order.total_amount}</p>
-                      <p className="text-xs text-gray-400">Delivered</p>
-                    </div>
+        {/* History Snippet */}
+        <div className="space-y-3">
+          <h3 className="font-bold text-base text-muted-foreground">Recently Delivered</h3>
+          <div className="space-y-2">
+            {completedOrders.map((order) => (
+              <div key={order.id} className="flex items-center justify-between p-3 bg-muted/20 border border-divider rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600">
+                    <CheckCircle className="w-4 h-4" />
                   </div>
-                </Card>
-              ))}
-            </div>
-          )}
+                  <div>
+                    <p className="text-sm font-bold">#{order.order_number}</p>
+                    <p className="text-[10px] text-muted-foreground">{new Date(order.assigned_at).toLocaleDateString()}</p>
+                  </div>
+                </div>
+                <p className="font-black text-sm">₹{order.total_amount}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
+
+      {/* Assignment Popup */}
+      {pendingAssignment && (
+        <OrderAssignmentPopup
+          order={pendingAssignment}
+          onAccept={acceptOrder}
+          onReject={rejectOrder}
+          onTimeout={timeoutOrder}
+        />
+      )}
+
+      {/* OTP Verification Modal */}
+      {verifyingOrder && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
+          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
+            <Card className="w-full max-w-sm p-6 space-y-6 shadow-2xl">
+              <div className="text-center space-y-2">
+                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
+                  <ShieldCheck className="w-8 h-8 text-primary" />
+                </div>
+                <h3 className="text-xl font-black">Verify Delivery</h3>
+                <p className="text-sm text-muted-foreground">Ask the customer for the 4-digit OTP sent to their phone.</p>
+              </div>
+
+              <div className="space-y-4">
+                <input
+                  type="text"
+                  maxLength={4}
+                  value={otpInput}
+                  onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, ''))}
+                  className="w-full h-16 text-center text-4xl font-black tracking-[1em] border-2 border-divider rounded-2xl focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none transition-all"
+                  placeholder="0000"
+                  autoFocus
+                />
+
+                <div className="flex gap-3">
+                  <Button variant="outline" className="flex-1" onClick={() => setVerifyingOrder(null)}>Cancel</Button>
+                  <Button 
+                    className="flex-2" 
+                    onClick={() => handleVerifyAndDeliver(verifyingOrder, activeOrders.find(o => o.id === verifyingOrder)?.otp || '1111')} // Fallback to 1111 for testing if OTP not set
+                    disabled={otpInput.length < 4 || updatingStatus === verifyingOrder}
+                  >
+                    Complete Delivery
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+        </div>
+      )}
     </MobileContainer>
   );
 }

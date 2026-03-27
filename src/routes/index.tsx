@@ -33,6 +33,7 @@ import { AdminBookingsScreen } from '@/pages/admin/admin-bookings-screen';
 import { DeliveryAssignmentScreen } from '@/pages/admin/delivery-assignment-screen';
 import { AdminPaymentVerificationScreen } from '@/pages/admin/payment-verification-screen';
 import { AdminTableReservationsScreen } from '@/pages/admin/admin-table-reservations-screen';
+import { AdminSettlementScreen } from '@/pages/admin/admin-settlement-screen';
 
 // Chef Screens
 import { ChefApp } from '@/pages/chef/chef-app';
@@ -143,6 +144,7 @@ export function AppRoutes({ userRole, userProfile, isLoadingAuth, handleLogout }
                 <Route path="delivery-assignment" element={<DeliveryAssignmentScreen />} />
                 <Route path="payment-verification" element={<AdminPaymentVerificationScreen />} />
                 <Route path="table-reservations" element={<AdminTableReservationsScreen />} />
+                <Route path="settlements" element={<AdminSettlementScreen />} />
             </Route>
 
             {/* Waiter Routes */}

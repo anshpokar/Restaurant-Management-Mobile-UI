@@ -1,6 +1,6 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { BottomNav, BottomNavItem } from '@/components/design-system/bottom-nav';
-import { LayoutDashboard, ShoppingBag, Menu, Table, BarChart3, Users, LogOut, Calendar, CreditCard } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Menu, Table, BarChart3, Users, LogOut, Calendar, CreditCard, Coins } from 'lucide-react';
 
 interface AdminAppProps {
   onLogout: () => void;
@@ -20,6 +20,7 @@ export function AdminApp({ onLogout }: AdminAppProps) {
     if (path.includes('/admin/bookings')) return 'bookings';
     if (path.includes('/admin/payment-verification')) return 'payment';
     if (path.includes('/admin/table-reservations')) return 'reservations';
+    if (path.includes('/admin/settlements')) return 'settlements';
     return 'dashboard';
   };
 
@@ -83,6 +84,12 @@ export function AdminApp({ onLogout }: AdminAppProps) {
             label="Users"
             active={activeTab === 'users'}
             onClick={() => navigate('/admin/users')}
+          />
+          <SidebarItem
+            icon={<Coins className="w-5 h-5" />}
+            label="Settlements"
+            active={activeTab === 'settlements'}
+            onClick={() => navigate('/admin/settlements')}
           />
           <SidebarItem
             icon={<BarChart3 className="w-5 h-5" />}
@@ -159,6 +166,12 @@ export function AdminApp({ onLogout }: AdminAppProps) {
               label="Users"
               active={activeTab === 'users'}
               onClick={() => navigate('/admin/users')}
+            />
+            <BottomNavItem
+              icon={<Coins className="w-6 h-6" />}
+              label="Settlements"
+              active={activeTab === 'settlements'}
+              onClick={() => navigate('/admin/settlements')}
             />
             <BottomNavItem
               icon={<BarChart3 className="w-6 h-6" />}

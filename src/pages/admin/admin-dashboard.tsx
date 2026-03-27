@@ -3,11 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { AppHeader } from '@/components/design-system/app-header';
 import { Card, CardBody } from '@/components/design-system/card';
 import { Button } from '@/components/design-system/button';
-import { TrendingUp, TrendingDown, ShoppingBag, DollarSign, Users, Calendar, Star, Tag, Plus, Trash2, RefreshCw, CreditCard, Clock } from 'lucide-react';
+import { TrendingUp, TrendingDown, ShoppingBag, DollarSign, Users, Calendar, Star, Tag, Plus, Trash2, RefreshCw, CreditCard, Clock, Coins } from 'lucide-react';
 import { supabase, type MenuItem, type Offer } from '@/lib/supabase';
 import { ADMIN_TEXT, COMMON_TEXT } from '@/constants/text';
 import { startOfDay, endOfDay } from 'date-fns';
 import { toast } from 'sonner';
+import { AdminLiveDeliveryPanel } from '@/components/admin/AdminLiveDeliveryPanel';
 
 
 export function AdminDashboard() {
@@ -211,6 +212,14 @@ export function AdminDashboard() {
       bg: 'bg-pink-100',
       action: () => navigate('/admin/payment-verification'),
       badge: stats.pendingUpiVerifications > 0
+    },
+    {
+      label: 'Driver Settlements',
+      value: 'Pending cash',
+      icon: Coins,
+      color: 'text-orange-600',
+      bg: 'bg-orange-100',
+      action: () => navigate('/admin/settlements')
     }
   ];
 
@@ -243,6 +252,9 @@ export function AdminDashboard() {
             );
           })}
         </div>
+
+        {/* Live Delivery Panel */}
+        <AdminLiveDeliveryPanel />
 
         {/* Quick Actions */}
         <div>

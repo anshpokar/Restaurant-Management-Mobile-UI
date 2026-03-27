@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase, CartItem } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { useCart } from '@/contexts/cart-context';
 import { AppHeader } from '@/components/design-system/app-header';
 import { Button } from '@/components/design-system/button';
 import { Card, CardBody } from '@/components/design-system/card';
-import { ShoppingBag, UtensilsCrossed, Bike, MapPin, X, CreditCard, IndianRupee } from 'lucide-react';
+import { ShoppingBag, MapPin, X, CreditCard, IndianRupee } from 'lucide-react';
 import { toast } from 'sonner';
+import { LeafletAddressPicker } from '../delivery/leaflet-address-picker';
 
 export function CheckoutScreen() {
   const navigate = useNavigate();
@@ -24,22 +25,27 @@ export function CheckoutScreen() {
   const [selectedAddress, setSelectedAddress] = useState<string>('');
   const [addresses, setAddresses] = useState<Array<{ id: string; address_line1: string; city: string; pincode: string }>>([]);
   const [showAddressForm, setShowAddressForm] = useState(false);
+  const [addressSuggestions, setAddressSuggestions] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [searchCache, setSearchCache] = useState<Record<string, any[]>>({});
+  const [isSavingAddress, setIsSavingAddress] = useState(false);
   const [newAddress, setNewAddress] = useState({
     address_line1: '',
+    flat_number: '',
+    house_number: '',
+    building_name: '',
     city: '',
-    state: '',
-    pincode: '',
-    phone_number: ''
+    phone_number: '',
+    latitude: null as number | null,
+    longitude: null as number | null
   });
 
   // Payment method selection
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'upi'>('cod');
-  const [paymentTiming, setPaymentTiming] = useState<'now' | 'later'>('now'); // For dine-in: pay now or pay later
-  const [showUPIPayment, setShowUPIPayment] = useState(false);
   
   // Dine-in session management
   const [sessionName, setSessionName] = useState('');
-  const [showSessionForm, setShowSessionForm] = useState(false);
   const [activeSession, setActiveSession] = useState<string | null>(null); // Session ID
 
   // Fetch tables and addresses on mount
@@ -121,41 +127,123 @@ export function CheckoutScreen() {
   }
 
   async function handleSaveAddress() {
+    setIsSavingAddress(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        toast.error('You must be logged in to save addresses');
+        return;
+      }
+
+      console.log('Saving address with coords:', newAddress.latitude, newAddress.longitude);
 
       const { data, error } = await supabase
         .from('addresses')
         .insert({
           user_id: user.id,
-          address_label: newAddress.address_line1.split(' ')[0] || 'Home',
+          address_label: newAddress.building_name || 'Home',
           address_line1: newAddress.address_line1,
+          address_line2: `${newAddress.flat_number}, ${newAddress.building_name}`,
           city: newAddress.city,
-          state: newAddress.state,
-          pincode: newAddress.pincode,
           phone_number: newAddress.phone_number,
+          latitude: newAddress.latitude,
+          longitude: newAddress.longitude,
+          flat_number: newAddress.flat_number,
+          house_number: newAddress.house_number,
+          building_name: newAddress.building_name,
           is_default: addresses.length === 0
         })
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error saving address:', error);
+        throw error;
+      }
 
       setAddresses([...addresses, data]);
       setSelectedAddress(data.id);
       setShowAddressForm(false);
       setNewAddress({
         address_line1: '',
+        flat_number: '',
+        house_number: '',
+        building_name: '',
         city: '',
-        state: '',
-        pincode: '',
-        phone_number: ''
+        phone_number: '',
+        latitude: null,
+        longitude: null
       });
 
       toast.success('Address saved successfully!');
     } catch (error: any) {
-      toast.error('Failed to save address: ' + error.message);
+      console.error('Full error object:', error);
+      toast.error('Failed to save address: ' + (error.message || 'Unknown error'));
+    } finally {
+      setIsSavingAddress(false);
+    }
+  }
+
+  // Debounced address search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const query = newAddress.address_line1.trim();
+      if (query.length >= 3) {
+        // Skip if already selected this exact address or if it's in cache
+        if (addressSuggestions.some(s => s.display_name === query)) return;
+        
+        if (searchCache[query]) {
+          setAddressSuggestions(searchCache[query]);
+          setSearchError(null);
+          return;
+        }
+        
+        performSearch(query);
+      } else {
+        setAddressSuggestions([]);
+        setSearchError(null);
+      }
+    }, 800); // Photon is faster and more liberal with limits
+
+    return () => clearTimeout(timer);
+  }, [newAddress.address_line1]);
+
+  async function performSearch(query: string) {
+    setIsSearching(true);
+    setSearchError(null);
+    try {
+      const response = await fetch(
+        `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5`
+      );
+      
+      if (!response.ok) throw new Error('Search failed');
+
+      const data = await response.json();
+      
+      // Map Photon GeoJSON to our suggestion format
+      const mapped = data.features.map((f: any) => ({
+        display_name: [
+          f.properties.name, 
+          f.properties.housenumber,
+          f.properties.street, 
+          f.properties.district, 
+          f.properties.city, 
+          f.properties.state
+        ].filter(Boolean).join(", "),
+        lat: f.geometry.coordinates[1].toString(),
+        lon: f.geometry.coordinates[0].toString(),
+        address: {
+          city: f.properties.city || f.properties.town || f.properties.district || ''
+        }
+      }));
+
+      setAddressSuggestions(mapped);
+      setSearchCache(prev => ({ ...prev, [query]: mapped }));
+    } catch (error) {
+      console.error('Search error:', error);
+      setSearchError('Search unavailable. Use "Pin on Map".');
+    } finally {
+      setIsSearching(false);
     }
   }
 
@@ -195,7 +283,6 @@ export function CheckoutScreen() {
           if (!sessionId) {
             // Prompt user for session name
             if (!sessionName.trim()) {
-              setShowSessionForm(true);
               setLoading(false);
               toast.info('Please enter a session name');
               return;
@@ -298,7 +385,7 @@ export function CheckoutScreen() {
         try {
           const { data: addressData, error: addressError } = await supabase
             .from('addresses')
-            .select('address_line1, city, state, pincode')
+            .select('address_line1, city, state, pincode, latitude, longitude')
             .eq('id', selectedAddress)
             .single();
 
@@ -310,9 +397,8 @@ export function CheckoutScreen() {
           if (addressData) {
             deliveryAddressText = `${addressData.address_line1}, ${addressData.city}, ${addressData.state} - ${addressData.pincode}`;
             deliveryPincode = addressData.pincode;
-            // Latitude and longitude are optional for now
-            deliveryLatitude = null;
-            deliveryLongitude = null;
+            deliveryLatitude = addressData.latitude;
+            deliveryLongitude = addressData.longitude;
           }
         } catch (error: any) {
           console.error('Address fetch error:', error);
@@ -598,44 +684,110 @@ export function CheckoutScreen() {
                                 <X className="w-4 h-4" />
                               </button>
                             </div>
+
+                            <div className="relative mb-3">
+                              <input
+                                type="text"
+                                placeholder="Search Area / Locality"
+                                value={newAddress.address_line1}
+                                onChange={(e) => {
+                                  setNewAddress({...newAddress, address_line1: e.target.value});
+                                }}
+                                className="w-full p-3 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary outline-none pr-10 text-sm"
+                              />
+                              <MapPin className="absolute right-3 top-3 w-4 h-4 text-muted-foreground" />
+                              
+                              {isSearching && (
+                                <div className="absolute right-10 top-3.5">
+                                  <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                                </div>
+                              )}
+                              
+                              {(addressSuggestions.length > 0 || searchError) && (
+                                <div className="absolute z-[1001] w-full mt-1 bg-card border border-border rounded-xl shadow-xl max-h-48 overflow-y-auto">
+                                  {searchError && (
+                                    <div className="p-3 text-xs text-red-500 font-medium bg-red-50 items-center flex gap-2">
+                                      <MapPin className="w-3 h-3" />
+                                      {searchError}
+                                    </div>
+                                  )}
+                                  {addressSuggestions.map((item, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="p-3 hover:bg-muted cursor-pointer border-b last:border-0 text-xs font-medium"
+                                      onClick={() => {
+                                        setNewAddress({
+                                          ...newAddress,
+                                          address_line1: item.display_name,
+                                          city: item.address?.city || item.address?.town || item.address?.village || '',
+                                          latitude: parseFloat(item.lat),
+                                          longitude: parseFloat(item.lon)
+                                        });
+                                        setAddressSuggestions([]);
+                                        setSearchError(null);
+                                      }}
+                                    >
+                                      {item.display_name}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="mb-3">
+                              <LeafletAddressPicker 
+                                initialPosition={newAddress.latitude && newAddress.longitude ? [newAddress.latitude, newAddress.longitude] : undefined}
+                                onLocationSelect={(lat, lng, address, details) => {
+                                  setNewAddress({
+                                    ...newAddress,
+                                    address_line1: address,
+                                    city: details?.city || details?.town || details?.village || '',
+                                    latitude: lat,
+                                    longitude: lng
+                                  });
+                                }}
+                              />
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-3">
+                              <input
+                                type="text"
+                                placeholder="Flat No."
+                                value={newAddress.flat_number}
+                                onChange={(e) => setNewAddress({...newAddress, flat_number: e.target.value})}
+                                className="p-3 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm"
+                              />
+                              <input
+                                type="text"
+                                placeholder="House No."
+                                value={newAddress.house_number}
+                                onChange={(e) => setNewAddress({...newAddress, house_number: e.target.value})}
+                                className="p-3 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm"
+                              />
+                            </div>
                             
                             <input
                               type="text"
-                              placeholder="Address Line 1"
-                              value={newAddress.address_line1}
-                              onChange={(e) => setNewAddress({...newAddress, address_line1: e.target.value})}
-                              className="w-full p-3 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none"
+                              placeholder="Building Name"
+                              value={newAddress.building_name}
+                              onChange={(e) => setNewAddress({...newAddress, building_name: e.target.value})}
+                              className="w-full p-3 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm"
                             />
-                            <div className="grid grid-cols-2 gap-2">
+
+                            <div className="grid grid-cols-2 gap-3">
                               <input
                                 type="text"
                                 placeholder="City"
                                 value={newAddress.city}
                                 onChange={(e) => setNewAddress({...newAddress, city: e.target.value})}
-                                className="p-3 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none"
-                              />
-                              <input
-                                type="text"
-                                placeholder="State"
-                                value={newAddress.state}
-                                onChange={(e) => setNewAddress({...newAddress, state: e.target.value})}
-                                className="p-3 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none"
-                              />
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                              <input
-                                type="text"
-                                placeholder="Pincode"
-                                value={newAddress.pincode}
-                                onChange={(e) => setNewAddress({...newAddress, pincode: e.target.value})}
-                                className="p-3 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none"
+                                className="p-3 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary outline-none"
                               />
                               <input
                                 type="tel"
                                 placeholder="Phone Number"
                                 value={newAddress.phone_number}
                                 onChange={(e) => setNewAddress({...newAddress, phone_number: e.target.value})}
-                                className="p-3 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none"
+                                className="p-3 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary outline-none"
                               />
                             </div>
                             

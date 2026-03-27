@@ -146,10 +146,15 @@ export interface Address {
   address_line1: string;
   address_line2?: string;
   city: string;
-  state: string;
-  pincode: string;
+  state?: string;
+  pincode?: string;
   phone_number: string;
   is_default: boolean;
+  latitude?: number | null;
+  longitude?: number | null;
+  flat_number?: string;
+  house_number?: string;
+  building_name?: string;
   created_at: string;
   updated_at: string;
 }
@@ -160,10 +165,15 @@ export interface AddressInput {
   address_line1: string;
   address_line2?: string;
   city: string;
-  state: string;
-  pincode: string;
+  state?: string;
+  pincode?: string;
   phone_number: string;
   is_default: boolean;
+  latitude?: number | null;
+  longitude?: number | null;
+  flat_number?: string;
+  house_number?: string;
+  building_name?: string;
 }
 
 export interface Favorite {
@@ -178,7 +188,8 @@ export interface Notification {
   user_id: string;
   title: string;
   message: string;
-  type: 'order' | 'booking' | 'promotion' | 'system';
+  type: 'order' | 'booking' | 'promotion' | 'system' | 'delivery_assignment';
+  metadata?: any;
   is_read: boolean;
   created_at: string;
 }

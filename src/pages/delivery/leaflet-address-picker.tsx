@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import { useEffect, useState } from 'react';
+import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Button } from '../../components/design-system/button';
-import { Card } from '../../components/design-system/card';
-import { MapPin, Navigation } from 'lucide-react';
+import { MapPin, Navigation, X } from 'lucide-react';
 
 // Fix for default marker icon issue in React Leaflet
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -14,18 +13,10 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
-interface FormData {
-  address_line1: string;
-  city: string;
-  state: string;
-  pincode: string;
-  latitude?: number;
-  longitude?: number;
-}
-
 interface LeafletAddressPickerProps {
-  onLocationSelect?: (lat: number, lng: number, address: string) => void;
+  onLocationSelect?: (lat: number, lng: number, address: string, details?: any) => void;
   initialPosition?: [number, number];
+  onClose?: () => void;
 }
 
 function LocationMarker({ 
@@ -47,15 +38,24 @@ function LocationMarker({
   return <Marker position={position} />;
 }
 
-export function LeafletAddressPicker({ onLocationSelect, initialPosition }: LeafletAddressPickerProps) {
+function ChangeView({ center, zoom }: { center: [number, number], zoom: number }) {
+  const map = useMap();
+  useEffect(() => {
+    map.setView(center, zoom);
+  }, [center, zoom, map]);
+  return null;
+}
+
+export function LeafletAddressPicker({ onLocationSelect, initialPosition, onClose }: LeafletAddressPickerProps) {
   const [position, setPosition] = useState<[number, number] | null>(initialPosition || null);
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState<FormData>({
-    address_line1: '',
-    city: 'New Delhi',
-    state: 'Delhi',
-    pincode: ''
-  });
+
+  // Sync position when initialPosition prop changes
+  useEffect(() => {
+    if (initialPosition) {
+      setPosition(initialPosition);
+    }
+  }, [initialPosition]);
 
   const handleLocationSelect = async (lat: number, lng: number) => {
     setPosition([lat, lng]);
@@ -74,24 +74,12 @@ export function LeafletAddressPicker({ onLocationSelect, initialPosition }: Leaf
       const data = await response.json();
       
       const address = data.display_name || '';
-      const pincode = data.address?.postcode || '';
+      const addressDetails = data.address || {};
       
-      setFormData(prev => ({
-        ...prev,
-        address_line1: address,
-        pincode: pincode,
-        latitude: lat,
-        longitude: lng
-      }));
-
-      onLocationSelect?.(lat, lng, address);
+      onLocationSelect?.(lat, lng, address, addressDetails);
     } catch (error) {
       console.error('Reverse geocoding error:', error);
-      setFormData(prev => ({
-        ...prev,
-        latitude: lat,
-        longitude: lng
-      }));
+      onLocationSelect?.(lat, lng, 'Selected Location');
     } finally {
       setLoading(false);
     }
@@ -115,133 +103,64 @@ export function LeafletAddressPicker({ onLocationSelect, initialPosition }: Leaf
     }
   };
 
-  const handleSave = () => {
-    if (!position) {
-      alert('Please select a location on the map');
-      return;
-    }
-    // You can add validation here
-    alert('Location selected! Address: ' + formData.address_line1);
-  };
-
   return (
-    <div className="space-y-4 p-4">
-      <Card className="p-4">
-        <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-          <MapPin className="w-5 h-5 text-orange-600" />
-          Select Your Location
-        </h2>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="font-bold text-sm flex items-center gap-2">
+          <MapPin className="w-4 h-4 text-primary" />
+          Pin Location on Map
+        </h3>
+        {onClose && (
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+      
+      {/* Map */}
+      <div className="h-[300px] w-full rounded-2xl overflow-hidden border-2 border-border mb-3 relative group">
+        <MapContainer 
+          center={position || [28.6139, 77.2090]} 
+          zoom={position ? 16 : 13} 
+          style={{ height: '100%', width: '100%' }}
+          scrollWheelZoom={true}
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          <LocationMarker 
+            position={position} 
+            onPositionChange={handleLocationSelect} 
+          />
+          {position && <ChangeView center={position} zoom={16} />}
+        </MapContainer>
         
-        {/* Map */}
-        <div className="h-[400px] w-full rounded-lg overflow-hidden border-2 border-gray-200 mb-3">
-          <MapContainer 
-            center={position || [28.6139, 77.2090]} 
-            zoom={position ? 15 : 13} 
-            style={{ height: '100%', width: '100%' }}
-            scrollWheelZoom={true}
-          >
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            <LocationMarker 
-              position={position} 
-              onPositionChange={handleLocationSelect} 
-            />
-          </MapContainer>
-        </div>
+        {loading && (
+          <div className="absolute inset-0 bg-black/10 backdrop-blur-[1px] z-[1000] flex items-center justify-center">
+             <div className="bg-white p-3 rounded-full shadow-lg animate-bounce">
+                <MapPin className="w-6 h-6 text-primary" />
+             </div>
+          </div>
+        )}
+      </div>
 
-        {/* Current Location Button */}
+      <div className="flex gap-2">
         <Button
           type="button"
           variant="outline"
+          size="sm"
           onClick={getCurrentLocation}
-          className="w-full mb-3 flex items-center justify-center gap-2"
+          className="flex-1 flex items-center justify-center gap-2 rounded-xl"
         >
           <Navigation className="w-4 h-4" />
-          Use Current Location
+          My Location
         </Button>
+      </div>
 
-        {/* Selected Location Info */}
-        {position && (
-          <div className="bg-blue-50 p-3 rounded-lg mb-3">
-            <p className="text-sm font-medium text-blue-900 mb-1">Selected Location:</p>
-            <p className="text-xs text-blue-700">
-              Lat: {position[0].toFixed(6)}, Lng: {position[1].toFixed(6)}
-            </p>
-            {loading && (
-              <p className="text-xs text-blue-600 mt-1">Fetching address...</p>
-            )}
-          </div>
-        )}
-
-        {/* Form Fields */}
-        <div className="space-y-3">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Complete Address
-            </label>
-            <textarea
-              value={formData.address_line1}
-              onChange={(e) => setFormData({...formData, address_line1: e.target.value})}
-              className="w-full p-2 border rounded-md text-sm"
-              rows={3}
-              placeholder="Enter or select location on map"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                City
-              </label>
-              <input
-                type="text"
-                value={formData.city}
-                onChange={(e) => setFormData({...formData, city: e.target.value})}
-                className="w-full p-2 border rounded-md text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                State
-              </label>
-              <input
-                type="text"
-                value={formData.state}
-                onChange={(e) => setFormData({...formData, state: e.target.value})}
-                className="w-full p-2 border rounded-md text-sm"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Pincode
-            </label>
-            <input
-              type="text"
-              value={formData.pincode}
-              onChange={(e) => setFormData({...formData, pincode: e.target.value})}
-              className="w-full p-2 border rounded-md text-sm"
-              placeholder="Auto-detected when you select location"
-            />
-          </div>
-        </div>
-
-        {/* Save Button */}
-        <Button
-          onClick={handleSave}
-          disabled={!position || loading}
-          className="w-full mt-4"
-        >
-          {loading ? 'Fetching Address...' : 'Save Location'}
-        </Button>
-
-        <p className="text-xs text-gray-500 mt-2 text-center">
-          Click anywhere on the map to select your location
-        </p>
-      </Card>
+      <p className="text-[10px] text-muted-foreground text-center font-medium uppercase tracking-widest">
+        Tap the map to set delivery pin
+      </p>
     </div>
   );
 }
