@@ -48,9 +48,14 @@ export function DeliveryTasksScreen() {
   const { 
     pendingAssignment, 
     acceptOrder, 
+    pickUpOrder,
     rejectOrder, 
     timeoutOrder 
   } = useDriver();
+
+  const [routePolyline, setRoutePolyline] = useState<[number, number][] | undefined>(undefined);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'cash' | 'upi' | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   useEffect(() => {
     loadDeliveryProfile();
@@ -121,6 +126,34 @@ export function DeliveryTasksScreen() {
     }
   }
 
+  useEffect(() => {
+    if (activeOrders.length > 0 && currentLocation) {
+      const order = activeOrders[0];
+      if (order.delivery_status === 'picked' || order.delivery_status === 'out_for_delivery') {
+        const dest: [number, number] = [order.delivery_latitude!, order.delivery_longitude!];
+        fetchRoute(currentLocation, dest);
+      } else {
+        setRoutePolyline(undefined);
+      }
+    }
+  }, [activeOrders, currentLocation]);
+
+  async function fetchRoute(start: [number, number], end: [number, number]) {
+    try {
+      const apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjQwNTkzNjEzY2JjNzRkZTRiMWYyZjBmNGM2OWQzOTFjIiwiaCI6Im11cm11cjY0In0=";
+      const response = await fetch(
+        `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${apiKey}&start=${start[1]},${start[0]}&end=${end[1]},${end[0]}`
+      );
+      const data = await response.json();
+      if (data.features && data.features[0]) {
+        const coords = data.features[0].geometry.coordinates.map((c: any) => [c[1], c[0]]);
+        setRoutePolyline(coords);
+      }
+    } catch (error) {
+      console.error('Error fetching route:', error);
+    }
+  }
+
   async function loadDeliveryProfile() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -165,8 +198,8 @@ export function DeliveryTasksScreen() {
 
       setActiveOrders(activeData || []);
       setCompletedOrders(completedData || []);
-    } catch (error) {
-      console.error('Error loading orders:', error);
+    } catch (err) {
+      console.error('Error loading orders:', err);
     } finally {
       setLoading(false);
     }
@@ -203,18 +236,32 @@ export function DeliveryTasksScreen() {
       return;
     }
 
+    const order = activeOrders.find(o => o.id === orderId);
+    if (!order) return;
+
+    if (order.payment_method === 'cod' && order.payment_status !== 'paid') {
+      setShowPaymentModal(true);
+      return;
+    }
+
+    await completeDelivery(orderId);
+  }
+
+  async function completeDelivery(orderId: string, paymentMethodUsed?: string) {
     setUpdatingStatus(orderId);
     try {
       const { error } = await supabase.from('orders').update({
         delivery_status: 'delivered',
         delivered_at: new Date().toISOString(),
-        payment_status: 'paid'
+        payment_status: 'paid',
+        payment_method: paymentMethodUsed || activeOrders.find(o => o.id === orderId)?.payment_method
       }).eq('id', orderId);
 
       if (error) throw error;
       
       toast.success('Delivery completed! ₹30 added to your earnings.');
       setVerifyingOrder(null);
+      setShowPaymentModal(false);
       setOtpInput('');
       loadAssignedOrders();
     } catch {
@@ -295,6 +342,7 @@ export function DeliveryTasksScreen() {
               zoom={15}
               driverLocation={currentLocation}
               customerLocation={activeOrders[0].delivery_latitude && activeOrders[0].delivery_longitude ? [activeOrders[0].delivery_latitude, activeOrders[0].delivery_longitude] : undefined}
+              routePolyline={routePolyline}
               className="h-[220px] w-full"
             />
           </Card>
@@ -373,24 +421,34 @@ export function DeliveryTasksScreen() {
                 </div>
 
                 <div className="p-1.5 bg-muted/30 border-t flex gap-2">
+                  {order.delivery_status === 'assigned' && (
+                    <Button 
+                      className="w-full bg-blue-600 hover:bg-blue-700 font-bold" 
+                      onClick={() => pickUpOrder(order.id)}
+                      disabled={updatingStatus === order.id}
+                    >
+                      Pick Up from Restaurant
+                    </Button>
+                  )}
                   {order.delivery_status === 'picked' && (
                     <Button 
                       className="w-full bg-primary hover:bg-primary/90 font-bold" 
                       onClick={() => handleOutForDelivery(order.id)}
                       disabled={updatingStatus === order.id}
                     >
-                      Mark as Out for Delivery
+                      Start Delivery Run
                     </Button>
                   )}
                   {order.delivery_status === 'out_for_delivery' && (
                     <Button 
-                      className="w-full bg-green-600 hover:bg-green-700 font-bold"
+                      className="w-full bg-green-600 hover:bg-green-700 font-bold text-white shadow-lg"
                       onClick={() => {
                         setVerifyingOrder(order.id);
                         setOtpInput('');
                       }}
                     >
-                      Verify OTP & Complete
+                      <Navigation className="w-4 h-4 mr-2" />
+                      Reached Location (Enter OTP)
                     </Button>
                   )}
                 </div>
@@ -465,6 +523,50 @@ export function DeliveryTasksScreen() {
                     Complete Delivery
                   </Button>
                 </div>
+              </div>
+            </Card>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Payment Selection Modal (for COD) */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] flex items-center justify-center p-6">
+          <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
+            <Card className="w-full max-w-sm p-6 space-y-6 shadow-2xl">
+              <div className="text-center space-y-2">
+                <h3 className="text-xl font-black text-orange-600">Payment Collection</h3>
+                <p className="text-sm text-muted-foreground">Select how the customer paid the amount of <b>₹{activeOrders.find(o => o.id === verifyingOrder)?.total_amount}</b></p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Button 
+                  variant={selectedPaymentMethod === 'cash' ? 'primary' : 'outline'}
+                  className="h-24 flex-col gap-2"
+                  onClick={() => setSelectedPaymentMethod('cash')}
+                >
+                  <span className="text-2xl">💵</span>
+                  <span className="font-bold">Cash</span>
+                </Button>
+                <Button 
+                  variant={selectedPaymentMethod === 'upi' ? 'primary' : 'outline'}
+                  className="h-24 flex-col gap-2"
+                  onClick={() => setSelectedPaymentMethod('upi')}
+                >
+                  <span className="text-2xl">💳</span>
+                  <span className="font-bold">UPI / Cards</span>
+                </Button>
+              </div>
+
+              <div className="flex gap-3">
+                <Button variant="outline" className="flex-1" onClick={() => setShowPaymentModal(false)}>Cancel</Button>
+                <Button 
+                  className="flex-2 bg-green-600 hover:bg-green-700" 
+                  disabled={!selectedPaymentMethod || updatingStatus !== null}
+                  onClick={() => completeDelivery(verifyingOrder!, selectedPaymentMethod === 'cash' ? 'cash' : 'upi')}
+                >
+                  Confirm & Deliver
+                </Button>
               </div>
             </Card>
           </motion.div>

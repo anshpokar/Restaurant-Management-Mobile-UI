@@ -9,7 +9,7 @@ import { MapView } from '../../components/map/MapView';
 import { useTracking } from '../../hooks/useTracking';
 import { 
   MapPin, Navigation, Phone, MessageCircle, Clock, 
-  Package, Truck, AlertCircle, Star
+  Package, Truck, AlertCircle, Star, ShieldCheck
 } from 'lucide-react';
 
 interface Order {
@@ -21,6 +21,7 @@ interface Order {
   delivery_longitude: number;
   total_amount: number;
   created_at: string;
+  otp?: string;
 }
 
 interface DeliveryPerson {
@@ -37,7 +38,7 @@ export function OrderTrackingScreen() {
   const [deliveryPerson, setDeliveryPerson] = useState<DeliveryPerson | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const { driverLocation, history } = useTracking(orderId);
+  const { driverLocation, history, routePolyline } = useTracking(orderId);
 
   useEffect(() => {
     fetchOrderDetails();
@@ -124,6 +125,7 @@ export function OrderTrackingScreen() {
             driverLocation={driverLocation ? [driverLocation.lat, driverLocation.lng] : undefined}
             customerLocation={order.delivery_latitude && order.delivery_longitude ? [order.delivery_latitude, order.delivery_longitude] : undefined}
             history={history.map(h => [h.lat, h.lng])}
+            routePolyline={routePolyline}
             className="h-full w-full"
           />
           
@@ -178,6 +180,23 @@ export function OrderTrackingScreen() {
                 <Clock className="w-5 h-5 text-muted-foreground" />
                 <p className="text-sm font-medium text-muted-foreground">Assigning a delivery partner...</p>
               </div>
+            )}
+
+            {/* Delivery OTP - Swiggy Style */}
+            {order.delivery_status === 'out_for_delivery' && order.otp && (
+              <Card className="p-5 bg-primary text-white border-0 shadow-xl overflow-hidden relative">
+                <div className="relative z-10 flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase font-black tracking-[0.2em] opacity-80">Delivery Verification Code</p>
+                    <h3 className="text-3xl font-black">{order.otp}</h3>
+                    <p className="text-xs font-medium opacity-70">Share this with the rider only after you receive your order</p>
+                  </div>
+                  <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md">
+                    <ShieldCheck className="w-8 h-8 text-white" />
+                  </div>
+                </div>
+                <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
+              </Card>
             )}
 
             {/* Tracking Progress */}

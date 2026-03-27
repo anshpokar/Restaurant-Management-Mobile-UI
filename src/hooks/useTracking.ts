@@ -9,6 +9,7 @@ interface Location {
 export function useTracking(orderId?: string) {
   const [driverLocation, setDriverLocation] = useState<Location | null>(null);
   const [history, setHistory] = useState<Location[]>([]);
+  const [routePolyline, setRoutePolyline] = useState<[number, number][] | undefined>(undefined);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -84,5 +85,35 @@ export function useTracking(orderId?: string) {
     };
   }, [orderId]);
 
-  return { driverLocation, history, loading };
+  useEffect(() => {
+    if (driverLocation && !loading) {
+      fetchRoute();
+    }
+  }, [driverLocation, loading]);
+
+  async function fetchRoute() {
+    try {
+      const { data: order } = await supabase
+        .from('orders')
+        .select('delivery_latitude, delivery_longitude')
+        .eq('id', orderId)
+        .single();
+
+      if (order?.delivery_latitude && driverLocation) {
+        const apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjQwNTkzNjEzY2JjNzRkZTRiMWYyZjBmNGM2OWQzOTFjIiwiaCI6Im11cm11cjY0In0=";
+        const response = await fetch(
+          `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${apiKey}&start=${driverLocation.lng},${driverLocation.lat}&end=${order.delivery_longitude},${order.delivery_latitude}`
+        );
+        const data = await response.json();
+        if (data.features && data.features[0]) {
+          const coords = data.features[0].geometry.coordinates.map((c: any) => [c[1], c[0]]);
+          setRoutePolyline(coords);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching route:', error);
+    }
+  }
+
+  return { driverLocation, history, routePolyline, loading };
 }

@@ -53,8 +53,7 @@ export function useDriver() {
     try {
       const { error } = await supabase.from('orders').update({
         assignment_status: 'accepted',
-        delivery_status: 'picked', // Move to picked immediately on acceptance for this flow
-        picked_up_at: new Date().toISOString()
+        // Note: Keep delivery_status as 'assigned' until physically picked up
       }).eq('id', orderId);
 
       if (error) throw error;
@@ -66,7 +65,7 @@ export function useDriver() {
       }
 
       setPendingAssignment(null);
-      toast.success('Order accepted! Head to the restaurant.');
+      toast.success('Order accepted! Go to the restaurant.');
     } catch (err: any) {
       toast.error('Failed to accept order: ' + err.message);
     } finally {
@@ -74,7 +73,24 @@ export function useDriver() {
     }
   }, []);
 
-  const rejectOrder = useCallback(async (orderId: string, reason: string = 'Driver rejected') => {
+  const pickUpOrder = useCallback(async (orderId: string) => {
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.from('orders').update({
+        delivery_status: 'picked',
+        picked_up_at: new Date().toISOString()
+      }).eq('id', orderId);
+
+      if (error) throw error;
+      toast.success('Order picked up! Starting navigation.');
+    } catch (err: any) {
+      toast.error('Failed to pick up order: ' + err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const rejectOrder = useCallback(async (orderId: string) => {
     setIsLoading(true);
     try {
       const { error } = await supabase.from('orders').update({
@@ -120,6 +136,7 @@ export function useDriver() {
     pendingAssignment,
     isLoading,
     acceptOrder,
+    pickUpOrder,
     rejectOrder,
     timeoutOrder
   };

@@ -45,6 +45,7 @@ interface MapViewProps {
   history?: [number, number][];
   deliveryRadius?: number; // in meters
   className?: string;
+  routePolyline?: [number, number][]; // New: for Swiggy-style routing
   // Multi-marker support for Admin
   showAllActive?: boolean;
   activeOrders?: Array<{
@@ -68,6 +69,7 @@ export function MapView({
   history,
   deliveryRadius,
   className = "h-[300px] w-full",
+  routePolyline,
   showAllActive,
   activeOrders
 }: MapViewProps) {
@@ -103,6 +105,11 @@ export function MapView({
 
             {history && history.length > 0 && (
               <Polyline positions={history} color="#3B82F6" weight={4} opacity={0.6} dashArray="8, 8" />
+            )}
+
+            {/* Swiggy-style Live Route */}
+            {routePolyline && routePolyline.length > 0 && (
+              <Polyline positions={routePolyline} color="#F97316" weight={6} opacity={0.8} />
             )}
 
             {deliveryRadius && (
