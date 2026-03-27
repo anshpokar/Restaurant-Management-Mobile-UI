@@ -203,6 +203,7 @@ export function DeliveryTasksScreen() {
         .select('*')
         .eq('delivery_person_id', user.id)
         .in('delivery_status', ['assigned', 'picked', 'out_for_delivery'])
+        .eq('assignment_status', 'accepted')
         .order('assigned_at', { ascending: false });
 
       const { data: completedData } = await supabase

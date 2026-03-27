@@ -31,6 +31,7 @@ BEGIN
     SET 
         delivery_person_id = assigned_person_id,
         delivery_status = 'assigned',
+        assignment_status = 'pending',
         assigned_at = now(),
         otp = generated_otp
     WHERE id = order_id;
