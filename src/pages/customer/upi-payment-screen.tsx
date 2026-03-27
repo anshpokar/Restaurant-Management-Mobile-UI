@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { 
   generateUPILink, 
@@ -29,6 +29,7 @@ const QR_EXPIRY_MINUTES = 5; // QR code expires after 5 minutes
 
 export function PaymentScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { orderId, sessionId } = useParams<{ orderId: string; sessionId: string }>();
   
   // State
@@ -76,7 +77,7 @@ export function PaymentScreen() {
   useEffect(() => {
     console.log('Setting up real-time subscription for qrId:', qrId, 'current status:', paymentStatus);
     
-    if (qrId && paymentStatus === 'pending') {
+    if (qrId && (paymentStatus === 'pending' || paymentStatus === 'verification_requested')) {
       const unsubscribe = subscribeToUpiPayments(qrId, (updatedData) => {
         console.log('Real-time update received:', updatedData);
         
@@ -84,7 +85,8 @@ export function PaymentScreen() {
         
         if (updatedData.status === 'verified') {
           toast.success('Payment verified successfully!');
-          setTimeout(() => navigate('/customer/orders'), 2000);
+          const target = location.pathname.startsWith('/delivery') ? '/delivery/tasks' : '/customer/orders';
+          setTimeout(() => navigate(target), 2000);
         } else if (updatedData.status === 'verification_requested') {
           toast.info('Payment submitted for verification');
         }
@@ -104,7 +106,7 @@ export function PaymentScreen() {
         clearInterval(pollInterval);
       };
     }
-  }, [qrId, paymentStatus, navigate]);
+  }, [qrId, paymentStatus, navigate, location.pathname]);
 
   const fetchOrder = async () => {
     try {
@@ -291,7 +293,8 @@ export function PaymentScreen() {
         
         if (data.status === 'verified') {
           toast.success('Payment verified successfully!');
-          setTimeout(() => navigate('/customer/orders'), 2000);
+          const target = location.pathname.startsWith('/delivery') ? '/delivery/tasks' : '/customer/orders';
+          setTimeout(() => navigate(target), 2000);
         }
       }
     } catch (error: any) {
@@ -435,13 +438,15 @@ export function PaymentScreen() {
                 </p>
               </div>
 
-              {/* QR Code */}
-              <div className="bg-white p-4 rounded-lg inline-block mx-auto mb-6">
-                <QRCode 
-                  value={upiLink} 
-                  size={220}
-                  level="H"
-                />
+              {/* QR Code Container - Centered */}
+              <div className="flex justify-center mb-6 px-4">
+                <div className="bg-white p-6 rounded-3xl shadow-lg border border-divider">
+                  <QRCode 
+                    value={upiLink} 
+                    size={240}
+                    level="H"
+                  />
+                </div>
               </div>
 
               {/* Timer */}

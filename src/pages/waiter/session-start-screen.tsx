@@ -4,6 +4,7 @@ import { AppHeader } from '@/components/design-system/app-header';
 import { Card, CardBody } from '@/components/design-system/card';
 import { Button } from '@/components/design-system/button';
 import { Input } from '@/components/design-system/input';
+import { Badge } from '@/components/design-system/badge';
 import { ShoppingBag, Users, CheckCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useCart } from '@/contexts/cart-context';
@@ -117,48 +118,52 @@ export function WaiterSessionStartScreen() {
   ];
 
   return (
-    <div className="min-h-screen bg-background pb-4">
-      <AppHeader title={`Table ${tableNumber} - Start Session`} />
+    <div className="min-h-screen bg-warm-off-white pb-4">
+      <AppHeader title={`Table ${tableNumber}`} showBack />
 
-      <div className="px-4 py-6 space-y-6">
+      <div className="px-4 py-8 space-y-8">
+        {/* Step Indicator */}
+        <div className="text-center space-y-2">
+          <div className="inline-flex items-center px-3 py-1 rounded-full bg-brand-maroon/5 border border-brand-maroon/10 text-[10px] font-black text-brand-maroon uppercase tracking-[0.2em]">
+            Service Step 03
+          </div>
+          <h2 className="text-3xl font-black text-foreground tracking-tight">
+            Session Startup
+          </h2>
+        </div>
+
         {/* Customer Info Summary */}
-        <Card>
-          <CardBody className="p-4 bg-primary/5 border-primary/20">
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                  <Users className="w-5 h-5 text-primary" />
+        <Card className="border-none shadow-premium rounded-[2rem] overflow-hidden bg-white">
+          <CardBody className="p-6">
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
+                  customerType === 'existing' ? 'bg-brand-maroon/10 text-brand-maroon' : 'bg-brand-gold/10 text-brand-gold'
+                }`}>
+                  <Users className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-primary uppercase">Customer Type</p>
-                  <p className="text-sm font-medium text-foreground capitalize">
-                    {customerType === 'existing' ? 'Existing Customer ✓' : 
-                     customerType === 'new' ? 'New Customer ✓' : 'Guest'}
+                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">Protocol Link</p>
+                  <p className="text-sm font-bold text-foreground capitalize">
+                    {customerType === 'existing' ? 'Loyalty Member ✓' : 'Direct Guest Instance'}
                   </p>
                 </div>
               </div>
 
-              {email && (
-                <div className="flex items-center gap-3 pt-2 border-t border-divider">
-                  <div className="w-10 h-10 bg-green-500/10 rounded-full flex items-center justify-center">
-                    <CheckCircle className="w-5 h-5 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-green-600 uppercase">Verified Email</p>
-                    <p className="text-sm font-medium text-foreground">{email}</p>
-                  </div>
-                </div>
-              )}
-
-              {fullName && (
-                <div className="flex items-center gap-3 pt-2 border-t border-divider">
-                  <div className="w-10 h-10 bg-blue-500/10 rounded-full flex items-center justify-center">
-                    <Users className="w-5 h-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-blue-600 uppercase">Customer Name</p>
-                    <p className="text-sm font-medium text-foreground">{fullName}</p>
-                  </div>
+              {(email || fullName) && (
+                <div className="pt-4 border-t border-divider space-y-3">
+                  {fullName && (
+                    <div className="flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-brand-maroon" />
+                      <p className="text-xs font-bold text-foreground truncate">{fullName}</p>
+                    </div>
+                  )}
+                  {email && (
+                    <div className="flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-brand-gold" />
+                      <p className="text-xs font-medium text-muted-foreground truncate">{email}</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -166,90 +171,80 @@ export function WaiterSessionStartScreen() {
         </Card>
 
         {/* Session Name Input */}
-        <Card>
-          <CardBody className="p-4">
-            <div className="flex items-start gap-3 mb-3">
-              <ShoppingBag className="w-5 h-5 text-primary mt-0.5" />
-              <div>
-                <h3 className="font-bold text-foreground mb-1">
-                  Session Name
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  Give this session a memorable name for easy identification
-                </p>
-              </div>
-            </div>
-
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-xs font-black text-brand-maroon uppercase tracking-widest ml-1">Assign Identifier</label>
             <Input
               type="text"
-              placeholder='e.g., "Team Lunch", "Birthday Dinner"'
+              placeholder='e.g., "Main Dining", "Private Party"'
               value={sessionName}
               onChange={(e) => setSessionName(e.target.value)}
               autoFocus
-              className="mb-3"
+              className="h-16 bg-white border-2 border-divider focus:border-brand-maroon focus:ring-4 focus:ring-brand-maroon/5 text-lg font-bold rounded-2xl px-6 transition-all"
             />
+          </div>
 
-            {/* Suggested Names */}
-            <div className="space-y-2">
-              <p className="text-xs font-bold text-muted-foreground uppercase">Suggestions:</p>
-              <div className="flex flex-wrap gap-2">
-                {suggestedNames.map((name, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setSessionName(name)}
-                    className="px-3 py-1.5 bg-muted hover:bg-primary/10 text-foreground hover:text-primary text-xs font-medium rounded-lg transition-colors border border-border"
-                  >
-                    {name}
-                  </button>
-                ))}
-              </div>
+          {/* Suggested Names */}
+          <div className="space-y-3">
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Preset Identifiers:</p>
+            <div className="flex flex-wrap gap-2">
+              {suggestedNames.map((name, index) => (
+                <button
+                  key={index}
+                  onClick={() => setSessionName(name)}
+                  className={`px-4 py-2 rounded-full text-xs font-bold transition-all border ${
+                    sessionName === name 
+                      ? 'bg-brand-maroon border-brand-maroon text-white shadow-lg shadow-brand-maroon/20' 
+                      : 'bg-white border-divider text-muted-foreground hover:border-brand-maroon/30 hover:text-brand-maroon'
+                  }`}
+                >
+                  {name}
+                </button>
+              ))}
             </div>
-          </CardBody>
-        </Card>
+          </div>
+        </div>
 
         {/* Session Details Preview */}
-        <Card>
-          <CardBody className="p-4 bg-muted/50">
-            <h4 className="font-bold text-foreground mb-3 text-sm">Session Details:</h4>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Table:</span>
-                <span className="font-medium text-foreground">Table {tableNumber}</span>
+        <Card className="border-none bg-brand-maroon/[0.02] rounded-[1.5rem] border border-brand-maroon/5">
+          <CardBody className="p-5">
+            <h4 className="text-[10px] font-black text-brand-maroon uppercase tracking-widest mb-4">Instance Parameters</h4>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center bg-white/50 p-2 rounded-xl">
+                <span className="text-[11px] font-bold text-muted-foreground uppercase">Station</span>
+                <span className="text-sm font-black text-foreground">TABLE {tableNumber}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Status:</span>
-                <span className="font-medium text-green-600">Active</span>
+              <div className="flex justify-between items-center bg-white/50 p-2 rounded-xl">
+                <span className="text-[11px] font-bold text-muted-foreground uppercase">Status</span>
+                <Badge variant="paid" className="bg-brand-gold/20 text-brand-gold border-brand-gold/30 font-black text-[10px] uppercase">
+                  ACTIVE
+                </Badge>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Payment:</span>
-                <span className="font-medium text-orange-600">Pending</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Linked To:</span>
-                <span className="font-medium text-foreground">
-                  {userId ? (customerType === 'guest' ? 'Guest' : 'User Account') : 'Walk-in Customer'}
+              <div className="flex justify-between items-center bg-white/50 p-2 rounded-xl">
+                <span className="text-[11px] font-bold text-muted-foreground uppercase">Security</span>
+                <span className="text-xs font-bold text-foreground">
+                  {userId ? (customerType === 'guest' ? 'GUEST TOKEN' : 'ENCRYPTED ID') : 'STATION AUTH'}
                 </span>
               </div>
             </div>
           </CardBody>
         </Card>
 
-        {/* Start Session Button */}
+        {/* Action Button */}
         <Button
           onClick={handleStartSession}
-          className="w-full h-14 text-lg"
+          className="w-full h-16 bg-brand-maroon hover:bg-[#5D1227] text-white rounded-[1.5rem] shadow-2xl shadow-brand-maroon/30 font-black text-xl tracking-tight mt-4 transition-all"
           isLoading={loading}
           disabled={!sessionName.trim()}
         >
-          <ShoppingBag className="w-5 h-5 mr-2" />
-          {loading ? 'Starting Session...' : 'Start Session & Add Items'}
+          <ShoppingBag className="w-6 h-6 mr-3" />
+          {loading ? 'INITIALIZING...' : 'START SESSION'}
         </Button>
 
-        {/* Info Box */}
-        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
-          <p className="text-sm text-blue-800">
-            <strong>Note:</strong> Once started, you can add items to this session and manage orders from the menu screen.
-          </p>
+        {/* Security Info */}
+        <div className="opacity-20 flex flex-col items-center gap-2 py-4">
+          <CheckCircle className="w-5 h-5 text-brand-maroon" />
+          <span className="text-[9px] font-black uppercase tracking-[0.3em]">Operational Readiness Confirmed</span>
         </div>
       </div>
     </div>

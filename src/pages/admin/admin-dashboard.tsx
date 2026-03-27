@@ -3,12 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { AppHeader } from '@/components/design-system/app-header';
 import { Card, CardBody } from '@/components/design-system/card';
 import { Button } from '@/components/design-system/button';
-import { TrendingUp, TrendingDown, ShoppingBag, DollarSign, Users, Calendar, Star, Tag, Plus, Trash2, RefreshCw, CreditCard, Clock, Coins } from 'lucide-react';
+import { ShoppingBag, DollarSign, Users, Calendar, Star, Tag, Plus, Trash2, RefreshCw, CreditCard, Coins } from 'lucide-react';
 import { supabase, type MenuItem, type Offer } from '@/lib/supabase';
 import { ADMIN_TEXT, COMMON_TEXT } from '@/constants/text';
 import { startOfDay, endOfDay } from 'date-fns';
 import { toast } from 'sonner';
 import { AdminLiveDeliveryPanel } from '@/components/admin/AdminLiveDeliveryPanel';
+import { AdminKpiCard } from '@/components/admin/AdminKpiCard';
+import { motion } from 'motion/react';
 
 
 export function AdminDashboard() {
@@ -239,10 +241,10 @@ export function AdminDashboard() {
 
   };
   const kpis = [
-    { label: ADMIN_TEXT.KPIS.TODAYS_ORDERS, value: stats.ordersCount.toString(), change: '+12%', trend: 'up', icon: ShoppingBag, color: 'text-blue-600', bg: 'bg-blue-100' },
-    { label: ADMIN_TEXT.KPIS.REVENUE, value: `${COMMON_TEXT.CURRENCY_SYMBOL}${stats.revenue.toLocaleString()}`, change: '+8%', trend: 'up', icon: DollarSign, color: 'text-green-600', bg: 'bg-green-100' },
-    { label: ADMIN_TEXT.KPIS.ACTIVE_TABLES, value: `${stats.activeTables}/${stats.totalTables}`, change: `${stats.totalTables - stats.activeTables} vacant`, trend: 'neutral', icon: Users, color: 'text-purple-600', bg: 'bg-purple-100' },
-    { label: 'Bookings', value: stats.bookingsCount.toString(), change: '+5 new', trend: 'up', icon: Calendar, color: 'text-orange-600', bg: 'bg-orange-100' },
+    { label: ADMIN_TEXT.KPIS.TODAYS_ORDERS, value: stats.ordersCount.toString(), change: '+12%', trend: 'up' as const, icon: ShoppingBag, variant: 'glass' as const },
+    { label: ADMIN_TEXT.KPIS.REVENUE, value: `${COMMON_TEXT.CURRENCY_SYMBOL}${stats.revenue.toLocaleString()}`, change: '+8%', trend: 'up' as const, icon: DollarSign, variant: 'primary' as const },
+    { label: ADMIN_TEXT.KPIS.ACTIVE_TABLES, value: `${stats.activeTables}/${stats.totalTables}`, change: `${stats.totalTables - stats.activeTables} vacant`, trend: 'neutral' as const, icon: Users, variant: 'glass' as const },
+    { label: 'Bookings', value: stats.bookingsCount.toString(), change: '+5 new', trend: 'up' as const, icon: Calendar, variant: 'gold' as const },
   ];
 
   const quickActions = [
@@ -280,28 +282,14 @@ export function AdminDashboard() {
 
       <div className="px-4 py-4 space-y-8">
         {/* KPI Cards */}
-        <div className="grid grid-cols-2 gap-3">
-          {kpis.map((kpi, index) => {
-            const Icon = kpi.icon;
-            return (
-              <Card key={index}>
-                <CardBody className="p-4">
-                  <div className={`w-10 h-10 ${kpi.bg} rounded-xl flex items-center justify-center mb-3`}>
-                    <Icon className={`w-5 h-5 ${kpi.color}`} />
-                  </div>
-                  <p className="text-xs text-muted-foreground mb-1">{kpi.label}</p>
-                  <p className="text-2xl font-bold text-foreground mb-1">{kpi.value}</p>
-                  <div className="flex items-center gap-1">
-                    {kpi.trend === 'up' && <TrendingUp className="w-3 h-3 text-green-600" />}
-                    {kpi.trend === 'down' && <TrendingDown className="w-3 h-3 text-red-600" />}
-                    <span className={`text-xs ${kpi.trend === 'up' ? 'text-green-600' : kpi.trend === 'down' ? 'text-red-600' : 'text-muted-foreground'}`}>
-                      {kpi.change}
-                    </span>
-                  </div>
-                </CardBody>
-              </Card>
-            );
-          })}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {kpis.map((kpi, index) => (
+            <AdminKpiCard
+              key={index}
+              {...kpi}
+              index={index}
+            />
+          ))}
         </div>
 
         {/* Live Delivery Panel */}
@@ -310,39 +298,53 @@ export function AdminDashboard() {
         {/* Quick Actions */}
         <div>
           <h3 className="text-xl font-black text-foreground mb-4 flex items-center gap-2">
-            <CreditCard className="w-5 h-5 text-pink-600" /> Quick Actions
+            <span className="w-2 h-8 bg-brand-maroon rounded-full" /> Quick Operations
           </h3>
-          <div className="flex flex-row gap-3 overflow-x-auto pb-2">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {quickActions.map((action, index) => {
               const Icon = action.icon;
               return (
-                <div 
-                  key={index} 
-                  className={`min-w-[280px] flex-1 border-2 ${action.badge ? 'border-orange-200 bg-orange-50 hover:bg-orange-100 animate-pulse' : 'border-border bg-card hover:bg-muted'} transition-colors cursor-pointer rounded-2xl`}
+                <motion.button
+                  key={index}
+                  whileHover={{ y: -4 }}
+                  whileTap={{ scale: 0.98 }}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 + index * 0.1 }}
                   onClick={action.action}
+                  className={`relative group flex flex-col p-6 rounded-[2.5rem] text-left transition-all ${
+                    action.badge 
+                      ? 'bg-gradient-to-br from-brand-maroon to-[#5D1227] text-white shadow-xl shadow-brand-maroon/20' 
+                      : 'bg-card border border-border hover:border-brand-maroon/30 shadow-sm'
+                  }`}
                 >
-                  <CardBody className="p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-12 h-12 ${action.bg} rounded-xl flex items-center justify-center`}>
-                        <Icon className={`w-6 h-6 ${action.color}`} />
-                      </div>
-                      <div>
-                        <p className="font-bold text-base text-foreground">{action.label}</p>
-                        <p className={`text-sm ${action.badge ? 'text-orange-600 font-bold' : 'text-muted-foreground'}`}>
-                          {action.value}
-                        </p>
-                      </div>
+                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-6 transition-transform group-hover:scale-110 ${
+                    action.badge ? 'bg-white/20' : action.bg
+                  }`}>
+                    <Icon className={`w-7 h-7 ${action.badge ? 'text-white' : action.color}`} />
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <h4 className="font-black text-lg tracking-tight">{action.label}</h4>
+                    <p className={`text-sm ${action.badge ? 'text-white/70' : 'text-muted-foreground'}`}>
+                      {action.value}
+                    </p>
+                  </div>
+
+                  {action.badge && (
+                    <div className="absolute top-6 right-6 flex items-center gap-2 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full ring-1 ring-white/30">
+                      <span className="w-2 h-2 bg-brand-gold rounded-full animate-ping" />
+                      <span className="text-[10px] font-black uppercase tracking-wider">{stats.pendingTableBookings} ACTION</span>
                     </div>
-                    {action.badge && (
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-5 h-5 text-orange-600 animate-pulse" />
-                        <span className="px-3 py-1 bg-orange-600 text-white text-xs font-bold rounded-full">
-                          {stats.pendingTableBookings}
-                        </span>
-                      </div>
-                    )}
-                  </CardBody>
-                </div>
+                  )}
+                  
+                  {/* Hover Arrow */}
+                  <div className={`absolute bottom-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity ${
+                    action.badge ? 'text-white' : 'text-brand-maroon'
+                  }`}>
+                    <Plus className="w-5 h-5 rotate-45" />
+                  </div>
+                </motion.button>
               );
             })}
           </div>

@@ -1,11 +1,13 @@
-import { LayoutGrid, Users, RefreshCw } from 'lucide-react';
+import { LayoutGrid, RefreshCw, Armchair } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Card, CardBody } from '@/components/design-system/card';
-import { Button } from '@/components/design-system/button';
 import { Badge } from '@/components/design-system/badge';
 import { supabase, type RestaurantTable } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { AppHeader } from '@/components/design-system/app-header';
+import { SessionBillModal } from '@/components/admin/SessionBillModal';
+import { Receipt } from 'lucide-react';
 
 interface TableSession {
   id: string;
@@ -26,6 +28,7 @@ export function AdminTables() {
     const [tablesWithSessions, setTablesWithSessions] = useState<TableWithSession[]>([]);
     const [loading, setLoading] = useState(true);
     const [sessionsLoading, setSessionsLoading] = useState(false);
+    const [selectedSessionForBill, setSelectedSessionForBill] = useState<{id: string, table: number, name: string} | null>(null);
 
     useEffect(() => {
         fetchData();
@@ -110,108 +113,158 @@ export function AdminTables() {
     };
 
     return (
-        <div className="min-h-screen bg-background pb-20 overflow-y-auto">
+        <div className="min-h-screen bg-muted/5 pb-20">
             <AppHeader 
-                title="Table Management" 
+                title="Live Operations" 
                 actions={
-                    <Button variant="outline" size="sm" onClick={fetchData} isLoading={loading || sessionsLoading}>
-                        <RefreshCw className={`w-4 h-4 mr-2 ${(loading || sessionsLoading) ? 'animate-spin' : ''}`} />
-                        Refresh
-                    </Button>
+                    <button 
+                      onClick={fetchData} 
+                      className="p-2.5 hover:bg-muted rounded-2xl transition-all group"
+                      title="Refresh Operations"
+                    >
+                      <RefreshCw className={`w-5 h-5 text-brand-maroon ${loading || sessionsLoading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
+                    </button>
                 }
             />
 
-            <div className="p-4 space-y-6">
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="px-4 py-6 space-y-8 max-w-[1400px] mx-auto"
+            >
                 {/* Stats Summary */}
-                <div className="grid grid-cols-3 gap-3">
-                    <Card className="border-none shadow-sm bg-green-50">
-                        <CardBody className="p-3 text-center">
-                            <p className="text-2xl font-black text-green-600">
-                                {tablesWithSessions.filter(t => !t.active_session && t.status === 'available').length}
-                            </p>
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase">Available</p>
-                        </CardBody>
-                    </Card>
-                    <Card className="border-none shadow-sm bg-blue-50">
-                        <CardBody className="p-3 text-center">
-                            <p className="text-2xl font-black text-blue-600">
-                                {tablesWithSessions.filter(t => t.active_session).length}
-                            </p>
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase">Active</p>
-                        </CardBody>
-                    </Card>
-                    <Card className="border-none shadow-sm bg-orange-50">
-                        <CardBody className="p-3 text-center">
-                            <p className="text-2xl font-black text-orange-600">
-                                {tablesWithSessions.filter(t => t.status === 'reserved').length}
-                            </p>
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase">Reserved</p>
-                        </CardBody>
-                    </Card>
+                <div className="grid grid-cols-3 gap-4">
+                    {[
+                        { label: 'Available', value: tablesWithSessions.filter(t => !t.active_session && t.status === 'available').length, color: 'from-emerald-500 to-green-600' },
+                        { label: 'Live Sessions', value: tablesWithSessions.filter(t => t.active_session).length, color: 'from-blue-500 to-indigo-600' },
+                        { label: 'Reservations', value: tablesWithSessions.filter(t => t.status === 'reserved').length, color: 'from-amber-500 to-orange-600' }
+                    ].map((stat, i) => (
+                        <motion.div
+                          key={stat.label}
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: i * 0.1 }}
+                        >
+                          <Card className="border-none overflow-hidden relative group">
+                            <div className={`absolute inset-0 bg-gradient-to-br ${stat.color} opacity-10`} />
+                            <CardBody className="p-5 text-center space-y-1">
+                              <p className="text-3xl font-black text-brand-maroon tracking-tighter">{stat.value}</p>
+                              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{stat.label}</p>
+                            </CardBody>
+                          </Card>
+                        </motion.div>
+                    ))}
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                    {tablesWithSessions.length === 0 && !loading && !sessionsLoading ? (
-                        <div className="col-span-full py-20 text-center bg-card rounded-3xl border-2 border-dashed border-divider">
-                            <LayoutGrid className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-20" />
-                            <p className="font-bold text-muted-foreground">No tables found</p>
-                        </div>
-                    ) : (
-                        tablesWithSessions.map(table => (
-                            <Card
-                                key={table.id}
-                                onClick={() => onTableClick(table)}
-                                className={`cursor-pointer transition-all active:scale-95 border-2 ${
-                                    table.active_session
-                                        ? 'bg-gradient-to-br from-blue-50 to-blue-100 border-blue-300 hover:border-blue-400'
-                                        : table.status === 'occupied'
-                                            ? 'bg-red-50 border-red-200 hover:border-red-300'
-                                            : table.status === 'reserved'
-                                                ? 'bg-orange-50 border-orange-200 hover:border-orange-300'
-                                                : 'bg-green-50 border-green-200 hover:border-primary'
-                                }`}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6 pb-12">
+                    <AnimatePresence mode="popLayout">
+                        {tablesWithSessions.length === 0 && !loading && !sessionsLoading ? (
+                            <motion.div 
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              className="col-span-full py-20 text-center bg-white rounded-[2.5rem] border-2 border-dashed border-muted"
                             >
-                                <CardBody className="p-3 text-center flex flex-col h-full justify-between gap-2">
-                                    <div>
-                                        <div className="text-2xl mb-1">
-                                            {table.active_session ? '👨‍👩‍👧‍👦' : table.status === 'occupied' ? '⚠️' : '🍽️'}
-                                        </div>
-                                        <h3 className="text-base font-black text-foreground">T{table.table_number}</h3>
-                                        <p className="text-[10px] font-medium text-muted-foreground">{table.capacity} Seats</p>
-                                    </div>
-                                    
-                                    {table.active_session ? (
-                                        <div className="space-y-1.5">
-                                            <div className="w-fit mx-auto">
-                                                <Badge variant="paid" size="sm">
-                                                    <Users className="w-2 h-2 mr-0.5 inline" />
-                                                    ACTIVE
-                                                </Badge>
+                                <LayoutGrid className="w-12 h-12 mx-auto mb-4 text-muted-foreground/30" />
+                                <p className="font-black text-foreground uppercase tracking-tight">No floor plan data available</p>
+                            </motion.div>
+                        ) : (
+                            tablesWithSessions.map((table, index) => (
+                                <motion.div
+                                  key={table.id}
+                                  layout
+                                  initial={{ opacity: 0, scale: 0.9 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  exit={{ opacity: 0, scale: 0.9 }}
+                                  transition={{ duration: 0.2, delay: index * 0.03 }}
+                                >
+                                    <Card
+                                        onClick={() => onTableClick(table)}
+                                        className={`cursor-pointer overflow-hidden border-none shadow-lg shadow-black/5 rounded-[2.5rem] group hover:shadow-2xl hover:shadow-brand-maroon/5 transition-all duration-300 h-full ${
+                                            table.active_session ? 'ring-2 ring-brand-maroon/20 ring-offset-4 ring-offset-muted/5' : ''
+                                        }`}
+                                    >
+                                        <CardBody className="p-6 text-center flex flex-col h-full items-center space-y-4">
+                                            <div className={`w-14 h-14 rounded-[1.5rem] flex items-center justify-center text-2xl shadow-inner transition-colors duration-300 ${
+                                                table.active_session ? 'bg-brand-maroon text-white' : 
+                                                table.status === 'occupied' ? 'bg-red-50 text-red-600' :
+                                                table.status === 'reserved' ? 'bg-amber-50 text-amber-600' : 
+                                                'bg-muted/50 text-muted-foreground group-hover:bg-brand-maroon/5 group-hover:text-brand-maroon'
+                                            }`}>
+                                                <Armchair className="w-7 h-7" />
                                             </div>
-                                            {table.active_session.session_name && (
-                                                <div className="bg-white/80 rounded-md p-1.5">
-                                                    <p className="text-[9px] font-bold text-primary truncate leading-tight">
-                                                        {table.active_session.session_name}
-                                                    </p>
-                                                    <p className="text-[9px] font-semibold text-muted-foreground">
-                                                        ₹{Math.round(table.active_session.total_amount || 0)}
-                                                    </p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    ) : (
-                                        <div className="w-fit mx-auto">
-                                            <Badge variant={table.status === 'occupied' ? 'occupied' : table.status === 'reserved' ? 'warning' : 'success'} size="sm">
-                                                {table.status.toUpperCase()}
-                                            </Badge>
-                                        </div>
-                                    )}
-                                </CardBody>
-                            </Card>
-                        ))
-                    )}
+
+                                            <div>
+                                                <h3 className="text-xl font-black text-foreground tracking-tighter group-hover:text-brand-maroon transition-colors">T{table.table_number}</h3>
+                                                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{table.capacity} SEATS</p>
+                                            </div>
+                                            
+                                            <div className="w-full mt-auto pt-4 border-t border-dashed border-border/50">
+                                                {table.active_session ? (
+                                                    <div className="space-y-3">
+                                                        <div className="flex justify-center">
+                                                            <Badge variant="success" className="bg-emerald-500 text-white border-none px-3 py-1 rounded-full text-[8px] font-black tracking-widest animate-pulse">
+                                                                LIVE SESSION
+                                                            </Badge>
+                                                        </div>
+                                                        {table.active_session.session_name && (
+                                                            <div className="bg-brand-maroon/5 rounded-2xl p-2.5 space-y-0.5 relative group/info">
+                                                                <p className="text-[9px] font-black text-brand-maroon uppercase truncate leading-tight">
+                                                                    {table.active_session.session_name}
+                                                                </p>
+                                                                <p className="text-xs font-black text-brand-maroon">
+                                                                    ₹{Math.round(table.active_session.total_amount || 0)}
+                                                                </p>
+                                                                
+                                                                {/* Quick Action Button */}
+                                                                <button 
+                                                                  onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setSelectedSessionForBill({
+                                                                        id: table.active_session!.id,
+                                                                        table: table.table_number,
+                                                                        name: table.active_session!.session_name || 'Guest'
+                                                                    });
+                                                                  }}
+                                                                  className="absolute -right-2 -top-2 w-8 h-8 bg-brand-maroon text-white rounded-full shadow-lg opacity-0 group-hover/info:opacity-100 transition-all flex items-center justify-center hover:scale-110 active:scale-95"
+                                                                  title="Generate Receipt"
+                                                                >
+                                                                  <Receipt className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex justify-center">
+                                                        <Badge 
+                                                          variant={table.status === 'occupied' ? 'error' : table.status === 'reserved' ? 'warning' : 'success'} 
+                                                          className={`px-3 py-1 rounded-full text-[8px] font-black tracking-widest uppercase border-0 ${
+                                                            table.status === 'available' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200 border-2 border-emerald-400 font-black' : ''
+                                                          }`}
+                                                        >
+                                                            {table.status}
+                                                        </Badge>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </CardBody>
+                                    </Card>
+                                </motion.div>
+                            ))
+                        )}
+                    </AnimatePresence>
                 </div>
-            </div>
+            </motion.div>
+            
+            {/* Bill Modal */}
+            {selectedSessionForBill && (
+                <SessionBillModal
+                  sessionId={selectedSessionForBill.id}
+                  tableNumber={selectedSessionForBill.table}
+                  sessionName={selectedSessionForBill.name}
+                  onClose={() => setSelectedSessionForBill(null)}
+                />
+            )}
         </div>
     );
 }

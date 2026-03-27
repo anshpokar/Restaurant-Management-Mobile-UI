@@ -3,7 +3,8 @@ import { useOutletContext } from 'react-router-dom';
 import { AppHeader } from '@/components/design-system/app-header';
 import { Card, CardBody } from '@/components/design-system/card';
 import { Button } from '@/components/design-system/button';
-import { Download, LogOut, TrendingUp, Calendar, RefreshCw } from 'lucide-react';
+import { Download, LogOut, TrendingUp, Calendar, RefreshCw, BarChart3, PieChart, Layers } from 'lucide-react';
+import { motion } from 'motion/react';
 import { supabase } from '@/lib/supabase';
 import { startOfDay, endOfDay, subDays, format } from 'date-fns';
 import { toast } from 'sonner';
@@ -164,138 +165,184 @@ export function AdminReports() {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-4">
-      <AppHeader title="Reports & Settings" />
+    <div className="min-h-screen bg-muted/5 pb-20">
+      <AppHeader title="Intelligence Terminal" />
 
-      <div className="px-4 py-4 space-y-6">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="px-4 py-6 space-y-8 max-w-[1400px] mx-auto"
+      >
         {/* Date Range Picker */}
-        <Card>
-          <CardBody className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-foreground flex items-center gap-2">
-                <Calendar className="w-4 h-4" />
-                Date Range
+        <Card className="border-none shadow-xl shadow-black/5 rounded-[2.5rem] overflow-hidden">
+          <CardBody className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+                <Calendar className="w-3.5 h-3.5 text-brand-maroon" />
+                Audit Period
               </label>
-              <button onClick={fetchReportData} className="p-1 hover:bg-muted rounded text-xs flex items-center gap-1">
-                <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
-                Refresh
+              <button 
+                onClick={fetchReportData} 
+                className="p-2 hover:bg-muted rounded-xl transition-all group"
+                title="Synchronize Data"
+              >
+                <RefreshCw className={`w-4 h-4 text-brand-maroon ${loading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <input
-                type="date"
-                className="px-3 py-2 bg-muted border-none rounded-xl text-sm"
-                value={dateRange.start}
-                onChange={e => setDateRange({ ...dateRange, start: e.target.value })}
-              />
-              <input
-                type="date"
-                className="px-3 py-2 bg-muted border-none rounded-xl text-sm"
-                value={dateRange.end}
-                onChange={e => setDateRange({ ...dateRange, end: e.target.value })}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="relative">
+                <input
+                  type="date"
+                  className="w-full px-4 py-3 bg-muted/50 border-none rounded-2xl text-[10px] font-black uppercase tracking-widest focus:ring-2 focus:ring-brand-maroon/20 outline-none transition-all"
+                  value={dateRange.start}
+                  onChange={e => setDateRange({ ...dateRange, start: e.target.value })}
+                />
+              </div>
+              <div className="relative">
+                <input
+                  type="date"
+                  className="w-full px-4 py-3 bg-muted/50 border-none rounded-2xl text-[10px] font-black uppercase tracking-widest focus:ring-2 focus:ring-brand-maroon/20 outline-none transition-all"
+                  value={dateRange.end}
+                  onChange={e => setDateRange({ ...dateRange, end: e.target.value })}
+                />
+              </div>
             </div>
           </CardBody>
         </Card>
 
         {/* Revenue Summary */}
-        <Card>
-          <CardBody className="p-4">
-            <h3 className="text-sm font-black uppercase text-muted-foreground mb-4 tracking-tighter">Revenue Summary</h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground font-bold">Total Revenue</span>
-                <span className="font-black text-2xl text-foreground">₹{stats.totalRevenue.toLocaleString()}</span>
+        <Card className="border-none shadow-2xl shadow-brand-maroon/10 rounded-[2.5rem] bg-gradient-to-br from-brand-maroon to-red-900 text-white overflow-hidden relative">
+          <CardBody className="p-8 relative z-10">
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.3em] opacity-80">Fiscal Performance</h3>
+              <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-md">
+                <TrendingUp className="w-6 h-6" />
               </div>
-              <div className="grid grid-cols-2 gap-4 pt-2">
-                <div className="p-3 bg-muted rounded-2xl">
-                  <p className="text-[10px] font-black text-muted-foreground uppercase opacity-60">Total Orders</p>
-                  <p className="text-lg font-black">{stats.totalOrders}</p>
-                </div>
-                <div className="p-3 bg-muted rounded-2xl">
-                  <p className="text-[10px] font-black text-muted-foreground uppercase opacity-60">Avg. Value</p>
-                  <p className="text-lg font-black">₹{Math.round(stats.avgOrderValue)}</p>
-                </div>
+            </div>
+            
+            <div className="space-y-6">
+              <div>
+                <span className="text-[9px] font-black uppercase tracking-widest opacity-60">Total Verified Revenue</span>
+                <p className="text-4xl font-black tracking-tighter mt-1">₹{stats.totalRevenue.toLocaleString()}</p>
               </div>
-              <div className="flex items-center gap-2 pt-2 border-t border-divider">
-                <TrendingUp className="w-4 h-4 text-green-600" />
-                <span className="text-xs font-black text-green-600 uppercase tracking-tighter">Performance Optimized</span>
+              
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/10">
+                <div className="space-y-1">
+                  <p className="text-[9px] font-black uppercase tracking-widest opacity-60">Volume</p>
+                  <p className="text-xl font-black">{stats.totalOrders} <span className="text-[10px] opacity-40 uppercase font-bold ml-1">TXNS</span></p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[9px] font-black uppercase tracking-widest opacity-60">Efficiency</p>
+                  <p className="text-xl font-black">₹{Math.round(stats.avgOrderValue)} <span className="text-[10px] opacity-40 uppercase font-bold ml-1">AOV</span></p>
+                </div>
               </div>
             </div>
           </CardBody>
+          <div className="absolute -right-20 -bottom-20 w-64 h-64 bg-white/5 rounded-full blur-3xl" />
         </Card>
 
-        {/* Best Selling Items */}
-        <Card>
-          <CardBody className="p-4">
-            <h3 className="text-sm font-black uppercase text-muted-foreground mb-4 tracking-tighter">Best Selling Items</h3>
-            <div className="space-y-4">
-              {bestSellers.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic">No sales data for this period</p>
-              ) : (
-                bestSellers.map((item, index) => (
-                  <div key={index} className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-bold text-foreground">{item.name}</p>
-                      <p className="text-[10px] font-black text-muted-foreground uppercase opacity-60">{item.orders} unit{item.orders !== 1 ? 's' : ''} sold</p>
-                    </div>
-                    <span className="font-black text-foreground">₹{item.revenue.toLocaleString()}</span>
-                  </div>
-                ))
-              )}
-            </div>
-          </CardBody>
-        </Card>
-
-        {/* Order Type Distribution */}
-        <Card>
-          <CardBody className="p-4">
-            <h3 className="text-sm font-black uppercase text-muted-foreground mb-4 tracking-tighter">Order Type Distribution</h3>
-            <div className="space-y-4">
-              {[
-                { label: 'Dine-in', key: 'dine_in' as const, color: 'bg-primary' },
-                { label: 'Delivery', key: 'delivery' as const, color: 'bg-blue-500' },
-                { label: 'Takeaway', key: 'takeaway' as const, color: 'bg-orange-500' },
-              ].map((type) => (
-                <div key={type.key} className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-muted-foreground">{type.label}</span>
-                  <div className="flex items-center gap-3 flex-1 justify-end ml-4">
-                    <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
-                      <div 
-                        className={`h-full ${type.color} rounded-full transition-all duration-500`} 
-                        style={{ width: `${distribution[type.key]}%` }}
-                      ></div>
-                    </div>
-                    <span className="text-xs font-black text-foreground w-8 text-right">{distribution[type.key]}%</span>
-                  </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Best Selling Items */}
+          <Card className="border-none shadow-xl shadow-black/5 rounded-[2.5rem] overflow-hidden">
+            <CardBody className="p-8">
+              <div className="flex items-center gap-3 mb-8">
+                <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-amber-600">
+                  <BarChart3 className="w-5 h-5" />
                 </div>
-              ))}
-            </div>
-          </CardBody>
-        </Card>
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">High Velocity Inventory</h3>
+              </div>
+              
+              <div className="space-y-6">
+                {bestSellers.length === 0 ? (
+                  <div className="py-12 text-center">
+                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">Awaiting data stream...</p>
+                  </div>
+                ) : (
+                  bestSellers.map((item, index) => (
+                    <motion.div 
+                      key={index}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      className="flex items-center justify-between group"
+                    >
+                      <div className="flex-1">
+                        <p className="text-sm font-black text-foreground tracking-tight group-hover:text-brand-maroon transition-colors">{item.name}</p>
+                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest opacity-60 mt-0.5">{item.orders} COMPLETED ORDERS</p>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-black text-brand-maroon">₹{item.revenue.toLocaleString()}</span>
+                      </div>
+                    </motion.div>
+                  ))
+                )}
+              </div>
+            </CardBody>
+          </Card>
+
+          {/* Order Type Distribution */}
+          <Card className="border-none shadow-xl shadow-black/5 rounded-[2.5rem] overflow-hidden">
+            <CardBody className="p-8">
+              <div className="flex items-center gap-3 mb-8">
+                <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
+                  <PieChart className="w-5 h-5" />
+                </div>
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Service Distribution</h3>
+              </div>
+              
+              <div className="space-y-8">
+                {[
+                  { label: 'Dine-in Experience', key: 'dine_in' as const, color: 'bg-brand-maroon', icon: <Layers className="w-3 h-3" /> },
+                  { label: 'Logistics / Delivery', key: 'delivery' as const, color: 'bg-blue-500', icon: <LogOut className="w-3 h-3" /> },
+                  { label: 'Quick Takeaway', key: 'takeaway' as const, color: 'bg-amber-500', icon: <RefreshCw className="w-3 h-3" /> },
+                ].map((type) => (
+                  <div key={type.key} className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{type.label}</span>
+                      </div>
+                      <span className="text-[10px] font-black text-foreground">{distribution[type.key]}%</span>
+                    </div>
+                    <div className="h-2.5 bg-muted rounded-full overflow-hidden shadow-inner">
+                      <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${distribution[type.key]}%` }}
+                        className={`h-full ${type.color} rounded-full shadow-lg`}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardBody>
+          </Card>
+        </div>
 
         {/* Export Options */}
-        <div className="grid grid-cols-2 gap-3">
-          <Button variant="outline" className="h-12 rounded-xl" onClick={exportToCSV}>
-            <Download className="w-4 h-4 mr-2" />
-            CSV REPORT
+        <div className="grid grid-cols-2 gap-4">
+          <Button variant="outline" className="h-16 rounded-2xl border-2 font-black text-[10px] tracking-[0.2em] transition-all hover:bg-muted active:scale-95" onClick={exportToCSV}>
+            <Download className="w-4 h-4 mr-3" />
+            GENERATE CSV
           </Button>
-          <Button variant="outline" className="h-12 rounded-xl" onClick={() => toast.info('Advanced PDF Export coming in next update')}>
-            <Download className="w-4 h-4 mr-2" />
-            PDF PREVIEW
+          <Button variant="outline" className="h-16 rounded-2xl border-2 font-black text-[10px] tracking-[0.2em] transition-all hover:bg-muted active:scale-95" onClick={() => toast.info('Advanced Audit PDF requires higher clearance')}>
+            <Download className="w-4 h-4 mr-3" />
+            AUDIT TRAIL
           </Button>
         </div>
 
         {/* Logout */}
-        <Button
-          variant="outline"
-          className="w-full h-14 !text-destructive !border-destructive hover:!bg-destructive/10 rounded-2xl font-black uppercase tracking-widest mt-4"
-          onClick={onLogout}
-        >
-          <LogOut className="w-5 h-5 mr-3" />
-          Logout Terminal
-        </Button>
-      </div>
+        <div className="pt-8 flex justify-center">
+          <button
+            className="group flex items-center gap-4 px-8 py-4 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-[2rem] transition-all active:scale-95"
+            onClick={onLogout}
+          >
+            <div className="w-10 h-10 bg-white rounded-xl shadow-lg shadow-rose-200 flex items-center justify-center group-hover:rotate-12 transition-transform">
+              <LogOut className="w-5 h-5" />
+            </div>
+            <span className="font-black text-[10px] uppercase tracking-[0.3em]">Terminate Session</span>
+          </button>
+        </div>
+      </motion.div>
     </div>
   );
 }

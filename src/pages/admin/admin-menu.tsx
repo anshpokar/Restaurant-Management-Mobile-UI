@@ -7,6 +7,7 @@ import { Plus, Edit, Trash2, ToggleLeft, ToggleRight, RefreshCw, X, Star } from 
 
 import { supabase, type MenuItem } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { motion, AnimatePresence } from 'motion/react';
 
 
 export function AdminMenu() {
@@ -164,18 +165,31 @@ export function AdminMenu() {
       <AppHeader
         title="Menu Management"
         actions={
-          <div className="flex gap-2">
-            <button onClick={fetchMenu} className="p-2 hover:bg-muted rounded-full">
-              <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+          <div className="flex gap-3">
+            <button 
+              onClick={fetchMenu} 
+              className="p-2.5 hover:bg-muted rounded-2xl transition-all group"
+              title="Refresh Menu"
+            >
+              <RefreshCw className={`w-5 h-5 text-brand-maroon ${loading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
             </button>
-            <Button size="sm" onClick={() => setIsAdding(true)}>
-              <Plus className="w-4 h-4 mr-1" /> Add Item
+            <Button 
+              size="sm" 
+              onClick={() => setIsAdding(true)}
+              className="rounded-2xl bg-brand-maroon hover:bg-brand-maroon/90 shadow-lg shadow-brand-maroon/20 font-black px-4"
+            >
+              <Plus className="w-4 h-4 mr-2" /> ADD DISH
             </Button>
           </div>
         }
       />
 
-      <div className="px-4 py-4 space-y-4">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="px-4 py-6 space-y-8 max-w-[1400px] mx-auto"
+      >
         {/* Filters */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
@@ -188,14 +202,14 @@ export function AdminMenu() {
               {showOnlyAvailable ? <ToggleRight className="w-5 h-5 text-primary" /> : <ToggleLeft className="w-5 h-5 text-muted-foreground" />}
             </button>
           </div>
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+          <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide px-1">
             {categories.map((category) => (
               <button
                 key={category}
                 onClick={() => setSelectedCategory(category)}
-                className={`px-4 py-2 rounded-xl text-xs font-black whitespace-nowrap transition-all border-2 ${selectedCategory === category
-                    ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20'
-                    : 'bg-card border-transparent text-muted-foreground hover:border-muted'
+                className={`px-6 py-2.5 rounded-2xl text-[10px] font-black whitespace-nowrap transition-all border-2 tracking-widest ${selectedCategory === category
+                    ? 'bg-brand-maroon border-brand-maroon text-white shadow-xl shadow-brand-maroon/20 scale-105'
+                    : 'bg-white border-transparent text-muted-foreground hover:bg-muted/50 hover:border-muted'
                   }`}
               >
                 {category.toUpperCase()}
@@ -205,83 +219,106 @@ export function AdminMenu() {
         </div>
 
         {/* Add Item Form Overlay */}
-        {isAdding && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-            <Card className="w-full max-w-md border-none shadow-2xl animate-in zoom-in-95 duration-200">
-              <CardBody className="p-6 space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-xl font-black">{editingItem ? 'Edit Dish' : 'Add New Dish'}</h3>
-                  <button onClick={() => { setIsAdding(false); setEditingItem(null); }} className="p-2 hover:bg-muted rounded-full">
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-
-                <form onSubmit={handleSaveItem} className="space-y-4">
-                  <div className="space-y-1">
-                    <label className="text-xs font-black text-muted-foreground uppercase">Dish Name</label>
-                    <input
-                      required
-                      className="w-full px-4 py-3 bg-muted border-none rounded-xl focus:ring-2 focus:ring-primary outline-none"
-                      value={newItem.name}
-                      onChange={e => setNewItem({ ...newItem, name: e.target.value })}
-                      placeholder="e.g. Paneer Butter Masala"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-xs font-black text-muted-foreground uppercase">Price (₹)</label>
-                      <input
-                        required
-                        type="number"
-                        className="w-full px-4 py-3 bg-muted border-none rounded-xl focus:ring-2 focus:ring-primary outline-none"
-                        value={newItem.price}
-                        onChange={e => setNewItem({ ...newItem, price: e.target.value })}
-                        placeholder="299"
-                      />
+        <AnimatePresence>
+          {isAdding && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                className="w-full max-w-md"
+              >
+                <Card className="border-none shadow-2xl overflow-hidden rounded-[2.5rem]">
+                  <div className="bg-brand-maroon p-6 text-white flex justify-between items-center">
+                    <div>
+                      <h3 className="text-xl font-black uppercase tracking-tight">{editingItem ? 'Edit Dish' : 'Add New Dish'}</h3>
+                      <p className="text-[10px] font-bold opacity-75 uppercase tracking-widest mt-1">Menu Management System</p>
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-black text-muted-foreground uppercase">Icon/Emoji</label>
-                      <input
-                        required
-                        className="w-full px-4 py-3 bg-muted border-none rounded-xl text-center text-xl focus:ring-2 focus:ring-primary outline-none"
-                        value={newItem.image}
-                        onChange={e => setNewItem({ ...newItem, image: e.target.value })}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-black text-muted-foreground uppercase">Category</label>
-                    <select
-                      required
-                      className="w-full px-4 py-3 bg-muted border-none rounded-xl focus:ring-2 focus:ring-primary outline-none"
-                      value={newItem.category}
-                      onChange={e => setNewItem({ ...newItem, category: e.target.value })}
+                    <button 
+                      onClick={() => { setIsAdding(false); setEditingItem(null); }} 
+                      className="p-2 hover:bg-white/20 rounded-2xl transition-colors"
                     >
-                      {formCategories.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 bg-muted rounded-xl">
-                    <span className="font-bold text-sm">Vegetarian</span>
-                    <button
-                      type="button"
-                      onClick={() => setNewItem({ ...newItem, veg: !newItem.veg })}
-                      className="transition-all"
-                    >
-                      {newItem.veg ? <ToggleRight className="w-8 h-8 text-primary" /> : <ToggleLeft className="w-8 h-8 text-muted-foreground" />}
+                      <X className="w-5 h-5" />
                     </button>
                   </div>
+                  
+                  <CardBody className="p-8 space-y-6">
+                    <form onSubmit={handleSaveItem} className="space-y-6">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Dish Name</label>
+                        <input
+                          required
+                          className="w-full px-6 py-4 bg-muted/50 border-none rounded-2xl focus:ring-2 focus:ring-brand-maroon/20 outline-none font-bold transition-all"
+                          value={newItem.name}
+                          onChange={e => setNewItem({ ...newItem, name: e.target.value })}
+                          placeholder="e.g. Paneer Butter Masala"
+                        />
+                      </div>
 
-                  <Button type="submit" className="w-full h-12 text-lg font-black">
-                    {editingItem ? 'UPDATE DISH' : 'SAVE TO MENU'}
-                  </Button>
-                </form>
-              </CardBody>
-            </Card>
-          </div>
-        )}
+                      <div className="grid grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Price (₹)</label>
+                          <input
+                            required
+                            type="number"
+                            className="w-full px-6 py-4 bg-muted/50 border-none rounded-2xl focus:ring-2 focus:ring-brand-maroon/20 outline-none font-black transition-all"
+                            value={newItem.price}
+                            onChange={e => setNewItem({ ...newItem, price: e.target.value })}
+                            placeholder="299"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1 text-center block">Icon</label>
+                          <input
+                            required
+                            className="w-full px-6 py-4 bg-muted/50 border-none rounded-2xl text-center text-2xl focus:ring-2 focus:ring-brand-maroon/20 outline-none transition-all"
+                            value={newItem.image}
+                            onChange={e => setNewItem({ ...newItem, image: e.target.value })}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Category</label>
+                        <select
+                          required
+                          className="w-full px-6 py-4 bg-muted/50 border-none rounded-2xl focus:ring-2 focus:ring-brand-maroon/20 outline-none font-bold appearance-none transition-all"
+                          value={newItem.category}
+                          onChange={e => setNewItem({ ...newItem, category: e.target.value })}
+                        >
+                          {formCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+
+                      <div className="flex items-center justify-between p-4 bg-muted/30 rounded-2xl border border-dashed border-muted-foreground/20">
+                        <div>
+                          <p className="font-black text-xs uppercase tracking-tight">Vegetarian Only</p>
+                          <p className="text-[9px] font-bold text-muted-foreground uppercase mt-0.5">Toggle dietary preference</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setNewItem({ ...newItem, veg: !newItem.veg })}
+                          className="transition-all active:scale-90"
+                        >
+                          {newItem.veg ? <ToggleRight className="w-10 h-10 text-brand-maroon" /> : <ToggleLeft className="w-10 h-10 text-muted-foreground/50" />}
+                        </button>
+                      </div>
+
+                      <Button type="submit" className="w-full h-16 text-sm font-black tracking-[0.2em] bg-brand-maroon hover:bg-brand-maroon/90 shadow-xl shadow-brand-maroon/20 rounded-2xl">
+                        {editingItem ? 'UPDATE TRANSACTION' : 'CONFIRM TO MENU'}
+                      </Button>
+                    </form>
+                  </CardBody>
+                </Card>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Menu Items Grid */}
         {loading ? (
@@ -290,63 +327,78 @@ export function AdminMenu() {
             <p className="font-bold">Refreshing menu...</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3 pb-8">
-          {items
-            .filter(item => selectedCategory === 'All' || item.category === selectedCategory)
-            .filter(item => !showOnlyAvailable || item.is_available)
-            .map((item) => (
-              <Card key={item.id} className={`overflow-hidden border-none shadow-sm transition-all active:scale-95 ${!item.is_available ? 'opacity-60 grayscale-[0.5]' : ''}`}>
-                <CardBody className="p-3 flex flex-col h-full">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{item.category}</p>
-                    {item.veg ? <VegBadge /> : <div className="inline-flex items-center justify-center w-4 h-4 border border-red-600 rounded bg-white"><div className="w-1.5 h-1.5 bg-red-600 rounded-full"></div></div>}
-                  </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-12">
+            <AnimatePresence mode="popLayout">
+              {items
+                .filter(item => selectedCategory === 'All' || item.category === selectedCategory)
+                .filter(item => !showOnlyAvailable || item.is_available)
+                .map((item, index) => (
+                  <motion.div
+                    key={item.id}
+                    layout
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ duration: 0.2, delay: index * 0.05 }}
+                  >
+                    <Card className={`overflow-hidden border-none shadow-lg shadow-black/5 transition-all group rounded-[2rem] h-full flex flex-col hover:shadow-2xl hover:shadow-brand-maroon/5 ${!item.is_available ? 'opacity-60 grayscale-[0.5]' : ''}`}>
+                      <CardBody className="p-5 flex flex-col h-full space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-inner ${item.is_available ? 'bg-muted/50' : 'bg-red-50'}`}>
+                            {item.image || '🍽️'}
+                          </div>
+                          {item.veg ? <VegBadge /> : <div className="inline-flex items-center justify-center w-5 h-5 border-2 border-red-600 rounded bg-white"><div className="w-2 h-2 bg-red-600 rounded-full"></div></div>}
+                        </div>
 
-                  <div className="flex-1 space-y-1 min-h-[60px]">
-                    <h4 className="font-black text-xs text-foreground line-clamp-1">{item.name}</h4>
-                    <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">{item.category}</p>
-                    <div className="flex items-center justify-between mt-1">
-                       <span className="text-sm font-black text-primary">₹{item.price}</span>
-                       <button
-                         onClick={(e) => { e.stopPropagation(); toggleSpecial(item); }}
-                         className={`p-1.5 rounded-lg border shadow-sm transition-all active:scale-90 ${item.is_special ? 'bg-yellow-50 border-yellow-200 text-yellow-600 shadow-yellow-100' : 'bg-muted/50 border-transparent text-muted-foreground'}`}
-                         title={item.is_special ? "Remove from Specials" : "Mark as Special"}
-                       >
-                         <Star className={`w-3.5 h-3.5 ${item.is_special ? 'fill-yellow-500' : ''}`} />
-                       </button>
-                    </div>
-                  </div>
+                        <div className="flex-1 space-y-1">
+                          <h4 className="font-black text-sm text-foreground leading-tight group-hover:text-brand-maroon transition-colors">{item.name}</h4>
+                          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">{item.category}</p>
+                          <div className="flex items-center justify-between mt-3">
+                             <span className="text-xl font-black text-brand-maroon">₹{item.price}</span>
+                             <button
+                               onClick={(e) => { e.stopPropagation(); toggleSpecial(item); }}
+                               className={`p-2 rounded-xl border transition-all active:scale-90 ${item.is_special ? 'bg-amber-50 border-amber-200 text-amber-600 shadow-lg shadow-amber-100' : 'bg-muted/30 border-transparent text-muted-foreground'}`}
+                               title={item.is_special ? "Remove from Specials" : "Mark as Special"}
+                             >
+                               <Star className={`w-4 h-4 ${item.is_special ? 'fill-amber-500' : ''}`} />
+                             </button>
+                          </div>
+                        </div>
 
-                  <div className="flex items-center gap-2 mt-3 pt-2 border-t border-divider">
-                    <button
-                      onClick={() => toggleAvailability(item)}
-                      className={`flex-1 flex items-center justify-center py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-colors ${
-                        item.is_available ? 'bg-green-50 border-green-200 text-green-600' : 'bg-red-50 border-red-200 text-red-500'
-                      }`}
-                    >
-                      {item.is_available ? 'AVAIL' : 'SOLD'}
-                    </button>
-                    <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                      <button 
-                        onClick={() => openEditModal(item)}
-                        className="p-1.5 hover:bg-primary/10 hover:border-primary/30 rounded-lg transition-colors border border-border"
-                      >
-                        <Edit className="w-3 h-3 text-foreground" />
-                      </button>
-                      <button
-                        onClick={() => deleteItem(item.id)}
-                        className="p-1.5 hover:bg-red-50 rounded-lg transition-colors border border-red-100"
-                      >
-                        <Trash2 className="w-3 h-3 text-red-500" />
-                      </button>
-                    </div>
-                  </div>
-                </CardBody>
-              </Card>
-            ))}
-        </div>
-      )}
-      </div>
+                        <div className="flex items-center gap-3 mt-auto pt-4 border-t border-dashed border-border">
+                          <button
+                            onClick={() => toggleAvailability(item)}
+                            className={`flex-1 flex items-center justify-center py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 transition-all active:scale-95 ${
+                              item.is_available 
+                                ? 'bg-green-50 border-green-100 text-green-600 hover:bg-green-100' 
+                                : 'bg-red-50 border-red-100 text-red-500 hover:bg-red-100'
+                            }`}
+                          >
+                            {item.is_available ? 'AVAILABLE' : 'SOLD OUT'}
+                          </button>
+                          <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                            <button 
+                              onClick={() => openEditModal(item)}
+                              className="p-2.5 hover:bg-brand-maroon/5 hover:border-brand-maroon/20 rounded-xl transition-all border border-border group/btn"
+                            >
+                              <Edit className="w-4 h-4 text-muted-foreground group-hover/btn:text-brand-maroon" />
+                            </button>
+                            <button
+                              onClick={() => deleteItem(item.id)}
+                              className="p-2.5 hover:bg-red-50 hover:border-red-200 rounded-xl transition-all border border-border group/del"
+                            >
+                              <Trash2 className="w-4 h-4 text-muted-foreground group-hover/del:text-red-500" />
+                            </button>
+                          </div>
+                        </div>
+                      </CardBody>
+                    </Card>
+                  </motion.div>
+                ))}
+            </AnimatePresence>
+          </div>
+        )}
+      </motion.div>
     </div>
   );
 }

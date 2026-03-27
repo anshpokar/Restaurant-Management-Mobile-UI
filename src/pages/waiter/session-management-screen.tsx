@@ -5,10 +5,11 @@ import { Card, CardBody } from '@/components/design-system/card';
 import { Button } from '@/components/design-system/button';
 import { Badge } from '@/components/design-system/badge';
 import { supabase } from '@/lib/supabase';
-import { ShoppingBag, Clock, Plus, Utensils, User, Mail, Phone } from 'lucide-react';
+import { ShoppingBag, Plus, Utensils, User, Receipt, Shield } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useCart } from '@/contexts/cart-context';
 import { SessionPaymentModal } from '@/components/customer/SessionPaymentModal';
+import { SessionBillModal } from '@/components/admin/SessionBillModal';
 import { toast } from 'sonner';
 
 export function WaiterSessionManagementScreen() {
@@ -21,6 +22,7 @@ export function WaiterSessionManagementScreen() {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showBillModal, setShowBillModal] = useState(false);
 
   useEffect(() => {
     if (sessionId) {
@@ -167,200 +169,163 @@ export function WaiterSessionManagementScreen() {
   }, 0);
 
   return (
-    <div className="min-h-screen bg-background pb-4">
-      <AppHeader title={`Session: ${session.session_name}`} />
+    <div className="min-h-screen bg-warm-off-white pb-4">
+      <AppHeader title={session.session_name} showBack onBack={() => navigate('/waiter')} />
 
-      <div className="px-4 py-4 space-y-4">
-        {/* Session Info Card */}
-        <Card>
-          <CardBody className="p-4 bg-primary/5 border-primary/20">
-            <div className="space-y-3">
-              {/* Table Info */}
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                  <Utensils className="w-5 h-5 text-primary" />
+      <div className="px-4 py-8 space-y-8">
+        {/* Session Identity Card */}
+        <Card className="border-none shadow-premium rounded-[2rem] overflow-hidden bg-white">
+          <CardBody className="p-6">
+            <div className="flex items-start justify-between mb-6">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 bg-brand-maroon/10 rounded-2xl flex items-center justify-center">
+                  <Utensils className="w-7 h-7 text-brand-maroon" />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-primary uppercase">Table</p>
-                  <p className="text-lg font-black text-foreground">
+                  <p className="text-[10px] font-black text-brand-maroon uppercase tracking-widest mb-0.5">Active Station</p>
+                  <h2 className="text-2xl font-black text-foreground">
                     Table {session.restaurant_tables?.table_number}
-                  </p>
+                  </h2>
                 </div>
               </div>
-
-              {/* Session Status */}
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-green-500/10 rounded-full flex items-center justify-center">
-                  <Clock className="w-5 h-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-green-600 uppercase">Status</p>
-                  <div className="mt-1">
-                    <Badge
-                      variant={session.session_status === 'active' ? 'success' : 'secondary'}
-                    >
-                      {session.session_status.toUpperCase()}
-                    </Badge>
-                  </div>
-                </div>
-              </div>
-
-              {/* Customer Info */}
-              {session.user_id && (
-                <>
-                  <div className="flex items-center gap-3 pt-3 border-t border-divider">
-                    <div className="w-10 h-10 bg-blue-500/10 rounded-full flex items-center justify-center">
-                      <User className="w-5 h-5 text-blue-600" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-xs font-bold text-blue-600 uppercase">Customer</p>
-                      <p className="text-sm font-medium text-foreground">
-                        {session.customer_name || 'Registered Customer'}
-                      </p>
-                    </div>
-                  </div>
-
-                  {session.customer_email && (
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-purple-500/10 rounded-full flex items-center justify-center">
-                        <Mail className="w-5 h-5 text-purple-600" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-xs font-bold text-purple-600 uppercase">Email</p>
-                        <p className="text-sm font-medium text-foreground">
-                          {session.customer_email}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {session.customer_phone && (
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-orange-500/10 rounded-full flex items-center justify-center">
-                        <Phone className="w-5 h-5 text-orange-600" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-xs font-bold text-orange-600 uppercase">Phone</p>
-                        <p className="text-sm font-medium text-foreground">
-                          {session.customer_phone}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
+              <Badge variant="paid" className="bg-brand-gold/20 text-brand-gold border-brand-gold/30 font-black text-[10px] px-3">
+                {session.session_status.toUpperCase()}
+              </Badge>
             </div>
-          </CardBody>
-        </Card>
 
-        {/* Order Summary */}
-        <Card>
-          <CardBody className="p-4">
-            <div className="flex items-start gap-3 mb-4">
-              <ShoppingBag className="w-5 h-5 text-primary mt-0.5" />
-              <div className="flex-1">
-                <h3 className="font-bold text-foreground mb-1">Order Summary</h3>
-                <p className="text-sm text-muted-foreground">
-                  Total orders: {orders.length} | Items: {totalItems}
+            <div className="grid grid-cols-2 gap-4 pt-6 border-t border-divider">
+              <div className="space-y-1">
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Protocol</p>
+                <p className="text-sm font-bold text-foreground truncate">
+                  {session.user_id ? 'Authenticated' : 'Direct Instance'}
+                </p>
+              </div>
+              <div className="space-y-1 text-right">
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Start Time</p>
+                <p className="text-sm font-bold text-foreground">
+                  {new Date(session.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
               </div>
             </div>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-surface p-3 rounded-xl border border-border">
-                <p className="text-xs text-muted-foreground mb-1">Total Amount</p>
-                <p className="text-xl font-black text-foreground">₹{totalAmount.toFixed(2)}</p>
-              </div>
-              <div className="bg-surface p-3 rounded-xl border border-border">
-                <p className="text-xs text-muted-foreground mb-1">Payment</p>
-                <div className="mt-1">
-                  <Badge
-                    variant={session.payment_status === 'paid' ? 'paid' : 'pending'}
-                  >
-                    {session.payment_status.toUpperCase()}
-                  </Badge>
+            {session.user_id && (
+              <div className="mt-6 p-4 bg-warm-beige rounded-2xl border border-divider flex items-center gap-3">
+                <div className="w-10 h-10 bg-white rounded-xl shadow-sm flex items-center justify-center">
+                  <User className="w-5 h-5 text-brand-maroon" />
+                </div>
+                <div className="flex-1 overflow-hidden">
+                  <p className="text-sm font-black text-foreground truncate">{session.customer_name || 'Protocol Guest'}</p>
+                  <p className="text-[10px] font-medium text-muted-foreground truncate">{session.customer_email || 'No identity hash'}</p>
                 </div>
               </div>
-            </div>
+            )}
           </CardBody>
         </Card>
 
-        {/* Recent Orders */}
+        {/* Financial Matrix */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="text-xs font-black text-brand-maroon uppercase tracking-[0.2em]">Financial Matrix</h3>
+            <div className="h-[1px] flex-1 mx-4 bg-brand-maroon/10" />
+            <Receipt className="w-4 h-4 text-brand-maroon opacity-40" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Card className="border-none bg-white shadow-premium rounded-[1.5rem] p-5">
+              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">Liability</p>
+              <p className="text-3xl font-black text-foreground">₹{totalAmount.toFixed(0)}</p>
+              <div className="mt-2 h-1 w-8 bg-brand-maroon rounded-full" />
+            </Card>
+            <Card className="border-none bg-white shadow-premium rounded-[1.5rem] p-5">
+              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">Payload</p>
+              <p className="text-3xl font-black text-foreground">{totalItems}</p>
+              <p className="text-[10px] font-bold text-muted-foreground mt-1">TOTAL ITEMS</p>
+            </Card>
+          </div>
+        </div>
+
+        {/* Order Registry */}
         {orders.length > 0 && (
-          <Card>
-            <CardBody className="p-4">
-              <h4 className="font-bold text-foreground mb-3">Recent Orders</h4>
-              <div className="space-y-2">
-                {orders.slice(0, 5).map((order, index) => (
-                  <div key={order.id} className="flex items-center justify-between p-2 bg-surface rounded-lg border border-border">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between px-1">
+              <h3 className="text-xs font-black text-brand-maroon uppercase tracking-[0.2em]">Order Registry</h3>
+              <div className="h-[1px] flex-1 mx-4 bg-brand-maroon/10" />
+              <ShoppingBag className="w-4 h-4 text-brand-maroon opacity-40" />
+            </div>
+
+            <div className="space-y-3">
+              {orders.slice(0, 5).map((order, index) => (
+                <div key={order.id} className="group bg-white p-4 rounded-2xl border border-divider shadow-sm hover:shadow-md transition-all flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-warm-beige rounded-xl flex items-center justify-center font-black text-brand-maroon text-xs">
+                      #{orders.length - index}
+                    </div>
                     <div>
-                      <p className="text-sm font-medium text-foreground">Order #{index + 1}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(order.created_at).toLocaleString()}
+                      <p className="text-sm font-black text-foreground">Registry Entry</p>
+                      <p className="text-[10px] font-medium text-muted-foreground">
+                        {new Date(order.created_at).toLocaleTimeString()}
                       </p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold text-foreground">₹{order.total_amount}</p>
-                      <div className="mt-1">
-                        <Badge
-                          variant={order.status === 'completed' ? 'success' : order.status === 'placed' ? 'info' : 'secondary'}
-                          size="sm"
-                        >
-                          {order.status}
-                        </Badge>
-                      </div>
-                    </div>
                   </div>
-                ))}
-              </div>
-            </CardBody>
-          </Card>
+                  <div className="text-right">
+                    <p className="text-sm font-black text-brand-maroon">₹{order.total_amount}</p>
+                    <Badge
+                      variant={order.status === 'completed' ? 'success' : 'pending'}
+                      size="sm"
+                      className="mt-1 text-[9px] font-black"
+                    >
+                      {order.status.toUpperCase()}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
 
-        {/* Action Buttons */}
-        <div className="space-y-3 pt-4">
+        {/* Operational Commands */}
+        <div className="grid gap-3 pt-4">
           <Button
             onClick={handleAddMoreItems}
-            className="w-full h-12"
-            size="lg"
+            className="w-full h-16 bg-brand-maroon hover:bg-[#5D1227] text-white rounded-[1.25rem] shadow-xl shadow-brand-maroon/20 font-black text-lg"
           >
-            <Plus className="w-5 h-5 mr-2" />
-            Add More Items
+            <Plus className="w-6 h-6 mr-2" />
+            APPEND ORDER
           </Button>
 
           <Button
             onClick={handleCloseSession}
-            variant="secondary"
-            className="w-full h-12"
-            size="lg"
-            disabled={session.session_status !== 'active' || orders.length === 0}
+            className="w-full h-16 bg-brand-gold hover:bg-[#B8962F] text-white rounded-[1.25rem] shadow-xl shadow-brand-gold/20 font-black text-lg"
+            disabled={session.session_status !== 'active' || (orders?.length || 0) === 0}
           >
-            Close & Pay Session
+            <Receipt className="w-6 h-6 mr-2" />
+            TERMINATE & PAY
           </Button>
 
           <Button
-            onClick={() => navigate('/waiter/dashboard')}
+            onClick={() => setShowBillModal(true)}
             variant="outline"
-            className="w-full h-12"
+            className="w-full h-14 border-2 border-brand-maroon/20 text-brand-maroon font-black rounded-2xl hover:bg-brand-maroon/5 mt-2"
+            disabled={(orders?.length || 0) === 0}
           >
-            Back to Dashboard
+            <Receipt className="w-5 h-5 mr-2" />
+            INVOICE PREVIEW
           </Button>
         </div>
 
-        {/* Admin Actions */}
+        {/* Security / Admin Controls */}
         {userProfile?.role === 'admin' && (
-          <div className="pt-4 border-t border-divider">
-            <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
-              <User className="w-4 h-4 text-primary" /> Admin Controls
-            </h3>
+          <div className="pt-8 space-y-4">
+            <div className="flex items-center gap-2 px-1">
+              <Shield className="w-4 h-4 text-destructive" />
+              <h3 className="text-xs font-black text-destructive uppercase tracking-widest">Command Override</h3>
+            </div>
             <Button
               variant="outline"
-              className="w-full border-red-200 text-red-600 hover:bg-red-50"
+              className="w-full h-14 border-2 border-destructive/20 text-destructive hover:bg-destructive/5 rounded-2xl font-black"
               onClick={async () => {
-                if (!confirm('ADMIN: Force vacate this table? This will not mark payment as completed.')) return;
+                if (!confirm('PROTOCOL OVERRIDE: Force vacate this station? Registry data may be compromised.')) return;
                 try {
-                  // 1. Mark the session as completed/cancelled
                   const { error: sessionError } = await supabase
                     .from('dine_in_sessions')
                     .update({
@@ -371,7 +336,6 @@ export function WaiterSessionManagementScreen() {
 
                   if (sessionError) throw sessionError;
 
-                  // 2. Clear the table
                   const { error: tableError } = await supabase
                     .from('restaurant_tables')
                     .update({
@@ -382,23 +346,22 @@ export function WaiterSessionManagementScreen() {
 
                   if (tableError) throw tableError;
 
-                  toast.success('Table vacated successfully');
-                  navigate('/admin/tables');
+                  toast.success('Station Vacated');
+                  navigate('/waiter/dashboard');
                 } catch (e: any) {
-                  console.error('Force vacate error:', e);
-                  toast.error(`Error: ${e.message || 'Failed to vacate table'}`);
+                  toast.error(`Override Failed: ${e.message}`);
                 }
               }}
             >
-              Force Vacate Table
+              FORCE VACATE STATION
             </Button>
           </div>
         )}
 
-        {/* Info Box */}
-        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
-          <p className="text-sm text-blue-800">
-            <strong>Note:</strong> Closing this session will initiate the payment process. The table will be marked as vacant once the payment is verified by the admin.
+        {/* Procedural Note */}
+        <div className="bg-brand-maroon/5 rounded-2xl p-5 border border-brand-maroon/10">
+          <p className="text-xs text-brand-maroon/70 font-medium leading-relaxed italic">
+            Note: Session termination initiates the financial reconciliation process. Station availability is restored post-verification.
           </p>
         </div>
       </div>
@@ -409,6 +372,15 @@ export function WaiterSessionManagementScreen() {
           sessionId={sessionId!}
           totalAmount={totalAmount}
           onClose={() => setShowPaymentModal(false)}
+        />
+      )}
+      {/* Bill Modal */}
+      {showBillModal && (
+        <SessionBillModal
+          sessionId={sessionId!}
+          tableNumber={session.restaurant_tables?.table_number}
+          sessionName={session.session_name}
+          onClose={() => setShowBillModal(false)}
         />
       )}
     </div>

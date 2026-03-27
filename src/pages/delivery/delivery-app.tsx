@@ -2,6 +2,7 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { BottomNav, BottomNavItem } from '@/components/design-system/bottom-nav';
 import { Truck, Package, User } from 'lucide-react';
 import { AppHeader } from '@/components/design-system/app-header';
+import { AnimatePresence, motion } from 'motion/react';
 
 import { Profile } from '@/lib/supabase';
 
@@ -27,8 +28,18 @@ export function DeliveryApp({ onLogout, profile }: DeliveryAppProps) {
     <div className="flex flex-col min-h-screen bg-background pb-16">
       <AppHeader title={activeTab === 'tasks' ? 'Delivery Tasks' : activeTab === 'history' ? 'Earnings History' : 'Profile'} />
 
-      <div className="flex-1 p-4 space-y-4 overflow-y-auto">
-        <Outlet context={{ onLogout, profile }} />
+      <div className="flex-1 p-4 space-y-4 overflow-y-auto no-scrollbar">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            transition={{ duration: 0.2 }}
+          >
+            <Outlet context={{ onLogout, profile }} />
+          </motion.div>
+        </AnimatePresence>
       </div>
 
       <BottomNav>

@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 
 import { supabase } from '../../lib/supabase';
 import { AppHeader } from '../../components/design-system/app-header';
 import { Button } from '../../components/design-system/button';
-import { Card } from '../../components/design-system/card';
+import { Card, CardBody } from '../../components/design-system/card';
+import { Badge } from '../../components/design-system/badge';
 import { MobileContainer } from '../../components/MobileContainer';
-import { Package, Truck, Clock, MapPin, Phone, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
+import { Package, Truck, Clock, MapPin, AlertCircle, CheckCircle, XCircle, UserCircle, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface Order {
   id: string;
@@ -248,20 +250,29 @@ export function DeliveryAssignmentScreen() {
 
   function getStatusBadge(status: string) {
     const badges = {
-      pending: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Pending' },
-      assigned: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Assigned' },
-      out_for_delivery: { bg: 'bg-purple-100', text: 'text-purple-800', label: 'Out for Delivery' },
-      delivered: { bg: 'bg-green-100', text: 'text-green-800', label: 'Delivered' }
+      pending: { variant: 'warning' as const, label: 'AWAITING DISPATCH' },
+      assigned: { variant: 'info' as const, label: 'RIDER ENGAGED' },
+      out_for_delivery: { variant: 'success' as const, label: 'IN TRANSIT' },
+      delivered: { variant: 'paid' as const, label: 'FULFILLED' }
     };
-    return badges[status as keyof typeof badges] || badges.pending;
+    const config = badges[status as keyof typeof badges] || badges.pending;
+    return (
+      <Badge 
+        variant={config.variant}
+        className="px-3 py-1 rounded-full text-[8px] font-black tracking-widest uppercase border-0"
+      >
+        {config.label}
+      </Badge>
+    );
   }
 
-  if (loading) {
+  if (loading && pendingOrders.length === 0) {
     return (
       <MobileContainer>
-        <AppHeader title="Delivery Assignment" />
-        <div className="flex items-center justify-center h-64">
-          <p className="text-gray-500">Loading orders...</p>
+        <AppHeader title="Dispatch Hub" />
+        <div className="flex flex-col items-center justify-center h-[60vh]">
+          <Loader2 className="w-10 h-10 animate-spin text-brand-maroon/20 mb-4" />
+          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">Synchronizing Fleet...</p>
         </div>
       </MobileContainer>
     );
@@ -269,231 +280,301 @@ export function DeliveryAssignmentScreen() {
 
   return (
     <MobileContainer>
-      <AppHeader title="Delivery Assignment" />
+      <AppHeader title="Dispatch Hub" />
       
-      <div className="p-4 space-y-4 pb-24">
-        {/* Stats */}
-        <div className="grid grid-cols-2 gap-3">
-          <Card className="bg-orange-50">
-            <div className="flex items-center gap-2">
-              <Package className="w-5 h-5 text-orange-600" />
-              <div>
-                <p className="text-2xl font-bold text-orange-900">{pendingOrders.length}</p>
-                <p className="text-xs text-orange-700">Pending Orders</p>
-              </div>
-            </div>
-          </Card>
-          <Card className="bg-blue-50">
-            <div className="flex items-center gap-2">
-              <Truck className="w-5 h-5 text-blue-600" />
-              <div>
-                <p className="text-2xl font-bold text-blue-900">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="p-4 space-y-8 pb-32 max-w-[1200px] mx-auto"
+      >
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 gap-4">
+          <motion.div whileHover={{ y: -5 }} transition={{ type: "spring", stiffness: 300 }}>
+            <Card className="bg-gradient-to-br from-brand-maroon to-red-900 text-white border-none shadow-xl shadow-brand-maroon/20 rounded-[2.5rem] overflow-hidden relative">
+              <CardBody className="p-6 relative z-10">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-white/10 rounded-xl backdrop-blur-md">
+                    <Package className="w-5 h-5" />
+                  </div>
+                  <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Pending Queue</p>
+                </div>
+                <p className="text-4xl font-black tracking-tighter">{pendingOrders.length}</p>
+              </CardBody>
+              <div className="absolute -right-8 -bottom-8 w-24 h-24 bg-white/5 rounded-full blur-2xl" />
+            </Card>
+          </motion.div>
+
+          <motion.div whileHover={{ y: -5 }} transition={{ type: "spring", stiffness: 300 }}>
+            <Card className="bg-white border-none shadow-xl shadow-black/5 rounded-[2.5rem] overflow-hidden">
+              <CardBody className="p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-emerald-50 rounded-xl text-emerald-600">
+                    <Truck className="w-5 h-5" />
+                  </div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Active Fleet</p>
+                </div>
+                <p className="text-4xl font-black tracking-tighter text-emerald-600">
                   {deliveryPersons.filter(dp => dp.is_available && dp.is_on_duty).length}
                 </p>
-                <p className="text-xs text-blue-700">Available Riders</p>
-              </div>
-            </div>
-          </Card>
+              </CardBody>
+            </Card>
+          </motion.div>
         </div>
 
         {/* Pending Orders List */}
-        <div>
-          <h2 className="text-lg font-semibold mb-3">Pending Delivery Orders</h2>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-[12px] font-black uppercase tracking-[0.2em] text-muted-foreground">Logistics Pipeline</h2>
+            <div className="px-3 py-1 bg-brand-maroon/5 rounded-full">
+              <span className="text-[10px] font-black text-brand-maroon uppercase tracking-widest">{pendingOrders.length} ORDERS</span>
+            </div>
+          </div>
           
-          {pendingOrders.length === 0 ? (
-            <Card className="text-center py-8">
-              <CheckCircle className="w-12 h-12 text-green-300 mx-auto mb-3" />
-              <p className="text-gray-600">All caught up! No pending deliveries.</p>
-            </Card>
-          ) : (
-            <div className="space-y-3">
-              {pendingOrders.map((order) => (
-                <Card key={order.id} className="space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="font-semibold text-gray-900">#{order.order_number}</h3>
-                        <span className={`px-2 py-0.5 text-xs rounded-full ${getStatusBadge(order.delivery_status).bg} ${getStatusBadge(order.delivery_status).text}`}>
-                          {getStatusBadge(order.delivery_status).label}
-                        </span>
-                      </div>
-                      
-                      <div className="space-y-1 text-sm text-gray-600">
-                        <div className="flex items-center gap-2">
-                          <MapPin className="w-4 h-4" />
-                          <span>{order.delivery_address}, {order.delivery_pincode}</span>
+          <AnimatePresence mode="popLayout">
+            {pendingOrders.length === 0 ? (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="text-center py-20 bg-white rounded-[3rem] border-2 border-dashed border-muted shadow-inner"
+              >
+                <CheckCircle className="w-16 h-16 text-emerald-200 mx-auto mb-6" />
+                <h3 className="text-[12px] font-black uppercase tracking-[0.3em] text-muted-foreground">Dispatch Complete</h3>
+                <p className="text-[10px] font-bold text-muted-foreground/60 uppercase mt-1">No pending deliveries detected</p>
+              </motion.div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {pendingOrders.map((order, index) => (
+                  <motion.div
+                    key={order.id}
+                    layout
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ delay: index * 0.05 }}
+                  >
+                    <Card className="shadow-xl shadow-black/5 border-none rounded-[2.5rem] group hover:shadow-2xl hover:shadow-brand-maroon/5 overflow-hidden transition-all duration-300">
+                      <CardBody className="p-6">
+                        <div className="flex items-start justify-between mb-6">
+                          <div className="flex items-center gap-4">
+                            <div className="w-14 h-14 rounded-2xl bg-brand-maroon/5 flex items-center justify-center text-brand-maroon shadow-inner">
+                              <Package className="w-7 h-7" />
+                            </div>
+                            <div>
+                              <h3 className="font-black text-foreground tracking-tight group-hover:text-brand-maroon transition-colors text-lg">#{order.order_number}</h3>
+                              <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest opacity-60 mt-0.5">EST. FULFILLMENT: {new Date(order.created_at).toLocaleTimeString()}</p>
+                            </div>
+                          </div>
+                          {getStatusBadge(order.delivery_status)}
                         </div>
                         
-                        {order.delivery_instructions && (
-                          <div className="flex items-start gap-2">
-                            <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                            <span className="text-gray-700">{order.delivery_instructions}</span>
+                        <div className="space-y-4 mb-6">
+                          <div className="flex items-start gap-3 p-4 bg-muted/30 rounded-3xl border border-dashed border-border/50">
+                            <MapPin className="w-4 h-4 text-brand-maroon mt-0.5" />
+                            <div>
+                              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Destination Address</p>
+                              <p className="text-xs font-bold text-foreground leading-relaxed">{order.delivery_address}, {order.delivery_pincode}</p>
+                            </div>
+                          </div>
+                          
+                          {order.delivery_instructions && (
+                            <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 rounded-2xl border border-amber-100">
+                              <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                              <span className="text-[10px] font-bold text-amber-800 uppercase tracking-tight">{order.delivery_instructions}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-between pt-6 border-t border-dashed border-border/50">
+                          <div>
+                            <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">Order Value</p>
+                            <p className="text-xl font-black text-foreground tracking-tighter">₹{order.total_amount}</p>
+                          </div>
+                          
+                          <div className="flex gap-2">
+                            {order.delivery_status === 'pending' && (
+                              <>
+                                <button
+                                  onClick={() => handleAutoAssignDelivery(order.id)}
+                                  disabled={assigningOrder === order.id}
+                                  className="px-4 py-3 bg-brand-maroon/5 hover:bg-brand-maroon/10 text-brand-maroon text-[9px] font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 disabled:opacity-50"
+                                >
+                                  {assigningOrder === order.id ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'AUTO DISPATCH'}
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setSelectedOrder(order);
+                                    setShowAssignModal(true);
+                                  }}
+                                  disabled={assigningOrder === order.id}
+                                  className="px-6 py-3 bg-brand-maroon text-white text-[9px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-brand-maroon/10 hover:shadow-brand-maroon/20 hover:-translate-y-0.5 transition-all active:scale-95 disabled:opacity-50"
+                                >
+                                  MANUAL ASSIGN
+                                </button>
+                              </>
+                            )}
+                            
+                            {order.delivery_status === 'assigned' && (
+                              <button
+                                onClick={() => handleMarkPickedUp(order.id)}
+                                className="px-8 py-3 bg-emerald-600 text-white text-[9px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-100 hover:shadow-emerald-200 hover:-translate-y-0.5 transition-all active:scale-95"
+                              >
+                                CONFIRM PICKUP
+                              </button>
+                            )}
+                            
+                            {order.delivery_status === 'out_for_delivery' && (
+                              <button
+                                onClick={() => handleMarkDelivered(order.id)}
+                                className="px-8 py-3 bg-emerald-600 text-white text-[9px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-100 hover:shadow-emerald-200 hover:-translate-y-0.5 transition-all active:scale-95"
+                              >
+                                COMPLETE DELIVERY
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {order.assigned_at && (
+                          <div className="flex items-center gap-2 text-[9px] font-black text-muted-foreground uppercase tracking-widest pt-4 opacity-40">
+                            <Clock className="w-3 h-3" />
+                            <span>PROTOCOL INITIATED • {new Date(order.assigned_at).toLocaleTimeString()}</span>
                           </div>
                         )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-3 border-t">
-                    <div className="text-sm">
-                      <p className="text-gray-600">Total</p>
-                      <p className="font-bold text-gray-900">₹{order.total_amount}</p>
-                    </div>
-                    
-                    <div className="flex gap-2">
-                      {order.delivery_status === 'pending' && (
-                        <>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => handleAutoAssignDelivery(order.id)}
-                            disabled={assigningOrder === order.id}
-                          >
-                            Auto Assign
-                          </Button>
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedOrder(order);
-                              setShowAssignModal(true);
-                            }}
-                            disabled={assigningOrder === order.id}
-                          >
-                            Assign Rider
-                          </Button>
-                        </>
-                      )}
-                      
-                      {order.delivery_status === 'assigned' && (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => handleMarkPickedUp(order.id)}
-                        >
-                          Mark Picked Up
-                        </Button>
-                      )}
-                      
-                      {order.delivery_status === 'out_for_delivery' && (
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          onClick={() => handleMarkDelivered(order.id)}
-                        >
-                          Mark Delivered
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  {order.assigned_at && (
-                    <div className="flex items-center gap-2 text-xs text-gray-500 pt-2">
-                      <Clock className="w-3 h-3" />
-                      Assigned at {new Date(order.assigned_at).toLocaleTimeString()}
-                    </div>
-                  )}
-                </Card>
-              ))}
-            </div>
-          )}
+                      </CardBody>
+                    </Card>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Delivery Persons List */}
-        <div>
-          <h2 className="text-lg font-semibold mb-3">Delivery Team</h2>
+        <div className="space-y-4">
+          <h2 className="text-[12px] font-black uppercase tracking-[0.2em] text-muted-foreground">Active Personnel</h2>
           
-          {deliveryPersons.length === 0 ? (
-            <Card className="text-center py-8">
-              <Truck className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-600">No delivery persons registered yet.</p>
-            </Card>
-          ) : (
-            <div className="space-y-2">
-              {deliveryPersons.map((person) => (
-                <Card key={person.id} className="py-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-2 h-2 rounded-full ${
-                        person.is_available && person.is_on_duty ? 'bg-green-500' : 'bg-gray-300'
-                      }`} />
-                      <div>
-                        <p className="font-medium text-gray-900">{person.full_name}</p>
-                        <p className="text-xs text-gray-500">{person.current_order_count} active orders</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-gray-500">{person.phone}</p>
-                      <p className={`text-xs ${
-                        person.is_available && person.is_on_duty 
-                          ? 'text-green-600' 
-                          : 'text-gray-400'
-                      }`}>
-                        {person.is_available && person.is_on_duty ? 'Available' : 'Busy'}
-                      </p>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Assignment Modal */}
-      {showAssignModal && selectedOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end z-50">
-          <div className="bg-white rounded-t-2xl w-full max-h-[80vh] overflow-y-auto">
-            <div className="p-4 border-b">
-              <h3 className="text-lg font-semibold">Assign Delivery</h3>
-              <p className="text-sm text-gray-600">Order #{selectedOrder.order_number}</p>
-            </div>
-            
-            <div className="p-4 space-y-3">
-              {deliveryPersons.filter(dp => dp.is_available && dp.is_on_duty).length === 0 ? (
-                <div className="text-center py-8">
-                  <XCircle className="w-12 h-12 text-red-300 mx-auto mb-3" />
-                  <p className="text-gray-600">No delivery persons available right now.</p>
-                </div>
-              ) : (
-                deliveryPersons
-                  .filter(person => person.is_available && person.is_on_duty)
-                  .map((person) => (
-                    <Card 
-                      key={person.id} 
-                      className="cursor-pointer hover:bg-gray-50 transition-colors"
-                      onClick={() => handleAssignDelivery(selectedOrder.id, person.id)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium">{person.full_name}</p>
-                          <p className="text-sm text-gray-500">{person.phone}</p>
-                          <p className="text-xs text-gray-400">{person.current_order_count} orders</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {deliveryPersons.length === 0 ? (
+              <Card className="col-span-full py-12 text-center bg-white rounded-[2.5rem] border-none shadow-sm">
+                <Truck className="w-12 h-12 text-muted/30 mx-auto mb-4" />
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">No logistics partners registered</p>
+              </Card>
+            ) : (
+              deliveryPersons.map((person) => (
+                <Card key={person.id} className="border-none shadow-xl shadow-black/5 rounded-[2rem] overflow-hidden group hover:shadow-lg transition-all">
+                  <CardBody className="p-5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="relative">
+                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-muted-foreground shadow-inner border transition-colors ${
+                            person.is_available && person.is_on_duty ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-muted/50 border-transparent'
+                          }`}>
+                            <UserCircle className="w-7 h-7" />
+                          </div>
+                          <div className={`absolute -right-1 -bottom-1 w-3.5 h-3.5 border-2 border-white rounded-full ${
+                            person.is_available && person.is_on_duty ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'
+                          }`} />
                         </div>
-                        <Button variant="primary" size="sm">
-                          Assign
-                        </Button>
+                        <div>
+                          <p className="font-black text-foreground tracking-tight group-hover:text-brand-maroon transition-colors">{person.full_name}</p>
+                          <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">{person.current_order_count} LOADED ORDERS</p>
+                        </div>
                       </div>
-                    </Card>
-                  ))
-              )}
-            </div>
-            
-            <div className="p-4 border-t">
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => {
-                  setShowAssignModal(false);
-                  setSelectedOrder(null);
-                }}
-              >
-                Cancel
-              </Button>
-            </div>
+                      <div className="text-right">
+                        <p className="text-[10px] font-black text-muted-foreground">{person.phone}</p>
+                        <p className={`text-[9px] font-black uppercase tracking-widest mt-0.5 ${
+                          person.is_available && person.is_on_duty ? 'text-emerald-600' : 'text-slate-400'
+                        }`}>
+                          {person.is_available && person.is_on_duty ? 'READY' : 'STANDBY'}
+                        </p>
+                      </div>
+                    </div>
+                  </CardBody>
+                </Card>
+              ))
+            )}
           </div>
         </div>
-      )}
+      </motion.div>
+
+      {/* Assignment Modal */}
+      <AnimatePresence>
+        {showAssignModal && selectedOrder && (
+          <div className="fixed inset-0 z-[100] flex items-end justify-center px-4 pb-8 sm:p-0">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                setShowAssignModal(false);
+                setSelectedOrder(null);
+              }}
+              className="absolute inset-0 bg-brand-maroon/20 backdrop-blur-sm"
+            />
+            
+            <motion.div 
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="bg-white rounded-[3rem] w-full max-w-lg overflow-hidden shadow-2xl relative z-10 sm:mb-8"
+            >
+              <div className="p-8 border-b border-muted/50 text-center">
+                <div className="w-16 h-1 w-12 bg-muted rounded-full mx-auto mb-6" />
+                <h3 className="text-xl font-black text-foreground tracking-tight mb-1">Rider Selection</h3>
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Assign Order #{selectedOrder.order_number}</p>
+              </div>
+              
+              <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto no-scrollbar">
+                {deliveryPersons.filter(dp => dp.is_available && dp.is_on_duty).length === 0 ? (
+                  <div className="text-center py-12">
+                    <XCircle className="w-16 h-16 text-rose-200 mx-auto mb-6" />
+                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest leading-relaxed px-12">No dispatch protocols available at this time</p>
+                  </div>
+                ) : (
+                  deliveryPersons
+                    .filter(person => person.is_available && person.is_on_duty)
+                    .map((person) => (
+                      <Card 
+                        key={person.id} 
+                        className="cursor-pointer hover:bg-muted/30 border-none shadow-xl shadow-black/5 rounded-3xl group transition-all"
+                        onClick={() => handleAssignDelivery(selectedOrder.id, person.id)}
+                      >
+                        <CardBody className="p-5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                              <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 shadow-inner">
+                                <UserCircle className="w-7 h-7" />
+                              </div>
+                              <div>
+                                <p className="font-black text-foreground tracking-tight group-hover:text-brand-maroon transition-colors">{person.full_name}</p>
+                                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">{person.current_order_count} ORDERS CURRENTLY LOADED</p>
+                              </div>
+                            </div>
+                            <Button variant="primary" size="sm" className="h-10 rounded-xl px-4 text-[9px] font-black uppercase tracking-widest bg-brand-maroon">
+                              DISPATCH
+                            </Button>
+                          </div>
+                        </CardBody>
+                      </Card>
+                    ))
+                )}
+              </div>
+              
+              <div className="p-8 pt-4">
+                <button
+                  className="w-full py-5 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground hover:bg-muted/50 rounded-2xl transition-all"
+                  onClick={() => {
+                    setShowAssignModal(false);
+                    setSelectedOrder(null);
+                  }}
+                >
+                  ABORT OPERATION
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </MobileContainer>
   );
 }

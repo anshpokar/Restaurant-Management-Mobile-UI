@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
+import { useNavigate } from 'react-router-dom';
 import { AppHeader } from '../../components/design-system/app-header';
 import { Button } from '../../components/design-system/button';
 import { Card } from '../../components/design-system/card';
@@ -32,6 +33,7 @@ interface DeliveryOrder {
 }
 
 export function DeliveryTasksScreen() {
+  const navigate = useNavigate();
   const [activeOrders, setActiveOrders] = useState<DeliveryOrder[]>([]);
   const [completedOrders, setCompletedOrders] = useState<DeliveryOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -176,7 +178,7 @@ export function DeliveryTasksScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('profiles')
         .select('is_available, is_on_duty')
         .eq('id', user.id)
@@ -253,7 +255,7 @@ export function DeliveryTasksScreen() {
       return;
     }
 
-    const order = activeOrders.find(o => o.id === orderId);
+    const order = activeOrders.find((o: DeliveryOrder) => o.id === orderId);
     if (!order) return;
 
     if (order.payment_method === 'cod' && order.payment_status !== 'paid') {
@@ -271,7 +273,7 @@ export function DeliveryTasksScreen() {
         delivery_status: 'delivered',
         delivered_at: new Date().toISOString(),
         payment_status: 'paid',
-        payment_method: paymentMethodUsed || activeOrders.find(o => o.id === orderId)?.payment_method,
+        payment_method: paymentMethodUsed || activeOrders.find((o: DeliveryOrder) => o.id === orderId)?.payment_method,
         otp: null
       }).eq('id', orderId);
 
@@ -308,7 +310,7 @@ export function DeliveryTasksScreen() {
         {/* Full Screen Map Background */}
         <div className="absolute inset-0 z-0">
           <MapView
-            center={currentLocation || [28.6139, 77.2090]}
+            center={currentLocation || [19.1669, 73.2359]}
             zoom={15}
             driverLocation={currentLocation || undefined}
             customerLocation={activeOrders[0]?.delivery_latitude && activeOrders[0]?.delivery_longitude ? [activeOrders[0].delivery_latitude, activeOrders[0].delivery_longitude] : undefined}
@@ -350,7 +352,7 @@ export function DeliveryTasksScreen() {
               )}
             </Card>
           ) : (
-            activeOrders.map((order) => (
+            activeOrders.map((order: DeliveryOrder) => (
               <motion.div
                 key={order.id}
                 initial={{ y: 100, opacity: 0 }}
@@ -468,7 +470,7 @@ export function DeliveryTasksScreen() {
                   <Button variant="outline" className="flex-1" onClick={() => setVerifyingOrder(null)}>Cancel</Button>
                   <Button
                     className="flex-2"
-                    onClick={() => handleVerifyAndDeliver(verifyingOrder, activeOrders.find(o => o.id === verifyingOrder)?.otp || '1111')} // Fallback to 1111 for testing if OTP not set
+                    onClick={() => handleVerifyAndDeliver(verifyingOrder!, activeOrders.find((o: DeliveryOrder) => o.id === verifyingOrder)?.otp || '1111')} // Fallback to 1111 for testing if OTP not set
                     disabled={otpInput.length < 4 || updatingStatus === verifyingOrder}
                   >
                     Complete Delivery
@@ -487,7 +489,7 @@ export function DeliveryTasksScreen() {
             <Card className="w-full max-w-sm p-6 space-y-6 shadow-2xl">
               <div className="text-center space-y-2">
                 <h3 className="text-xl font-black text-orange-600">Payment Collection</h3>
-                <p className="text-sm text-muted-foreground">Select how the customer paid the amount of <b>₹{activeOrders.find(o => o.id === verifyingOrder)?.total_amount}</b></p>
+                <p className="text-sm text-muted-foreground">Select how the customer paid the amount of <b>₹{activeOrders.find((o: DeliveryOrder) => o.id === verifyingOrder)?.total_amount}</b></p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -514,7 +516,13 @@ export function DeliveryTasksScreen() {
                 <Button
                   className="flex-2 bg-green-600 hover:bg-green-700"
                   disabled={!selectedPaymentMethod || updatingStatus !== null}
-                  onClick={() => completeDelivery(verifyingOrder!, selectedPaymentMethod === 'cash' ? 'cash' : 'upi')}
+                  onClick={() => {
+                    if (selectedPaymentMethod === 'upi') {
+                      navigate(`/delivery/payment/${verifyingOrder}`);
+                    } else {
+                      completeDelivery(verifyingOrder!, 'cash');
+                    }
+                  }}
                 >
                   Confirm & Deliver
                 </Button>

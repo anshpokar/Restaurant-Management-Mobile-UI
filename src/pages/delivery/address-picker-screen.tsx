@@ -394,7 +394,7 @@ export function AddressPickerScreen() {
                     <Input
                       value={formData.latitude}
                       onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
-                      placeholder="28.6139"
+                      placeholder="19.1669"
                     />
                   </div>
                   <div>

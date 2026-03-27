@@ -63,7 +63,7 @@ export function useLiveDeliveries() {
         .select(`
           id, order_number, delivery_status, customer_name,
           delivery_latitude, delivery_longitude, delivery_person_id,
-          delivery_person:profiles (
+          delivery_person:profiles!delivery_person_id (
             full_name,
             current_latitude,
             current_longitude
@@ -86,7 +86,7 @@ export function useLiveDeliveries() {
         id: o.id,
         order_number: o.order_number,
         delivery_status: o.delivery_status,
-        customer_name: o.customer_name,
+        customer_name: o.customer_name || 'Guest',
         delivery_latitude: o.delivery_latitude,
         delivery_longitude: o.delivery_longitude,
         delivery_person_id: o.delivery_person_id,

@@ -25,7 +25,7 @@ interface CartContextType {
   clearCart: () => void;
   setWaiterContext: (tableId: string | null, sessionId: string | null, customerInfo: any | null) => void;
   getTotalItems: () => number;
-  getTotalAmount: () => number;
+  getTotalAmount: (type?: 'dine_in' | 'delivery' | null) => number;
   previousOrders: any[];
   isLoadingHistory: boolean;
   fetchOrderHistory: () => Promise<void>;
@@ -33,6 +33,9 @@ interface CartContextType {
   applyCoupon: (code: string) => Promise<{ success: boolean; message: string }>;
   removeCoupon: () => void;
   getDiscountAmount: () => number;
+  getGSTAmount: () => number;
+  getSubtotal: () => number;
+  getDeliveryCharge: (type: 'dine_in' | 'delivery' | null) => number;
   getTotalSessionItems: () => number;
   getTotalSessionAmount: () => number;
 }
@@ -93,7 +96,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
             id,
             name,
             quantity,
-            price
+            price,
+            special_instructions,
+            spice_level
           )
         `);
 
@@ -197,14 +202,23 @@ export function CartProvider({ children }: { children: ReactNode }) {
     return cartItems.reduce((total, item) => total + item.price * item.quantity, 0);
   };
 
+  const getGSTAmount = () => {
+    return getSubtotal() * 0.05;
+  };
+
   const getDiscountAmount = () => {
     if (!appliedOffer) return 0;
     const subtotal = getSubtotal();
+    const gst = getGSTAmount();
+    const baseForDiscount = subtotal + gst;
     
-    if (appliedOffer.discount_type === 'flat') {
-      return Math.min(appliedOffer.discount_value, subtotal);
+    const value = Number(appliedOffer.discount_value);
+    const type = appliedOffer.discount_type.toLowerCase();
+    
+    if (type === 'flat') {
+      return Math.min(value, baseForDiscount);
     } else {
-      return (subtotal * appliedOffer.discount_value) / 100;
+      return (baseForDiscount * value) / 100;
     }
   };
 
@@ -239,10 +253,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   const getTotalItems = () => cartItems.reduce((sum: number, item: CartItem) => sum + item.quantity, 0);
-  const getTotalAmount = () => {
+  
+  const getDeliveryCharge = (type: 'dine_in' | 'delivery' | null) => {
+    if (type !== 'delivery') return 0;
     const subtotal = getSubtotal();
+    return subtotal < 500 ? 50 : 0;
+  };
+
+  const getTotalAmount = (type: 'dine_in' | 'delivery' | null = 'dine_in') => {
+    const subtotal = getSubtotal();
+    const gst = getGSTAmount();
     const discount = getDiscountAmount();
-    return Math.max(0, subtotal - discount);
+    const delivery = getDeliveryCharge(type);
+    return Math.max(0, subtotal + gst - discount + delivery);
   };
 
   const getTotalSessionItems = () => {
@@ -279,6 +302,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
       applyCoupon,
       removeCoupon,
       getDiscountAmount,
+      getGSTAmount,
+      getSubtotal,
+      getDeliveryCharge,
       getTotalSessionItems,
       getTotalSessionAmount,
     }}>

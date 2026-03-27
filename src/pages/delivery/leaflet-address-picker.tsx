@@ -120,7 +120,7 @@ export function LeafletAddressPicker({ onLocationSelect, initialPosition, onClos
       {/* Map */}
       <div className="h-[300px] w-full rounded-2xl overflow-hidden border-2 border-border mb-3 relative group">
         <MapContainer 
-          center={position || [28.6139, 77.2090]} 
+          center={position || [19.1669, 73.2359]} 
           zoom={position ? 16 : 13} 
           style={{ height: '100%', width: '100%' }}
           scrollWheelZoom={true}

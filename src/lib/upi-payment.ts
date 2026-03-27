@@ -54,7 +54,7 @@ export const createUPIPayment = async (
       .select('*')
       .eq('order_id', paymentId)
       .eq('status', 'pending')  // Only find PENDING payments
-      .single();
+      .maybeSingle();
     
     if (existing) {
       // Update existing PENDING record
@@ -76,7 +76,7 @@ export const createUPIPayment = async (
         .eq('order_id', paymentId)
         .eq('status', 'pending')  // Only update if still pending
         .select()
-        .single();
+        .maybeSingle();
       
       if (updateError) throw updateError;
       
@@ -145,7 +145,7 @@ export const submitUPITransaction = async (
       })
       .eq('id', qrId)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
 
@@ -177,7 +177,7 @@ export const verifyUPIPayment = async (
       .from('upi_payments')
       .select('*')
       .eq('id', qrId)
-      .single();
+      .maybeSingle();
 
     if (fetchError) {
       console.error('Failed to fetch UPI payment:', fetchError);
@@ -198,7 +198,7 @@ export const verifyUPIPayment = async (
       })
       .eq('id', qrId)
       .select()
-      .single();
+      .maybeSingle();
 
     if (updateError) {
       console.error('❌ Failed to update UPI payment:', updateError);
@@ -329,7 +329,7 @@ export const getUpiPaymentStatus = async (orderId: string) => {
       .from('upi_payments')
       .select('*')
       .eq('order_id', orderId)
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
 

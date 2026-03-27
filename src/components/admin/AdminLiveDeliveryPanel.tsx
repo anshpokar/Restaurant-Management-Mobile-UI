@@ -36,7 +36,7 @@ export function AdminLiveDeliveryPanel() {
 
       <div className="h-[350px] w-full relative">
         <MapView 
-          center={[28.6139, 77.2090]} // Restaurant / City Center
+          center={[19.1669, 73.2359]} // Restaurant / Badlapur Center
           zoom={13}
           className="h-full w-full"
           // We'll pass all current order and driver markers here

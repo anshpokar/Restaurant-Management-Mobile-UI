@@ -6,24 +6,45 @@ export interface DriverFinance {
   full_name: string;
   cash_collected: number;
   total_earnings: number;
-  pending_settlement: number;
+  pending_settlement: number; // (cash - earnings) if positive
+}
+
+export interface Settlement {
+  id: string;
+  driver_id: string;
+  admin_id: string;
+  type: 'cash_collection' | 'earnings_payout';
+  amount: number;
+  status: 'pending' | 'confirmed' | 'rejected';
+  notes: string;
+  created_at: string;
+  confirmed_at?: string;
 }
 
 export function useSettlements() {
   const [drivers, setDrivers] = useState<DriverFinance[]>([]);
+  const [history, setHistory] = useState<Settlement[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchDriverFinances();
+    fetchSettlementHistory();
 
-    const channel = supabase.channel('driver-finance-sync')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: 'role=eq.delivery' }, () => {
+    const profileChannel = supabase.channel('driver-finance-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
         fetchDriverFinances();
       })
       .subscribe();
 
+    const settlementChannel = supabase.channel('settlements-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'settlements' }, () => {
+        fetchSettlementHistory();
+      })
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(profileChannel);
+      supabase.removeChannel(settlementChannel);
     };
   }, []);
 
@@ -50,52 +71,69 @@ export function useSettlements() {
     }
   }
 
-  async function settleAmount(driverId: string, amount: number, notes: string = '') {
+  async function fetchSettlementHistory() {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      const { data, error } = await supabase
+        .from('settlements')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-      const driver = drivers.find(d => d.id === driverId);
-      if (!driver) throw new Error('Driver not found');
+      if (error) throw error;
+      setHistory(data || []);
+    } catch (err) {
+      console.error('Error fetching history:', err);
+    }
+  }
 
-      // 1. Create settlement record
-      const { error: settlementError } = await supabase
-        .from('cash_settlements')
-        .insert({
-          delivery_person_id: driverId,
-          amount,
-          settled_by: user.id,
-          notes
-        });
+  // Admin initiates a settlement (Cash hand-over or Driver Payout)
+  async function initiateSettlement(driverId: string, type: 'cash_collection' | 'earnings_payout', amount: number, notes: string = '') {
+    try {
+      const { data, error } = await supabase.rpc('initiate_settlement', {
+        p_driver_id: driverId,
+        p_type: type,
+        p_amount: amount,
+        p_notes: notes
+      });
 
-      if (settlementError) throw settlementError;
-
-      // 2. Intelligent adjustment:
-      // When a driver hands over 'amount', it effectively pays off their collected cash.
-      // If they were 'paying themselves' from the cash (offsetting earnings), 
-      // then we should also decrement their earnings by that same offset amount.
+      if (error) throw error;
       
-      const earningsOffset = Math.min(driver.total_earnings || 0, driver.cash_collected || 0);
-      const newCashCollected = Math.max(0, (driver.cash_collected || 0) - amount - earningsOffset);
-      const newTotalEarnings = Math.max(0, (driver.total_earnings || 0) - earningsOffset);
-      
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({
-          cash_collected: newCashCollected,
-          total_earnings: newTotalEarnings
-        })
-        .eq('id', driverId);
+      const result = typeof data === 'string' ? JSON.parse(data) : data;
+      if (result && result.success === false) throw new Error(result.error);
 
-      if (updateError) throw updateError;
-
-      await fetchDriverFinances();
+      await fetchSettlementHistory();
       return { success: true };
     } catch (err: any) {
-      console.error('Settlement error:', err);
+      console.error('Initiate error:', err);
       return { success: false, error: err.message };
     }
   }
 
-  return { drivers, loading, settleAmount, refresh: fetchDriverFinances };
+  // Driver confirms the settlement (This is when balances actually move)
+  async function confirmSettlement(settlementId: string) {
+    try {
+      const { data, error } = await supabase.rpc('confirm_settlement', {
+        p_settlement_id: settlementId
+      });
+
+      if (error) throw error;
+      
+      const result = typeof data === 'string' ? JSON.parse(data) : data;
+      if (result && result.success === false) throw new Error(result.error);
+
+      await Promise.all([fetchDriverFinances(), fetchSettlementHistory()]);
+      return { success: true };
+    } catch (err: any) {
+      console.error('Confirm error:', err);
+      return { success: false, error: err.message };
+    }
+  }
+
+  return { 
+    drivers, 
+    history,
+    loading, 
+    initiateSettlement, 
+    confirmSettlement, 
+    refresh: fetchDriverFinances 
+  };
 }

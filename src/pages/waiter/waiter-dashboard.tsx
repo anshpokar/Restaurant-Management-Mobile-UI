@@ -126,52 +126,68 @@ export function WaiterDashboard() {
                         <Card
                             key={table.id}
                             onClick={() => onTableClick(table)}
-                            className={`cursor-pointer transition-all active:scale-95 border-2 ${table.active_session
-                                    ? 'bg-gradient-to-br from-blue-50 to-blue-100 border-blue-300 hover:border-blue-400'
+                            className={`cursor-pointer transition-all active:scale-95 border-2 shadow-premium hover:shadow-lg rounded-3xl overflow-hidden ${
+                                table.active_session
+                                    ? 'bg-gradient-to-br from-[#7D1935] to-[#5D1227] border-brand-gold text-white'
                                     : table.status === 'occupied'
                                         ? 'bg-red-50 border-red-200 hover:border-red-300'
                                         : table.status === 'reserved'
                                             ? 'bg-orange-50 border-orange-200 hover:border-orange-300'
-                                            : 'bg-green-50 border-green-200 hover:border-primary'
-                                }`}
+                                            : 'bg-white border-divider hover:border-brand-maroon hover:bg-warm-beige'
+                            }`}
                         >
-                            <CardBody className="p-3 text-center flex flex-col h-full justify-between gap-2">
+                            <CardBody className="p-4 text-center flex flex-col h-full justify-between gap-3">
                                 {/* Table Info */}
                                 <div>
-                                    <div className="text-2xl mb-1">
-                                        {table.active_session ? '👨‍👩‍👧‍👦' : table.status === 'occupied' ? '⚠️' : '🍽️'}
+                                    <div className="flex justify-center mb-2">
+                                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
+                                            table.active_session 
+                                                ? 'bg-white/20' 
+                                                : table.status === 'available' 
+                                                    ? 'bg-brand-maroon/5' 
+                                                    : 'bg-red-50'
+                                        }`}>
+                                            <span className="text-2xl">
+                                                {table.active_session ? '👑' : table.status === 'occupied' ? '✋' : '🍽️'}
+                                            </span>
+                                        </div>
                                     </div>
-                                    <h3 className="text-base font-black text-foreground">T{table.table_number}</h3>
-                                    <p className="text-[10px] font-medium text-muted-foreground">{table.capacity} Seats</p>
+                                    <h3 className={`text-lg font-black ${table.active_session ? 'text-white' : 'text-foreground'}`}>
+                                        Table {table.table_number}
+                                    </h3>
+                                    <p className={`text-[11px] font-bold tracking-wider ${table.active_session ? 'text-white/60' : 'text-muted-foreground'}`}>
+                                        {table.capacity} GUESTS
+                                    </p>
                                 </div>
 
-                                {/* Session Status */}
-                                {table.active_session ? (
-                                    <div className="space-y-1.5">
-                                        <div className="w-fit">
-                                            <Badge variant="paid">
-                                                <Users className="w-2 h-2 mr-0.5 inline" />
-                                                ACTIVE
-                                            </Badge>
-                                        </div>
-                                        {table.active_session.session_name && (
-                                            <div className="bg-white/80 rounded-md p-1.5">
-                                                <p className="text-[9px] font-bold text-primary truncate leading-tight">
-                                                    {table.active_session.session_name}
-                                                </p>
-                                                <p className="text-[9px] font-semibold text-muted-foreground">
-                                                    ₹{Math.round(table.active_session.total_amount || 0)}
-                                                </p>
+                                {/* Status Section */}
+                                <div className="flex flex-col items-center gap-2">
+                                    {table.active_session ? (
+                                        <div className="w-full space-y-2">
+                                            <div className="inline-flex items-center px-2 py-0.5 rounded-full bg-brand-gold/20 border border-brand-gold/30 text-[10px] font-black text-brand-gold uppercase tracking-widest">
+                                                <Users className="w-2.5 h-2.5 mr-1" />
+                                                Active
                                             </div>
-                                        )}
-                                    </div>
-                                ) : (
-                                    <div className="w-fit">
-                                        <Badge variant={table.status === 'occupied' ? 'occupied' : table.status === 'reserved' ? 'warning' : 'success'}>
+                                            {table.active_session.session_name && (
+                                                <div className="bg-black/20 backdrop-blur-sm rounded-xl p-2 border border-white/10">
+                                                    <p className="text-[10px] font-black text-brand-gold truncate leading-tight uppercase tracking-tight">
+                                                        {table.active_session.session_name}
+                                                    </p>
+                                                    <p className="text-sm font-black text-white mt-0.5">
+                                                        ₹{Math.round(table.active_session.total_amount || 0)}
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <Badge 
+                                            variant={table.status === 'occupied' ? 'occupied' : table.status === 'reserved' ? 'warning' : 'vacant'}
+                                            className={table.status === 'available' ? 'border-brand-maroon/20 text-brand-maroon font-bold' : ''}
+                                        >
                                             {table.status.toUpperCase()}
                                         </Badge>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
                             </CardBody>
                         </Card>
                     ))

@@ -35,7 +35,7 @@ export function LeafletOrderTracking({
   routeCoordinates,
   onMapClick 
 }: LeafletOrderTrackingProps) {
-  const defaultCenter = riderLocation || { lat: 28.6139, lng: 77.2090 };
+  const defaultCenter = riderLocation || { lat: 19.1669, lng: 73.2359 };
 
   return (
     <MapContainer

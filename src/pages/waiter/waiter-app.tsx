@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { AppHeader } from '@/components/design-system/app-header';
-import { LogOut, ShoppingCart } from 'lucide-react';
+import { LogOut, Plus } from 'lucide-react';
 import { supabase, type RestaurantTable, type Profile } from '@/lib/supabase';
 import { CartSlider } from '@/components/waiter/cart-slider';
-import { useCart } from '@/contexts/cart-context';
-import { Badge } from '@/components/design-system/badge';
+import { AnimatePresence, motion } from 'motion/react';
 
 interface WaiterAppProps {
   onLogout: () => void;
@@ -16,7 +15,7 @@ export function WaiterApp({ onLogout, profile }: WaiterAppProps) {
   const [tables, setTables] = useState<RestaurantTable[]>([]);
   const [loading, setLoading] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const { getTotalSessionItems } = useCart();
+  const location = useLocation();
 
   useEffect(() => {
     fetchTables();
@@ -57,16 +56,10 @@ export function WaiterApp({ onLogout, profile }: WaiterAppProps) {
           <div className="flex items-center gap-2">
             <button 
               onClick={() => setIsCartOpen(true)}
-              className="relative p-2 text-foreground hover:bg-muted rounded-full transition-colors"
+              className="p-2 text-brand-maroon hover:bg-brand-maroon/10 rounded-full transition-colors"
+              title="Open Ordering Slider"
             >
-              <ShoppingCart className="w-5 h-5" />
-              {getTotalSessionItems() > 0 && (
-                <div className="absolute -top-1 -right-1">
-                  <Badge variant="paid" className="h-4 min-w-[16px] px-1 flex items-center justify-center text-[10px] font-black">
-                    {getTotalSessionItems()}
-                  </Badge>
-                </div>
-              )}
+              <Plus className="w-6 h-6" />
             </button>
             <button onClick={onLogout} className="p-2 text-destructive hover:bg-destructive/10 rounded-full transition-colors">
               <LogOut className="w-5 h-5" />
@@ -78,7 +71,18 @@ export function WaiterApp({ onLogout, profile }: WaiterAppProps) {
       <CartSlider isOpen={isCartOpen} onOpenChange={setIsCartOpen} />
 
       <div className="flex-1 overflow-hidden flex flex-col">
-        <Outlet context={{ tables, loading, fetchTables, onLogout, profile }} />
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            transition={{ duration: 0.2 }}
+            className="flex-1 flex flex-col overflow-hidden"
+          >
+            <Outlet context={{ tables, loading, fetchTables, onLogout, profile }} />
+          </motion.div>
+        </AnimatePresence>
       </div>
     </div>
   );

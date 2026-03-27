@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { AppHeader } from '@/components/design-system/app-header';
 import { Card, CardBody } from '@/components/design-system/card';
@@ -6,6 +6,7 @@ import { Button } from '@/components/design-system/button';
 import { Shield, Mail, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useCart } from '@/contexts/cart-context';
+import { generateOTP, sendOTPEmail } from '@/lib/send-otp-email';
 import { toast } from 'sonner';
 
 export function WaiterOTPVerificationScreen() {
@@ -20,6 +21,7 @@ export function WaiterOTPVerificationScreen() {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [countdown, setCountdown] = useState(0);
+  const [testModeOtp, setTestModeOtp] = useState<string | null>(null);
 
   useEffect(() => {
     if (!email) {
@@ -44,22 +46,25 @@ export function WaiterOTPVerificationScreen() {
 
     setSending(true);
     try {
-      // Call Edge Function to generate and send OTP
-      const { data, error } = await supabase.functions.invoke('custom-otp', {
-        body: {
-          action: 'generate',
-          email: email.toLowerCase()
-        }
-      });
+      const otpCode = generateOTP();
+      
+      // Store in DB and attempt to Send via Edge Function
+      const result = await sendOTPEmail(email, otpCode, 'waiter_verification');
 
-      if (error || !data?.success) {
-        throw new Error(error?.message || data?.error || 'Failed to send OTP');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to send OTP');
       }
 
       setSent(true);
-      setCountdown(300); // 5 minutes as per requirements
+      setCountdown(60); 
 
-      toast.success(`OTP Sent to ${email}. Please check and enter the code.`);
+      // If email service failed but DB storage worked, we show the code to the waiter
+      if (result.error && result.otpCode) {
+        setTestModeOtp(result.otpCode);
+        toast.warning(`Email service issue: OTP is ${result.otpCode}`, { duration: 8000 });
+      } else {
+        toast.success(`OTP Sent to ${email}. Please check and enter the code.`);
+      }
 
     } catch (error: any) {
       console.error('Error generating OTP:', error);
@@ -100,30 +105,36 @@ export function WaiterOTPVerificationScreen() {
 
     setLoading(true);
     try {
-      // Call Edge Function to verify OTP
-      const { data, error } = await supabase.functions.invoke('custom-otp', {
-        body: {
-          action: 'verify',
-          email: email.toLowerCase(),
-          otp: otpCode
-        }
-      });
+      // 1. Verify against otp_verifications table
+      const { data: otpRecord, error: fetchError } = await supabase
+        .from('otp_verifications')
+        .select('*')
+        .eq('email', email)
+        .eq('otp_code', otpCode)
+        .eq('used', false)
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .maybeSingle();
 
-      if (error || !data?.success) {
-        throw new Error(error?.message || data?.error || 'Invalid or expired OTP');
+      if (fetchError || !otpRecord) {
+        throw new Error('Invalid or expired OTP');
       }
 
-      const verifiedUserId = data.user_id;
+      // 2. Mark as used
+      await supabase
+        .from('otp_verifications')
+        .update({ used: true })
+        .eq('id', otpRecord.id);
 
-      // Fetch profile info to update context
+      // 3. Fetch profile info to update context
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', verifiedUserId)
-        .single();
+        .eq('email', email.toLowerCase())
+        .maybeSingle();
 
       if (profileError || !profile) {
-        throw new Error('Customer profile not found');
+        throw new Error('Customer profile not found for this email');
       }
 
       // ✅ Store in global context immediately upon verification
@@ -135,7 +146,7 @@ export function WaiterOTPVerificationScreen() {
       navigate(`/waiter/session/start/${tableId}`, {
         state: {
           customerType: 'existing',
-          userId: verifiedUserId,
+          userId: profile.id,
           email: email,
           verified: true
         }
@@ -150,117 +161,111 @@ export function WaiterOTPVerificationScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-4">
-      <AppHeader title="Email Verification" />
+    <div className="min-h-screen bg-warm-off-white pb-4">
+      <AppHeader title="Identity Verification" showBack />
 
-      <div className="px-4 py-6 space-y-6">
-        {/* Email Display */}
-        <Card>
-          <CardBody className="p-4 bg-primary/5 border-primary/20">
-            <div className="flex items-center gap-3">
-              <Mail className="w-5 h-5 text-primary" />
-              <div>
-                <p className="text-xs font-bold text-primary uppercase mb-1">
-                  Verified Email
-                </p>
-                <p className="text-sm font-medium text-foreground">
-                  {email}
-                </p>
+      <div className="px-4 py-8 space-y-8">
+        {/* Step Indicator */}
+        <div className="text-center space-y-2">
+          <div className="inline-flex items-center px-3 py-1 rounded-full bg-brand-maroon/5 border border-brand-maroon/10 text-[10px] font-black text-brand-maroon uppercase tracking-[0.2em]">
+            Service Step 02
+          </div>
+          <h2 className="text-3xl font-black text-foreground tracking-tight">
+            Security Check
+          </h2>
+        </div>
+
+        {/* Email Card */}
+        <Card className="border-none shadow-premium rounded-[2rem] overflow-hidden bg-white">
+          <CardBody className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-brand-maroon/10 rounded-2xl flex items-center justify-center">
+                <Mail className="w-6 h-6 text-brand-maroon" />
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <p className="text-[10px] font-black text-brand-maroon uppercase tracking-widest mb-0.5">Target Account</p>
+                <p className="text-sm font-bold text-foreground truncate">{email}</p>
               </div>
             </div>
           </CardBody>
         </Card>
 
-        {/* OTP Instructions */}
-        <div className="text-center">
-          <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Shield className="w-8 h-8 text-primary" />
+        {/* OTP Input Section */}
+        <div className="space-y-6">
+          <div className="text-center">
+            <p className="text-sm text-muted-foreground font-medium">
+              Enter the 6-digit protocol code sent to the guest
+            </p>
           </div>
-          <h2 className="text-xl font-black text-foreground mb-2">
-            Enter Verification Code
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            We've sent a 6-digit code to<br />
-            <span className="font-medium text-foreground">{email}</span>
-          </p>
+
+          <div className="flex gap-2 justify-center">
+            {otp.map((digit, index) => (
+              <input
+                key={index}
+                id={`otp-${index}`}
+                type="text"
+                inputMode="numeric"
+                maxLength={1}
+                value={digit}
+                onChange={(e) => handleOtpChange(index, e.target.value)}
+                onKeyDown={(e) => handleKeyDown(index, e)}
+                className="w-12 h-16 text-center text-3xl font-black bg-white border-2 border-divider rounded-2xl focus:border-brand-maroon focus:ring-4 focus:ring-brand-maroon/5 outline-none transition-all"
+                disabled={loading}
+              />
+            ))}
+          </div>
+
+          <Button
+            onClick={verifyOTP}
+            className="w-full h-14 bg-brand-maroon hover:bg-[#5D1227] text-white rounded-[1.25rem] shadow-xl shadow-brand-maroon/20 font-black text-lg"
+            isLoading={loading}
+            disabled={otp.some(d => !d)}
+          >
+            <CheckCircle className="w-5 h-5 mr-2" />
+            {loading ? 'Verifying...' : 'Confirm Identity'}
+          </Button>
+
+          {/* Test/Fallback Mode OTP Display */}
+          {testModeOtp && (
+            <div className="p-5 bg-gradient-to-br from-orange-50 to-orange-100 border-2 border-orange-200 rounded-[1.5rem] text-center shadow-lg animate-in zoom-in duration-300">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <AlertCircle className="w-4 h-4 text-orange-600" />
+                <p className="text-[10px] font-black text-orange-800 uppercase tracking-widest">Protocol Override</p>
+              </div>
+              <p className="text-4xl font-black text-orange-600 tracking-[0.2em] mb-2">{testModeOtp}</p>
+              <p className="text-[11px] text-orange-700 font-medium leading-tight">
+                System bypass code generated.<br/>Please enter this manually to proceed.
+              </p>
+            </div>
+          )}
         </div>
 
-        {/* OTP Input Fields */}
-        <div className="flex gap-2 justify-center">
-          {otp.map((digit, index) => (
-            <input
-              key={index}
-              id={`otp-${index}`}
-              type="text"
-              inputMode="numeric"
-              maxLength={1}
-              value={digit}
-              onChange={(e) => handleOtpChange(index, e.target.value)}
-              onKeyDown={(e) => handleKeyDown(index, e)}
-              className="w-12 h-14 text-center text-2xl font-bold bg-card border-2 border-border rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-              disabled={loading}
-            />
-          ))}
-        </div>
-
-        {/* Verify Button */}
-        <Button
-          onClick={verifyOTP}
-          className="w-full h-14 text-lg"
-          isLoading={loading}
-          disabled={otp.some(d => !d)}
-        >
-          <CheckCircle className="w-5 h-5 mr-2" />
-          {loading ? 'Verifying...' : 'Verify & Continue'}
-        </Button>
-
-        {/* Resend OTP */}
-        <div className="text-center">
-          <p className="text-sm text-muted-foreground mb-2">
-            Didn't receive the code?
+        {/* Resend Logic */}
+        <div className="text-center space-y-4">
+          <p className="text-xs text-muted-foreground font-bold uppercase tracking-tight">
+            Didn't receive the protocol?
           </p>
           <Button
             onClick={sendOTP}
             variant="outline"
             size="sm"
             disabled={sending || countdown > 0}
-            className="gap-2"
+            className="h-10 px-6 border-brand-maroon/20 text-brand-maroon font-black rounded-full hover:bg-brand-maroon hover:text-white transition-all"
           >
-            <RefreshCw className={`w-4 h-4 ${countdown > 0 ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 mr-2 ${countdown > 0 ? 'animate-spin' : ''}`} />
             {countdown > 0
               ? `Resend in ${countdown}s`
               : sent
-                ? 'Resend OTP'
-                : 'Send OTP'}
+                ? 'Request New Code'
+                : 'Initialize Verification'}
           </Button>
         </div>
 
-        {/* Info Box */}
-        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-            <div className="text-sm text-blue-800">
-              <p className="font-bold mb-1">Testing Mode:</p>
-              <p className="text-xs text-blue-700">
-                For development, OTP is shown in browser console and alert.
-                <br /><br />
-                <strong>Production:</strong> Integrate with email service (SendGrid, AWS SES, etc.)
-              </p>
-            </div>
-          </div>
+        {/* Security Info */}
+        <div className="pt-4 opacity-40 grayscale flex items-center justify-center gap-2">
+          <Shield className="w-4 h-4" />
+          <span className="text-[10px] font-black uppercase tracking-[0.2em]">Secure Session Link</span>
         </div>
-
-        {/* Success Indicator */}
-        {sent && (
-          <div className="bg-green-50 border border-green-200 rounded-2xl p-4">
-            <div className="flex items-center gap-3">
-              <CheckCircle className="w-5 h-5 text-green-600" />
-              <p className="text-sm text-green-800 font-medium">
-                OTP sent successfully to {email}
-              </p>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

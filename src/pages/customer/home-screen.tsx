@@ -341,7 +341,7 @@ export function HomeScreen() {
         </div>
 
         {/* Offers Banners (Animated) */}
-        {offers.length > 0 ? (
+        {offers.length > 0 && (
           <div className="relative h-[90px]">
             {offers.map((offer, idx) => (
               <Card
@@ -363,20 +363,6 @@ export function HomeScreen() {
               </Card>
             ))}
           </div>
-        ) : (
-          <Card className="bg-secondary/10 border-dashed border-2 border-secondary/30">
-            <CardBody className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-black text-secondary mb-1">🎉 Flat 30% OFF</p>
-                  <p className="text-xs text-muted-foreground">On your first 3 orders above ₹499</p>
-                </div>
-                <button className="bg-secondary text-white px-4 py-2 rounded-xl text-xs font-bold hover:opacity-90">
-                  APPLY
-                </button>
-              </div>
-            </CardBody>
-          </Card>
         )}
       </div>
     </div>

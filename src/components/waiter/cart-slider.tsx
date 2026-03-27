@@ -1,29 +1,64 @@
 import { useCart } from "@/contexts/cart-context";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
-import { ShoppingCart, User, Package, Plus, Minus, Trash2, ChefHat, X, CheckCircle2 } from "lucide-react";
+import { ShoppingCart, User, Package, Plus, Minus, Trash2, ChefHat, X, CheckCircle2, Search, Utensils } from "lucide-react";
 import { Button } from "@/components/design-system/button";
 import { Badge } from "@/components/design-system/badge";
-import { supabase } from "@/lib/supabase";
+import { supabase, type MenuItem } from "@/lib/supabase";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { ItemCustomizationModal } from "@/components/customer/ItemCustomizationModal";
 
 export function CartSlider({ isOpen, onOpenChange }: { isOpen: boolean, onOpenChange: (open: boolean) => void }) {
+  const [activeTab, setActiveTab] = useState<'menu' | 'draft'>('menu');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [loadingMenu, setLoadingMenu] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
+  const navigate = useNavigate();
+
+  const categories = ['All', 'Starters', 'Main Course', 'Biryani', 'Breads', 'Desserts'];
+
   const { 
     cartItems, tableId, sessionId, customerInfo, 
     updateQuantity, removeFromCart, clearCart, 
-    getTotalAmount, getTotalItems,
+    getTotalAmount, addToCart,
     previousOrders, isLoadingHistory, fetchOrderHistory
   } = useCart();
-  
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const navigate = useNavigate();
 
   useEffect(() => {
     if (isOpen) {
       fetchOrderHistory();
+      fetchMenu();
     }
   }, [isOpen]);
+
+  const fetchMenu = async () => {
+    setLoadingMenu(true);
+    try {
+      const { data, error } = await supabase
+        .from('menu_items')
+        .select('*')
+        .eq('is_available', true)
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setMenuItems(data || []);
+    } catch (error) {
+      console.error('Error fetching menu:', error);
+    } finally {
+      setLoadingMenu(false);
+    }
+  };
+
+  const filteredMenu = menuItems.filter(item => {
+    const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;
+    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
 
   const handleMarkAsServed = async (orderId: string) => {
     try {
@@ -155,42 +190,144 @@ export function CartSlider({ isOpen, onOpenChange }: { isOpen: boolean, onOpenCh
   return (
     <Drawer open={isOpen} onOpenChange={onOpenChange} direction="right">
       <DrawerContent className="h-full flex flex-col bg-card border-l border-divider shadow-2xl">
-        <DrawerHeader className="border-b border-divider flex items-center justify-between p-4">
-          <div className="flex items-center gap-2">
-            <ShoppingCart className="w-5 h-5 text-primary" />
-            <DrawerTitle className="text-xl font-black">Your Cart</DrawerTitle>
-            <Badge variant="info" className="ml-2">
-              {getTotalItems() + previousOrders.reduce((sum, o) => sum + (o.order_items?.reduce((s: number, i: any) => s + i.quantity, 0) || 0), 0)} Items
-            </Badge>
+        <DrawerHeader className="border-b border-divider p-0">
+          <div className="flex items-center justify-between p-4">
+            <div className="flex items-center gap-2">
+              <Utensils className="w-5 h-5 text-brand-maroon" />
+              <DrawerTitle className="text-xl font-black">Ordering Console</DrawerTitle>
+            </div>
+            <button 
+              onClick={() => onOpenChange(false)} 
+              className="p-3 bg-muted/50 hover:bg-muted text-foreground rounded-2xl transition-all active:scale-90"
+            >
+              <X className="w-6 h-6" />
+            </button>
           </div>
-          <button onClick={() => onOpenChange(false)} className="p-2 h-10 w-10 flex items-center justify-center hover:bg-muted rounded-full transition-colors">
-            <X className="w-5 h-5" />
-          </button>
+
+          {/* Tab Switcher */}
+          <div className="flex p-1 bg-muted/30 mx-4 mb-4 rounded-xl border border-divider">
+            <button
+              onClick={() => setActiveTab('menu')}
+              className={`flex-1 py-3 text-[10px] font-black uppercase tracking-[0.2em] rounded-lg transition-all ${
+                activeTab === 'menu' 
+                  ? 'bg-white text-brand-maroon shadow-sm border border-brand-maroon/10' 
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              01. Browse Menu
+            </button>
+            <button
+              onClick={() => setActiveTab('draft')}
+              className={`flex-1 py-3 text-[10px] font-black uppercase tracking-[0.2em] rounded-lg transition-all relative ${
+                activeTab === 'draft' 
+                  ? 'bg-white text-brand-maroon shadow-sm border border-brand-maroon/10' 
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              02. My Draft
+              {cartItems.length > 0 && (
+                <Badge variant="error" className="absolute -top-1 -right-1 font-black text-[9px] min-w-[18px] h-[18px] flex items-center justify-center p-0 rounded-full animate-pulse shadow-sm ring-2 ring-white">
+                  {cartItems.length}
+                </Badge>
+              )}
+            </button>
+          </div>
         </DrawerHeader>
 
-        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-8 scrollbar-hide">
-          {/* Customer Section */}
-          <section className="space-y-3">
-            <div className="flex items-center gap-2 text-[10px] font-black text-muted-foreground uppercase tracking-widest border-l-2 border-primary pl-2">
-              <User className="w-3 h-3" />
-              Customer Information
-            </div>
-            {customerInfo ? (
-              <div className="bg-primary/5 p-4 rounded-2xl border border-primary/10 flex items-center gap-4">
-                <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center text-white text-lg font-bold">
-                  {customerInfo.full_name?.[0] || 'C'}
+        <div className="flex-1 overflow-y-auto px-4 py-6 scrollbar-hide">
+          {activeTab === 'menu' ? (
+            /* Menu Section (Ordering Slider UI) */
+            <section className="space-y-4">
+              <div className="flex items-center gap-2 text-[10px] font-black text-brand-maroon uppercase tracking-widest border-l-2 border-brand-maroon pl-2">
+                <Utensils className="w-3 h-3" />
+                Menu Selection
+              </div>
+
+              <div className="space-y-4">
+                {/* Search & Categories */}
+                <div className="flex flex-col gap-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <input
+                      type="text"
+                      placeholder="Search items..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2 bg-muted/30 border border-divider rounded-xl text-sm outline-none focus:border-brand-maroon/40 transition-all font-medium"
+                    />
+                  </div>
+                  <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                    {categories.map((category) => (
+                      <button
+                        key={category}
+                        onClick={() => setSelectedCategory(category)}
+                        className={`px-3 py-1.5 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all uppercase tracking-wider border ${
+                          selectedCategory === category
+                            ? 'bg-brand-maroon text-white border-brand-maroon'
+                            : 'bg-white text-muted-foreground border-divider hover:border-brand-maroon/30'
+                        }`}
+                      >
+                        {category}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div>
-                  <p className="font-bold text-foreground">{customerInfo.full_name}</p>
-                  <p className="text-xs text-muted-foreground">{customerInfo.email || customerInfo.phone_number || 'Linked'}</p>
+
+                {/* Minimalist Menu List */}
+                <div className="grid grid-cols-1 gap-1">
+                  {loadingMenu ? (
+                    <div className="py-8 text-center text-xs text-muted-foreground animate-pulse font-bold uppercase tracking-widest">Identifying Items...</div>
+                  ) : filteredMenu.length === 0 ? (
+                    <div className="py-8 text-center text-xs text-muted-foreground italic">No matching items found</div>
+                  ) : (
+                    filteredMenu.map((item) => (
+                      <div 
+                        key={item.id} 
+                        className="flex items-center justify-between p-3 bg-white border border-divider rounded-xl hover:border-brand-maroon/20 hover:shadow-sm transition-all group"
+                        onClick={() => {
+                          setSelectedItem(item);
+                          setModalOpen(true);
+                        }}
+                      >
+                        <div className="flex-1 min-w-0 mr-4">
+                          <p className="font-bold text-sm text-foreground truncate group-hover:text-brand-maroon transition-colors">{item.name}</p>
+                          <p className="text-[10px] font-black text-brand-maroon mt-0.5">₹{item.price}</p>
+                        </div>
+                        <button 
+                          className="w-8 h-8 bg-brand-maroon/5 text-brand-maroon rounded-lg group-hover:bg-brand-maroon group-hover:text-white transition-all flex items-center justify-center border border-brand-maroon/10"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
-            ) : (
-              <div className="bg-muted/30 p-4 rounded-2xl border border-dashed border-divider text-center">
-                <p className="text-sm font-medium text-muted-foreground italic">Walk-in Customer</p>
-              </div>
-            )}
-          </section>
+            </section>
+          ) : (
+            <div className="space-y-8">
+              {/* Customer Section */}
+              <section className="space-y-3">
+                <div className="flex items-center gap-2 text-[10px] font-black text-muted-foreground uppercase tracking-widest border-l-2 border-primary pl-2">
+                  <User className="w-3 h-3" />
+                  Customer Information
+                </div>
+                {customerInfo ? (
+                  <div className="bg-primary/5 p-4 rounded-2xl border border-primary/10 flex items-center gap-4">
+                    <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center text-white text-lg font-bold">
+                      {customerInfo.full_name?.[0] || 'C'}
+                    </div>
+                    <div>
+                      <p className="font-bold text-foreground">{customerInfo.full_name}</p>
+                      <p className="text-xs text-muted-foreground">{customerInfo.email || customerInfo.phone_number || 'Linked'}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-muted/30 p-4 rounded-2xl border border-dashed border-divider text-center">
+                    <p className="text-sm font-medium text-muted-foreground italic">Walk-in Customer</p>
+                  </div>
+                )}
+              </section>
 
           {/* New Items Section */}
           <section className="space-y-3">
@@ -314,6 +451,8 @@ export function CartSlider({ isOpen, onOpenChange }: { isOpen: boolean, onOpenCh
               )}
             </div>
           </section>
+            </div>
+          )}
         </div>
 
         {/* Footer with Place Order Button */}
@@ -338,26 +477,63 @@ export function CartSlider({ isOpen, onOpenChange }: { isOpen: boolean, onOpenCh
           <div className="flex gap-2">
             <Button
               variant="outline"
-              className="h-14 w-14 p-0 shrink-0 border-2"
-              onClick={() => {
-                if (confirm('Clear all items from your cart?')) clearCart();
-              }}
-              disabled={cartItems.length === 0 || isSubmitting}
+              className="h-14 flex-1 border-2 border-brand-maroon/20 text-brand-maroon font-black rounded-2xl hover:bg-brand-maroon/5"
+              onClick={() => onOpenChange(false)}
             >
-              <Trash2 className="w-5 h-5 text-muted-foreground" />
+              CLOSE CONSOLE
             </Button>
-            <Button
-              className="flex-1 h-14 text-lg font-black shadow-lg shadow-primary/20"
-              disabled={cartItems.length === 0 || isSubmitting || !tableId}
-              onClick={handlePlaceOrder}
-              isLoading={isSubmitting}
-            >
-              <ChefHat className="w-5 h-5 mr-3" />
-              PLACE ORDER
-            </Button>
+            {activeTab === 'menu' ? (
+              <Button
+                className="flex-[2] h-14 text-lg font-black shadow-lg shadow-brand-maroon/20 bg-brand-maroon hover:bg-[#5D1227]"
+                onClick={() => setActiveTab('draft')}
+              >
+                <ShoppingCart className="w-5 h-5 mr-3" />
+                VIEW DRAFT ({cartItems.length})
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  className="h-14 w-14 p-0 shrink-0 border-2"
+                  onClick={() => {
+                    if (confirm('Clear all items from your cart?')) clearCart();
+                  }}
+                  disabled={cartItems.length === 0 || isSubmitting}
+                >
+                  <Trash2 className="w-5 h-5 text-muted-foreground" />
+                </Button>
+                <Button
+                  className="flex-1 h-14 text-lg font-black shadow-lg shadow-primary/20"
+                  disabled={cartItems.length === 0 || isSubmitting || !tableId}
+                  onClick={handlePlaceOrder}
+                  isLoading={isSubmitting}
+                >
+                  <ChefHat className="w-5 h-5 mr-3" />
+                  PLACE ORDER
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </DrawerContent>
+      {/* Customization Modal */}
+      {selectedItem && (
+        <ItemCustomizationModal
+          isOpen={modalOpen}
+          itemName={selectedItem.name}
+          onClose={() => {
+            setModalOpen(false);
+            setSelectedItem(null);
+          }}
+          onConfirm={(specialInstructions, spiceLevel) => {
+            if (selectedItem) {
+              addToCart?.(selectedItem, specialInstructions, spiceLevel);
+            }
+            setModalOpen(false);
+            setSelectedItem(null);
+          }}
+        />
+      )}
     </Drawer>
   );
 }

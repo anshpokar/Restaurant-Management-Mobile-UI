@@ -4,6 +4,7 @@ import { Home, Menu, ShoppingBag, User, ShoppingCart, Trash2, Plus, Minus, X } f
 import { Button } from '@/components/design-system/button';
 import { Profile } from '@/lib/supabase';
 import { useCart } from '@/hooks/use-cart';
+import { AnimatePresence, motion } from 'motion/react';
 
 interface CustomerAppProps {
   onLogout: () => void;
@@ -43,14 +44,24 @@ export function CustomerApp({ onLogout, profile }: CustomerAppProps) {
   return (
     <div className="relative min-h-screen bg-background pb-16">
       <div className="flex-1">
-        <Outlet context={{ 
-          addToCart, 
-          cartItems, 
-          totalItems, 
-          totalAmount, 
-          onLogout,
-          profile  // ✅ ADD profile to context
-        }} />
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+          >
+            <Outlet context={{ 
+              addToCart, 
+              cartItems, 
+              totalItems, 
+              totalAmount, 
+              onLogout,
+              profile  // ✅ ADD profile to context
+            }} />
+          </motion.div>
+        </AnimatePresence>
       </div>
 
       {/* Floating Cart Button */}

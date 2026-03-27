@@ -1,42 +1,37 @@
-import { useLocation } from 'react-router-dom';
-import { AnimatePresence, motion } from 'motion/react';
 import { MobileContainer } from '@/components/MobileContainer';
 import { AppRoutes } from '@/routes';
 import { useAuth } from '@/hooks/use-auth';
 import { CartProvider } from '@/contexts/cart-context';
 import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+import { AnimatePresence, motion } from 'motion/react';
+import { Toaster } from 'sonner';
 
 export default function App() {
   const location = useLocation();
   const { userRole, userProfile, isLoadingAuth, handleLogout } = useAuth();
+  
+  // Use first part of path as key (e.g. 'admin', 'customer', 'login')
+  const roleKey = location.pathname.split('/')[1] || 'root';
 
   // Auto-clear stale cache on app mount (internal, no UI)
   useEffect(() => {
-    // Clear any potentially stale session storage
+    // ... (rest of the effect same)
     const staleKeys = ['cart', 'activeSession', 'checkoutData'];
     staleKeys.forEach(key => {
       const data = sessionStorage.getItem(key);
       if (data) {
         try {
           const parsed = JSON.parse(data);
-          // Clear if older than 1 hour
           if (parsed.timestamp && Date.now() - parsed.timestamp > 3600000) {
             sessionStorage.removeItem(key);
-            console.log(`Cleared stale ${key} from session storage`);
           }
         } catch {
-          // Invalid JSON, clear it
           sessionStorage.removeItem(key);
         }
       }
     });
   }, []);
-
-  const screenVariants = {
-    initial: { opacity: 0, x: 20 },
-    animate: { opacity: 1, x: 0 },
-    exit: { opacity: 0, x: -20 },
-  };
 
   const isDesktopRole = userRole === 'admin' || userRole === 'chef';
 
@@ -53,15 +48,15 @@ export default function App() {
 
   return (
     <CartProvider>
+      <Toaster position="top-center" expand={true} richColors />
       <MobileContainer fullWidth={isDesktopRole}>
         <AnimatePresence mode="wait">
           <motion.div
-            key={location.pathname}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            variants={screenVariants}
-            transition={{ duration: 0.3, ease: "easeInOut" }}
+            key={roleKey}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
             className="h-full w-full"
           >
             <AppRoutes
@@ -73,7 +68,6 @@ export default function App() {
           </motion.div>
         </AnimatePresence>
       </MobileContainer>
-      {/* No visible cache clear button - automatic only */}
     </CartProvider>
   );
 }

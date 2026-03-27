@@ -4,7 +4,8 @@ import { Card, CardBody } from '@/components/design-system/card';
 import { Badge } from '@/components/design-system/badge';
 import { Input } from '@/components/design-system/input';
 import { supabase, type Order } from '@/lib/supabase';
-import { RefreshCw, Search, Calendar, List, ShoppingBag, Clock, Package, Truck, CheckCircle } from 'lucide-react';
+import { RefreshCw, Search, Calendar, List, ShoppingBag, Clock, Package, Truck, CheckCircle, ArrowRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 export function AdminOrders() {
   const [activeTab, setActiveTab] = useState<string>('all');
@@ -64,7 +65,7 @@ export function AdminOrders() {
                   .from('profiles')
                   .select('id, full_name, phone_number, email')
                   .eq('id', order.user_id)
-                  .single();
+                  .maybeSingle();
                 customerProfile = profileData;
               }
 
@@ -75,7 +76,7 @@ export function AdminOrders() {
                   .from('profiles')
                   .select('id, full_name, phone_number')
                   .eq('id', order.delivery_person_id)
-                  .single();
+                  .maybeSingle();
                 deliveryProfile = deliveryData;
               }
 
@@ -175,6 +176,9 @@ export function AdminOrders() {
         if (activeTab === 'delivered') return order.delivery_status === 'delivered';
         return order.status === activeTab;
       });
+    } else {
+      // For "All" tab, still filter out cancelled if the user wants cleaner view
+      // But user said "all every order should be displayed", so keep it
     }
     
     filtered = filterByDate(filtered);
@@ -189,7 +193,6 @@ export function AdminOrders() {
       case 'placed':
         return <Clock className="w-4 h-4" />;
       case 'preparing':
-      case 'cooking':
         return <Package className="w-4 h-4" />;
       case 'prepared':
       case 'out_for_delivery':
@@ -197,8 +200,6 @@ export function AdminOrders() {
       case 'served':
       case 'delivered':
         return <CheckCircle className="w-4 h-4" />;
-      case 'cancelled':
-        return <ShoppingBag className="w-4 h-4 opacity-50" />;
       default:
         return <Clock className="w-4 h-4" />;
     }
@@ -209,7 +210,6 @@ export function AdminOrders() {
       case 'placed':
         return 'bg-blue-50 text-blue-700 border-blue-200';
       case 'preparing':
-      case 'cooking':
         return 'bg-orange-50 text-orange-700 border-orange-200';
       case 'prepared':
       case 'out_for_delivery':
@@ -225,30 +225,35 @@ export function AdminOrders() {
   };
 
   return (
-    <div className="min-h-screen bg-muted/10 pb-20">
+    <div className="min-h-screen bg-muted/5 pb-20">
       <AppHeader
         title="Live Order Monitor"
         actions={
           <button 
             onClick={() => fetchOrders(false)} 
-            className="p-2 hover:bg-muted rounded-full transition-colors flex items-center gap-2"
+            className="p-2 hover:bg-muted rounded-full transition-colors flex items-center gap-2 group"
           >
-            <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-            <span className="text-xs font-bold">Refresh</span>
+            <RefreshCw className={`w-5 h-5 text-brand-maroon ${loading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
+            <span className="text-xs font-bold text-brand-maroon">Refresh</span>
           </button>
         }
       />
 
-      <div className="px-4 py-4 space-y-4">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="px-4 py-4 space-y-6 max-w-[1600px] mx-auto"
+      >
         {/* Search Bar */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+        <div className="relative group">
+          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground group-focus-within:text-brand-maroon transition-colors" />
           <Input
             type="text"
             placeholder="Search by Order ID, Customer Name, or Phone..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
+            className="pl-12 h-14 rounded-2xl border-none bg-white shadow-sm focus-visible:ring-2 focus-visible:ring-brand-maroon/20 transition-all"
           />
         </div>
 
@@ -309,13 +314,16 @@ export function AdminOrders() {
         </div>
 
         {/* Live Indicator */}
-        <div className="flex items-center justify-between px-2">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-xs font-bold text-green-600 uppercase">Live Updates Active</span>
+        <div className="flex items-center justify-between px-2 bg-white/50 backdrop-blur-sm p-3 rounded-2xl border border-white/20">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+              <div className="absolute inset-0 w-3 h-3 bg-green-500 rounded-full animate-ping opacity-75"></div>
+            </div>
+            <span className="text-xs font-black text-green-700 uppercase tracking-widest">Live Updates Active</span>
           </div>
-          <span className="text-xs text-muted-foreground">
-            Auto-refreshes when orders change
+          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight">
+            Syncing with Supabase Realtime
           </span>
         </div>
 
@@ -378,94 +386,111 @@ export function AdminOrders() {
         )}
 
         {/* Orders Grid - Responsive Columns */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {activeTab !== 'all' && getFilteredOrders()
-            .map((order) => (
-              <Card key={order.id} className="border-none shadow-sm overflow-hidden flex flex-col">
-                {/* Card Header */}
-                <div className={`${getStatusColor(order.status)} px-3 py-2 flex justify-between items-center border-b`}>
-                  <div className="flex items-center gap-2">
-                    {getStatusIcon(order.status)}
-                    <span className="text-xs font-black uppercase">#{order.id.slice(0, 8)}</span>
-                  </div>
-                  <span className="text-xs font-medium">
-                    {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                </div>
-
-                {/* Card Body */}
-                <CardBody className="p-3 flex-1 flex flex-col space-y-3">
-                  {/* Customer Info */}
-                  <div>
-                    <h4 className="font-bold text-sm text-foreground leading-tight">
-                      {order.profiles?.full_name || 'Anonymous'}
-                    </h4>
-                    {order.profiles?.phone_number && (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        📞 {order.profiles.phone_number}
-                      </p>
-                    )}
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                      {order.delivery_address || 'No address'}
-                    </p>
-                  </div>
-
-                  {/* Order Items */}
-                  <div className="space-y-1 py-2 border-y border-divider flex-1">
-                    {order.order_items?.slice(0, 3).map((item) => (
-                      <div key={item.id} className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">
-                          <span className="font-black text-foreground">x{item.quantity}</span> {item.name}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <AnimatePresence mode="popLayout">
+            {activeTab !== 'all' && getFilteredOrders()
+              .map((order, index) => (
+                <motion.div
+                  key={order.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ duration: 0.2, delay: index * 0.05 }}
+                >
+                  <Card className="border-none shadow-xl shadow-black/5 overflow-hidden flex flex-col group hover:shadow-2xl transition-all duration-300 rounded-[2rem]">
+                    {/* Card Header */}
+                    <div className={`${getStatusColor(order.status)} px-5 py-3 flex justify-between items-center border-b border-black/5`}>
+                      <div className="flex items-center gap-2">
+                        {getStatusIcon(order.status)}
+                        <span className="text-xs font-black uppercase tracking-tighter">#{order.id.slice(0, 8)}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-3 h-3 opacity-60" />
+                        <span className="text-[10px] font-bold uppercase">
+                          {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
-                    ))}
-                    {order.order_items && order.order_items.length > 3 && (
-                      <p className="text-xs text-muted-foreground italic">+{order.order_items.length - 3} more</p>
-                    )}
-                    <div className="flex justify-between pt-2 mt-2">
-                      <span className="font-bold text-foreground text-xs">Total</span>
-                      <span className="font-black text-primary text-base">₹{order.total_amount}</span>
                     </div>
-                  </div>
 
-                  {/* Status Badge & Time */}
-                  <div className="flex items-center justify-between">
-                    <Badge variant={order.status === 'delivered' ? 'success' : 'warning'}>
-                      {order.status.replace(/_/g, ' ').toUpperCase()}
-                    </Badge>
-                    {order.is_paid && (
-                      <span className="text-xs text-green-600 font-bold flex items-center gap-1">
-                        <CheckCircle className="w-3 h-3" />
-                        Paid
-                      </span>
-                    )}
-                  </div>
+                    {/* Card Body */}
+                    <CardBody className="p-5 flex-1 flex flex-col space-y-4">
+                      {/* Customer Info */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h4 className="font-black text-base text-foreground leading-tight truncate">
+                            {order.profiles?.full_name || 'Anonymous Customer'}
+                          </h4>
+                          {order.profiles?.phone_number && (
+                            <p className="text-xs font-bold text-brand-maroon/60 mt-1">
+                              {order.profiles.phone_number}
+                            </p>
+                          )}
+                        </div>
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                          order.order_type === 'delivery' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'
+                        }`}>
+                          <Truck className="w-5 h-5" />
+                        </div>
+                      </div>
 
-                  {/* Delivery Info (if applicable) */}
-                  {order.delivery_person && (
-                    <div className="bg-secondary/10 p-2 rounded-lg border border-secondary/20">
-                      <p className="text-xs font-black text-secondary uppercase mb-1">Delivery Partner</p>
-                      <p className="font-bold text-sm">{(order.delivery_person as any).full_name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        📞 {(order.delivery_person as any).phone_number}
-                      </p>
-                    </div>
-                  )}
+                      {/* Order Items */}
+                      <div className="space-y-2 py-3 border-y border-dashed border-border flex-1">
+                        {order.order_items?.slice(0, 3).map((item) => (
+                          <div key={item.id} className="flex justify-between items-start text-xs">
+                            <span className="text-muted-foreground flex-1 pr-2">
+                              <span className="font-black text-foreground">x{item.quantity}</span> {item.name}
+                            </span>
+                            <span className="font-bold text-foreground shrink-0">₹{item.price * item.quantity}</span>
+                          </div>
+                        ))}
+                        {order.order_items && order.order_items.length > 3 && (
+                          <p className="text-[10px] font-black text-brand-maroon uppercase tracking-widest pt-1">
+                            +{order.order_items.length - 3} MORE ITEMS
+                          </p>
+                        )}
+                        <div className="flex justify-between pt-3 mt-1 border-t border-border">
+                          <span className="font-bold text-foreground text-xs uppercase tracking-widest">Total Amount</span>
+                          <span className="font-black text-brand-maroon text-lg leading-none">₹{order.total_amount}</span>
+                        </div>
+                      </div>
 
-                  {/* Timeline Footer */}
-                  <div className="pt-2 border-t border-divider">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>Placed: {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                      {order.status === 'delivered' && (
-                        <span className="text-green-600 font-bold">
-                          ✓ Delivered
-                        </span>
+                      {/* Status & Payment */}
+                      <div className="flex items-center justify-between gap-2">
+                        <Badge variant={order.status === 'delivered' ? 'success' : 'warning'} className="rounded-lg px-3 py-1 text-[10px] font-black uppercase">
+                          {order.status.replace(/_/g, ' ')}
+                        </Badge>
+                        {order.is_paid ? (
+                          <div className="flex items-center gap-1.5 px-2 py-1 bg-green-50 rounded-lg">
+                            <CheckCircle className="w-3.5 h-3.5 text-green-600" />
+                            <span className="text-[10px] text-green-700 font-black uppercase">Paid</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 px-2 py-1 bg-red-50 rounded-lg">
+                            <Clock className="w-3.5 h-3.5 text-red-600" />
+                            <span className="text-[10px] text-red-700 font-black uppercase">Unpaid</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Delivery Partner */}
+                      {order.delivery_person && (
+                        <div className="bg-muted/30 p-3 rounded-2xl border border-border group-hover:border-brand-maroon/20 transition-colors">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-1.5 h-4 bg-brand-maroon rounded-full" />
+                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Delivery Partner</p>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="font-black text-sm text-foreground">{(order.delivery_person as any).full_name}</span>
+                            <ArrowRight className="w-4 h-4 text-brand-maroon transform group-hover:translate-x-1 transition-transform" />
+                          </div>
+                        </div>
                       )}
-                    </div>
-                  </div>
-                </CardBody>
-              </Card>
-            ))}
+                    </CardBody>
+                  </Card>
+                </motion.div>
+              ))}
+          </AnimatePresence>
         </div>
 
         {/* Empty State */}
@@ -493,7 +518,7 @@ export function AdminOrders() {
             )}
           </div>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 }

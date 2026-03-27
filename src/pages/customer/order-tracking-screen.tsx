@@ -162,7 +162,7 @@ export function OrderTrackingScreen() {
         {/* Map Header Overlay */}
         <div className="relative h-[45%] w-full">
           <MapView 
-            center={driverLocation ? [driverLocation.lat, driverLocation.lng] : (order.delivery_latitude && order.delivery_longitude ? [order.delivery_latitude, order.delivery_longitude] : [28.6139, 77.2090])}
+            center={driverLocation ? [driverLocation.lat, driverLocation.lng] : (order.delivery_latitude && order.delivery_longitude ? [order.delivery_latitude, order.delivery_longitude] : [19.1669, 73.2359])}
             zoom={15}
             driverLocation={driverLocation ? [driverLocation.lat, driverLocation.lng] : undefined}
             customerLocation={order.delivery_latitude && order.delivery_longitude ? [order.delivery_latitude, order.delivery_longitude] : undefined}

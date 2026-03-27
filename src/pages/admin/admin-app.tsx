@@ -1,14 +1,16 @@
-import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { BottomNav, BottomNavItem } from '@/components/design-system/bottom-nav';
-import { LayoutDashboard, ShoppingBag, Menu, Table, BarChart3, Users, LogOut, Calendar, CreditCard, Coins } from 'lucide-react';
+import { useState } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
+import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { Menu as MenuIcon } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 
 interface AdminAppProps {
   onLogout: () => void;
 }
 
 export function AdminApp({ onLogout }: AdminAppProps) {
-  const navigate = useNavigate();
   const location = useLocation();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const getActiveTab = () => {
     const path = location.pathname;
@@ -27,176 +29,48 @@ export function AdminApp({ onLogout }: AdminAppProps) {
   const activeTab = getActiveTab();
 
   return (
-    <div className="flex min-h-screen bg-background">
-      {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex flex-col w-64 bg-card border-r border-border shrink-0">
-        <div className="p-6">
-          <h2 className="text-xl font-black text-primary tracking-tighter">
-            RESTO<span className="text-foreground">FLOW</span> ADMIN
-          </h2>
-        </div>
-
-        <nav className="flex-1 px-4 space-y-2">
-          <SidebarItem
-            icon={<LayoutDashboard className="w-5 h-5" />}
-            label="Dashboard"
-            active={activeTab === 'dashboard'}
-            onClick={() => navigate('/admin/dashboard')}
-          />
-          <SidebarItem
-            icon={<ShoppingBag className="w-5 h-5" />}
-            label="Orders"
-            active={activeTab === 'orders'}
-            onClick={() => navigate('/admin/orders')}
-          />
-          <SidebarItem
-            icon={<Menu className="w-5 h-5" />}
-            label="Menu"
-            active={activeTab === 'menu'}
-            onClick={() => navigate('/admin/menu')}
-          />
-          <SidebarItem
-            icon={<Table className="w-5 h-5" />}
-            label="Tables"
-            active={activeTab === 'tables'}
-            onClick={() => navigate('/admin/tables')}
-          />
-          <SidebarItem
-            icon={<Calendar className="w-5 h-5" />}
-            label="Bookings"
-            active={activeTab === 'bookings'}
-            onClick={() => navigate('/admin/bookings')}
-          />
-          <SidebarItem
-            icon={<CreditCard className="w-5 h-5" />}
-            label="Payment Verification"
-            active={activeTab === 'payment'}
-            onClick={() => navigate('/admin/payment-verification')}
-          />
-          <SidebarItem
-            icon={<Table className="w-5 h-5" />}
-            label="Table Reservations"
-            active={activeTab === 'reservations'}
-            onClick={() => navigate('/admin/table-reservations')}
-          />
-          <SidebarItem
-            icon={<Users className="w-5 h-5" />}
-            label="Users"
-            active={activeTab === 'users'}
-            onClick={() => navigate('/admin/users')}
-          />
-          <SidebarItem
-            icon={<Coins className="w-5 h-5" />}
-            label="Settlements"
-            active={activeTab === 'settlements'}
-            onClick={() => navigate('/admin/settlements')}
-          />
-          <SidebarItem
-            icon={<BarChart3 className="w-5 h-5" />}
-            label="Reports"
-            active={activeTab === 'reports'}
-            onClick={() => navigate('/admin/reports')}
-          />
-        </nav>
-
-        <div className="p-4 border-t border-border">
-          <button
-            onClick={onLogout}
-            className="flex items-center gap-3 w-full px-4 py-3 text-destructive hover:bg-destructive/10 rounded-xl transition-colors font-bold text-sm"
-          >
-            <LogOut className="w-5 h-5" />
-            Logout
-          </button>
-        </div>
-      </aside>
+    <div className="flex min-h-screen bg-background overflow-hidden">
+      {/* Sidebar - Fixed on Desktop, Drawer on Mobile */}
+      <AdminSidebar 
+        activeTab={activeTab} 
+        onLogout={onLogout} 
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+      />
 
       {/* Main Content Area */}
-      <main className="flex-1 relative overflow-y-auto">
-        <div className="pb-16 lg:pb-0">
-          <Outlet context={{ onLogout }} />
-        </div>
+      <main className="flex-1 flex flex-col h-screen lg:ml-[280px] overflow-hidden">
+        {/* Top Header - Visible on Mobile Only (or for sticky header) */}
+        <header className="lg:hidden flex items-center justify-between px-6 py-4 bg-white border-b border-divider sticky top-0 z-30">
+            <h2 className="text-xl font-black tracking-tighter text-brand-maroon">
+                RESTO<span className="text-foreground">FLOW</span>
+            </h2>
+            <button 
+                onClick={() => setIsSidebarOpen(true)}
+                className="p-2 bg-muted/50 rounded-xl text-foreground hover:bg-muted transition-colors"
+            >
+                <MenuIcon className="w-6 h-6" />
+            </button>
+        </header>
 
-        {/* Mobile Bottom Navigation */}
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50">
-          <BottomNav>
-            <BottomNavItem
-              icon={<LayoutDashboard className="w-6 h-6" />}
-              label="Dashboard"
-              active={activeTab === 'dashboard'}
-              onClick={() => navigate('/admin/dashboard')}
-            />
-            <BottomNavItem
-              icon={<ShoppingBag className="w-6 h-6" />}
-              label="Orders"
-              active={activeTab === 'orders'}
-              onClick={() => navigate('/admin/orders')}
-            />
-            <BottomNavItem
-              icon={<Menu className="w-6 h-6" />}
-              label="Menu"
-              active={activeTab === 'menu'}
-              onClick={() => navigate('/admin/menu')}
-            />
-            <BottomNavItem
-              icon={<Table className="w-6 h-6" />}
-              label="Tables"
-              active={activeTab === 'tables'}
-              onClick={() => navigate('/admin/tables')}
-            />
-            <BottomNavItem
-              icon={<Calendar className="w-6 h-6" />}
-              label="Bookings"
-              active={activeTab === 'bookings'}
-              onClick={() => navigate('/admin/bookings')}
-            />
-            <BottomNavItem
-              icon={<CreditCard className="w-6 h-6" />}
-              label="Payment"
-              active={activeTab === 'payment'}
-              onClick={() => navigate('/admin/payment-verification')}
-            />
-            <BottomNavItem
-              icon={<Table className="w-6 h-6" />}
-              label="Reservations"
-              active={activeTab === 'reservations'}
-              onClick={() => navigate('/admin/table-reservations')}
-            />
-            <BottomNavItem
-              icon={<Users className="w-6 h-6" />}
-              label="Users"
-              active={activeTab === 'users'}
-              onClick={() => navigate('/admin/users')}
-            />
-            <BottomNavItem
-              icon={<Coins className="w-6 h-6" />}
-              label="Settlements"
-              active={activeTab === 'settlements'}
-              onClick={() => navigate('/admin/settlements')}
-            />
-            <BottomNavItem
-              icon={<BarChart3 className="w-6 h-6" />}
-              label="Reports"
-              active={activeTab === 'reports'}
-              onClick={() => navigate('/admin/reports')}
-            />
-          </BottomNav>
+        {/* Dynamic Content */}
+        <div className="flex-1 overflow-y-auto no-scrollbar scroll-smooth bg-background">
+          <div className="max-w-[1600px] mx-auto min-h-full p-4 lg:p-8">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={location.pathname}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+                className="h-full"
+              >
+                <Outlet context={{ onLogout }} />
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </div>
       </main>
     </div>
-  );
-}
-
-function SidebarItem({ icon, label, active, onClick }: { icon: React.ReactNode, label: string, active: boolean, onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all font-bold text-sm ${active
-        ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]'
-        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-        }`}
-    >
-      {icon}
-      {label}
-    </button>
   );
 }

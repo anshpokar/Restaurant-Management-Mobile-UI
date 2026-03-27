@@ -138,6 +138,7 @@ export interface Order {
   restaurant_longitude?: number;
   otp?: string;
   is_paid: boolean;
+  order_type: 'dine_in' | 'delivery';
   created_at: string;
   order_number: string;
   picked_up_at?: string;
@@ -157,6 +158,8 @@ export interface OrderItem {
   quantity: number;
   price: number;
   image: string;
+  special_instructions?: string;
+  spice_level?: 'mild' | 'medium' | 'spicy' | 'extra_spicy';
 }
 
 // Additional interfaces for complete database integration

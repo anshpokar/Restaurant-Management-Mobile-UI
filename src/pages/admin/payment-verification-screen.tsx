@@ -4,12 +4,13 @@ import { verifyUPIPayment } from '@/lib/upi-payment';
 import { 
   CheckCircle, 
   XCircle, 
-  RefreshCw,
   Search,
   IndianRupee,
-  UtensilsCrossed
+  UtensilsCrossed,
+  Loader2
 } from 'lucide-react';
 
+import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '@/components/design-system/button';
 import { Card, CardBody } from '@/components/design-system/card';
 import { Badge } from '@/components/design-system/badge';
@@ -77,7 +78,7 @@ export function AdminPaymentVerificationScreen() {
         .from('profiles')
         .select('*')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
       
       if (profile?.role === 'admin') {
         setCurrentUser(profile);
@@ -114,7 +115,7 @@ export function AdminPaymentVerificationScreen() {
                 .from('orders')
                 .select('id, user_id, total_amount, order_type')
                 .eq('id', payment.order_id)
-                .single();
+                .maybeSingle();
               
               return { 
                 ...payment, 
@@ -196,7 +197,7 @@ export function AdminPaymentVerificationScreen() {
             .from('dine_in_sessions')
             .select('table_id')
             .eq('id', result.sessionId)
-            .single();
+            .maybeSingle();
             
           if (sessionData?.table_id) {
             await supabase
@@ -246,7 +247,7 @@ export function AdminPaymentVerificationScreen() {
         .from('dine_in_sessions')
         .select('table_id, session_status')
         .eq('id', sessionId)
-        .single();
+        .maybeSingle();
       
       if (sessionData) {
         if (sessionData.session_status !== 'completed') {
@@ -297,13 +298,15 @@ export function AdminPaymentVerificationScreen() {
   const getStatusBadge = (payment: any) => {
     if (payment.payment_type === 'upi') {
       switch (payment.status) {
-        case 'verified': return <Badge variant="success">✓ Verified</Badge>;
-        case 'verification_requested': return <Badge variant="warning">⏳ Pending</Badge>;
-        case 'failed': return <Badge variant="destructive">✗ Failed</Badge>;
-        default: return <Badge variant="secondary">Pending</Badge>;
+        case 'verified': return <Badge variant="success" className="px-3 py-1 rounded-full text-[8px] font-black tracking-widest uppercase border-0">VERIFIED</Badge>;
+        case 'verification_requested': return <Badge variant="warning" className="px-3 py-1 rounded-full text-[8px] font-black tracking-widest uppercase border-0 animate-pulse">PENDING</Badge>;
+        case 'failed': return <Badge variant="error" className="px-3 py-1 rounded-full text-[8px] font-black tracking-widest uppercase border-0">FAILED</Badge>;
+        default: return <Badge variant="secondary" className="px-3 py-1 rounded-full text-[8px] font-black tracking-widest uppercase border-0">AWAITING</Badge>;
       }
     }
-    return payment.payment_status === 'paid' ? <Badge variant="success">✓ Paid</Badge> : <Badge variant="warning">💵 Cash Pending</Badge>;
+    return payment.payment_status === 'paid' 
+      ? <Badge variant="success" className="px-3 py-1 rounded-full text-[8px] font-black tracking-widest uppercase border-0">PAID</Badge> 
+      : <Badge variant="warning" className="px-3 py-1 rounded-full text-[8px] font-black tracking-widest uppercase border-0">CASH DUE</Badge>;
   };
 
   const filteredPayments = payments.filter(payment => {
@@ -316,67 +319,153 @@ export function AdminPaymentVerificationScreen() {
     );
   });
 
-  const pendingCount = payments.filter(payment => !showVerified).length;
-  const verifiedCount = payments.filter(payment => showVerified).length;
+  const pendingCount = payments.filter(p => p.status === 'verification_requested' || p.payment_status === 'pending').length;
+  const verifiedCount = payments.filter(p => p.status === 'verified' || p.payment_status === 'paid').length;
 
 
-  if (loading) {
-    return <div className="min-h-screen flex items-center justify-center font-bold">LOADING...</div>;
+  if (loading && payments.length === 0) {
+    return (
+      <div className="min-h-screen bg-muted/5 pb-20">
+        <AppHeader title="Finance Audit" />
+        <div className="flex flex-col items-center justify-center h-[60vh]">
+          <Loader2 className="w-10 h-10 animate-spin text-brand-maroon/20 mb-4" />
+          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">Synchronizing Ledgers...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="min-h-screen bg-muted/5 pb-20">
-      <AppHeader title="Payment Verifications" />
-      <div className="px-4 py-4 space-y-4">
-        <div className="flex gap-2 bg-background p-1 rounded-lg border">
-          <button onClick={() => setShowVerified(false)} className={`flex-1 py-2 rounded-md ${!showVerified ? 'bg-primary text-white' : ''}`}>
-            ⏳ Pending ({pendingCount})
+      <AppHeader title="Finance Audit" />
+      
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="px-4 py-6 space-y-8 max-w-[1400px] mx-auto"
+      >
+        {/* Status Switcher */}
+        <div className="flex p-1.5 bg-muted/30 backdrop-blur-sm rounded-[1.5rem] border border-white/50 max-w-md mx-auto">
+          <button 
+            onClick={() => setShowVerified(false)} 
+            className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all ${!showVerified ? 'bg-brand-maroon text-white shadow-xl shadow-brand-maroon/20 scale-105' : 'text-muted-foreground hover:bg-white/50'}`}
+          >
+            AWAITING ({pendingCount})
           </button>
-          <button onClick={() => setShowVerified(true)} className={`flex-1 py-2 rounded-md ${showVerified ? 'bg-green-600 text-white' : ''}`}>
-            ✓ Verified ({verifiedCount})
+          <button 
+            onClick={() => setShowVerified(true)} 
+            className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all ${showVerified ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-200 scale-105' : 'text-muted-foreground hover:bg-white/50'}`}
+          >
+            VERIFIED ({verifiedCount})
           </button>
         </div>
 
-        <div className="flex gap-2 pb-2">
-          {['all', 'upi', 'cod'].map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-4 py-2 rounded-lg ${activeTab === tab ? 'bg-primary/10 text-primary' : ''}`}>
-              {tab.toUpperCase()}
-            </button>
-          ))}
+        {/* Filters & Search */}
+        <div className="space-y-4">
+          <div className="flex gap-2 pb-2 overflow-x-auto no-scrollbar">
+            {['all', 'upi', 'cod'].map(tab => (
+              <button 
+                key={tab} 
+                onClick={() => setActiveTab(tab as any)} 
+                className={`px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab ? 'bg-brand-maroon text-white shadow-lg shadow-brand-maroon/20' : 'bg-white text-muted-foreground hover:bg-muted'}`}
+              >
+                {tab === 'all' ? 'All Channels' : tab.toUpperCase()}
+              </button>
+            ))}
+          </div>
+
+          <div className="relative group">
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-brand-maroon transition-colors" />
+            <input 
+              type="text" 
+              placeholder="Search by ID or Table..." 
+              value={searchTerm} 
+              onChange={e => setSearchTerm(e.target.value)} 
+              className="w-full pl-12 pr-6 py-4 bg-white border-2 border-transparent focus:border-brand-maroon/20 rounded-[2rem] shadow-xl shadow-black/5 outline-none transition-all placeholder:text-[10px] placeholder:font-black placeholder:uppercase placeholder:tracking-widest"
+            />
+          </div>
         </div>
 
-        <input type="text" placeholder="Search..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full px-4 py-3 border rounded-lg outline-none" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <AnimatePresence mode="popLayout">
+            {filteredPayments.map((payment, index) => (
+              <motion.div
+                key={payment.id}
+                layout
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ delay: index * 0.05 }}
+              >
+                <Card className="shadow-xl shadow-black/5 border-none rounded-[2.5rem] group hover:shadow-2xl hover:shadow-brand-maroon/5 overflow-hidden transition-all duration-300">
+                  <CardBody className="p-6">
+                    <div className="flex justify-between items-start mb-6">
+                      <div className="flex items-center gap-4">
+                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner border transition-colors ${
+                          payment.payment_type === 'upi' ? 'bg-brand-maroon/5 border-brand-maroon/10 text-brand-maroon' : 'bg-emerald-50 border-emerald-100 text-emerald-600'
+                        }`}>
+                          {payment.payment_type === 'upi' ? <IndianRupee className="w-7 h-7" /> : <UtensilsCrossed className="w-7 h-7" />}
+                        </div>
+                        <div>
+                          <h4 className="font-black text-foreground tracking-tight group-hover:text-brand-maroon transition-colors text-base">
+                            {payment.payment_type === 'upi' ? `Order #${payment.order_id?.slice(0, 8)}` : `Table ${payment.restaurant_tables?.table_number}`}
+                          </h4>
+                          <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest opacity-60 mt-0.5">
+                            {payment.transaction_id ? `TXN: ${payment.transaction_id.slice(0, 12)}` : `${payment.payment_type.toUpperCase()} DISBURSEMENT`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xl font-black text-foreground tracking-tighter leading-none mb-1">₹{payment.amount || payment.total_amount}</p>
+                        {getStatusBadge(payment)}
+                      </div>
+                    </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredPayments.map(payment => (
-            <Card key={payment.id}>
-              <CardBody className="p-4">
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <h4 className="font-bold">
-                      {payment.payment_type === 'upi' ? `Order #${payment.order_id?.slice(0, 8)}` : `Table ${payment.restaurant_tables?.table_number}`}
-                    </h4>
-                    <p className="text-sm text-muted-foreground">{payment.payment_type.toUpperCase()}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-lg font-bold">₹{payment.amount || payment.total_amount}</p>
-                    {getStatusBadge(payment)}
-                  </div>
-                </div>
-
-                <div className="flex gap-2 mt-4">
-                  {!showVerified && payment.payment_type === 'upi' && (
-                    <Button onClick={() => handleVerifyUPI(payment.id)} disabled={verifyingId === payment.id} className="flex-1 bg-green-600">Verify</Button>
-                  )}
-                  {!showVerified && payment.payment_type === 'cod' && (
-                    <Button onClick={() => handleConfirmCash(payment.id)} disabled={verifyingId === payment.id} className="flex-1 bg-green-600 text-white">Confirm Cash</Button>
-                  )}
-                </div>
-              </CardBody>
-            </Card>
-          ))}
+                    {!showVerified && (
+                      <div className="pt-6 border-t border-dashed border-border/50 flex gap-3">
+                        {payment.payment_type === 'upi' && (
+                          <>
+                            <Button 
+                              onClick={() => handleVerifyUPI(payment.id)} 
+                              disabled={verifyingId === payment.id} 
+                              className="flex-1 h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100"
+                            >
+                              {verifyingId === payment.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'VERIFY EXEC'}
+                            </Button>
+                            <button 
+                              onClick={() => handleReject(payment.id, true)}
+                              className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-100 transition-colors"
+                            >
+                              <XCircle className="w-6 h-6" />
+                            </button>
+                          </>
+                        )}
+                        {payment.payment_type === 'cod' && (
+                          <Button 
+                            onClick={() => handleConfirmCash(payment.id)} 
+                            disabled={verifyingId === payment.id} 
+                            className="flex-1 h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100"
+                          >
+                            {verifyingId === payment.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'CONFIRM CASH RECEIPT'}
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                    
+                    {showVerified && (
+                      <div className="pt-4 flex items-center gap-2 text-[9px] font-black text-muted-foreground uppercase tracking-widest opacity-40">
+                        <CheckCircle className="w-3 h-3 text-emerald-500" />
+                        <span>Audit Complete • {new Date(payment.updated_at || payment.completed_at).toLocaleDateString()}</span>
+                      </div>
+                    )}
+                  </CardBody>
+                </Card>
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

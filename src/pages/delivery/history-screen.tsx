@@ -8,23 +8,37 @@ export function DeliveryHistory() {
     const { profile } = useOutletContext<{ profile: Profile | null }>();
     const [history, setHistory] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
+    const [filter, setFilter] = useState<'today' | 'week' | 'month'>('today');
 
     useEffect(() => {
         if (profile?.id) {
             fetchHistory();
         }
-    }, [profile]);
+    }, [profile, filter]);
 
     async function fetchHistory() {
         try {
             setLoading(true);
-            const { data, error } = await supabase
+            let query = supabase
                 .from('orders')
                 .select('*')
                 .eq('delivery_person_id', profile?.id)
                 .eq('delivery_status', 'delivered')
-                .order('created_at', { ascending: false })
-                .limit(10);
+                .order('created_at', { ascending: false });
+
+            const now = new Date();
+            if (filter === 'today') {
+                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+                query = query.gte('created_at', today);
+            } else if (filter === 'week') {
+                const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+                query = query.gte('created_at', weekAgo);
+            } else if (filter === 'month') {
+                const monthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()).toISOString();
+                query = query.gte('created_at', monthAgo);
+            }
+
+            const { data, error } = await query;
 
             if (error) throw error;
             setHistory(data || []);
@@ -35,52 +49,59 @@ export function DeliveryHistory() {
         }
     }
 
-    const todayOrders = history.filter(order => {
-        const orderDate = new Date(order.created_at).toDateString();
-        const today = new Date().toDateString();
-        return orderDate === today;
-    });
-
-    const earningsPerDelivery = 70; // Hardcoded business logic for now
-    const todayEarnings = todayOrders.length * earningsPerDelivery;
+    const earningsPerDelivery = 30; // Matches DB trigger
+    const filteredEarnings = history.length * earningsPerDelivery;
 
     return (
-        <div className="space-y-6 pb-20">
-            <Card className="bg-gradient-to-br from-green-600 to-green-700 text-white border-0 shadow-lg overflow-hidden relative">
+        <div className="space-y-6 pb-24">
+            {/* Earnings Card */}
+            <Card className="bg-gradient-to-br from-green-600 to-green-700 text-white border-0 shadow-lg overflow-hidden relative mx-1">
                 <CardBody className="p-6 relative z-10">
                     <div className="flex justify-between items-start">
                         <div>
-                            <p className="text-xs font-bold uppercase tracking-widest opacity-80 mb-1">Today's Earnings</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest opacity-80 mb-1">
+                                {filter === 'today' ? "Today's" : filter === 'week' ? "This Week's" : "This Month's"} Earnings
+                            </p>
                             <p className="text-4xl font-black flex items-center">
                                 <IndianRupee className="w-6 h-6 mr-1" />
-                                {todayEarnings.toFixed(2)}
+                                {filteredEarnings.toFixed(2)}
+                            </p>
+                            <p className="text-[10px] font-bold mt-2 opacity-70">
+                                Total Balance: ₹{profile?.total_earnings || 0}
                             </p>
                         </div>
                         <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md">
                             <IndianRupee className="w-6 h-6" />
                         </div>
                     </div>
-                    <div className="mt-4 flex items-center gap-2 bg-white/10 w-fit px-3 py-1.5 rounded-full backdrop-blur-sm border border-white/10">
-                        <CheckCircle2 className="w-4 h-4" />
-                        <span className="text-xs font-bold">Completed {todayOrders.length} deliveries today</span>
-                    </div>
                 </CardBody>
-                {/* Decorative background circle */}
                 <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
             </Card>
 
+            {/* Filter Tabs */}
+            <div className="flex gap-2 px-2 overflow-x-auto no-scrollbar">
+                {(['today', 'week', 'month'] as const).map((f) => (
+                    <button
+                        key={f}
+                        onClick={() => setFilter(f)}
+                        className={`px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all ${filter === f ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'}`}
+                    >
+                        {f}
+                    </button>
+                ))}
+            </div>
+
             <div className="flex items-center justify-between px-2">
-                <h3 className="font-black text-lg text-foreground">Recent Deliveries</h3>
-                <span className="text-xs font-bold text-muted-foreground">{history.length} Total</span>
+                <h3 className="font-black text-xs uppercase tracking-widest text-muted-foreground">Recent Deliveries</h3>
+                <span className="text-[10px] font-bold text-muted-foreground">{history.length} Tasks</span>
             </div>
 
             {loading ? (
-                <div className="text-center py-10 text-muted-foreground animate-pulse">Loading history...</div>
+                <div className="text-center py-10 text-muted-foreground animate-pulse text-xs font-bold uppercase tracking-widest">Updating...</div>
             ) : history.length === 0 ? (
-                <div className="text-center py-20 bg-muted/20 rounded-3xl border-2 border-dashed border-divider">
+                <div className="text-center py-20 bg-muted/20 rounded-3xl border-2 border-dashed border-divider mx-1">
                     <Package className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-20" />
-                    <p className="font-bold text-muted-foreground">No completed deliveries yet</p>
-                    <p className="text-xs text-muted-foreground mt-1">Accept tasks to start earning!</p>
+                    <p className="font-bold text-muted-foreground text-sm">No deliveries in this period</p>
                 </div>
             ) : (
                 <div className="space-y-3 px-1">

@@ -15,10 +15,13 @@ export function CheckoutScreen() {
     cartItems, 
     clearCart, 
     getTotalAmount, 
+    getSubtotal,
     appliedOffer, 
     applyCoupon, 
     removeCoupon, 
-    getDiscountAmount 
+    getDiscountAmount,
+    getGSTAmount,
+    getDeliveryCharge
   } = useCart();
   const [loading, setLoading] = useState(false);
   const [couponCode, setCouponCode] = useState('');
@@ -276,7 +279,7 @@ export function CheckoutScreen() {
       setLoading(true);
 
       // Calculate total (discounted)
-      const totalAmount = getTotalAmount();
+      const totalAmount = getTotalAmount(orderType);
       const discountAmount = getDiscountAmount();
       const couponUsed = appliedOffer?.discount_code;
 
@@ -348,7 +351,9 @@ export function CheckoutScreen() {
             name: item.name,
             quantity: item.quantity,
             price: item.price,
-            image: item.image || ''
+            image: item.image || '',
+            special_instructions: item.special_instructions || null,
+            spice_level: item.spice_level || 'medium'
           }));
 
           const { error: itemsError } = await supabase
@@ -448,7 +453,9 @@ export function CheckoutScreen() {
         name: item.name,
         quantity: item.quantity,
         price: item.price,
-        image: item.image || ''
+        image: item.image || '',
+        special_instructions: item.special_instructions || null,
+        spice_level: item.spice_level || 'medium'
       }));
 
       const { error: itemsError } = await supabase
@@ -482,7 +489,7 @@ export function CheckoutScreen() {
     }
   }
 
-  const calculateTotal = getTotalAmount;
+  const calculateTotal = () => getTotalAmount(orderType);
 
   return (
     <div className="min-h-screen bg-background pb-4">
@@ -530,22 +537,36 @@ export function CheckoutScreen() {
 
                 <div className="border-t mt-3 pt-3 space-y-2">
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-muted-foreground">Subtotal:</span>
-                    <span className="font-medium">₹{cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)}</span>
+                    <span className="text-muted-foreground">Base Subtotal:</span>
+                    <span className="font-medium">₹{getSubtotal().toFixed(2)}</span>
                   </div>
                   
+                  {getGSTAmount() > 0 && (
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground">GST (5%):</span>
+                      <span className="font-medium">₹{getGSTAmount().toFixed(2)}</span>
+                    </div>
+                  )}
+
                   {getDiscountAmount() > 0 && (
                     <div className="flex justify-between items-center text-sm text-green-600 font-bold">
                       <div className="flex items-center gap-1">
                         <span>Discount ({appliedOffer?.discount_code}):</span>
                       </div>
-                      <span>-₹{getDiscountAmount()}</span>
+                      <span>-₹{getDiscountAmount().toFixed(2)}</span>
+                    </div>
+                  )}
+
+                  {getDeliveryCharge(orderType) > 0 && (
+                    <div className="flex justify-between items-center text-sm text-orange-600">
+                      <span className="text-muted-foreground">Delivery Charge:</span>
+                      <span className="font-medium">₹{getDeliveryCharge(orderType)}</span>
                     </div>
                   )}
 
                   <div className="flex justify-between items-center font-bold text-lg pt-1 border-t border-dashed">
-                    <span>Total Payable:</span>
-                    <span className="text-primary">₹{getTotalAmount()}</span>
+                    <span className="text-foreground">Total Payable:</span>
+                    <span className="text-primary text-xl">₹{calculateTotal().toFixed(2)}</span>
                   </div>
                 </div>
               </CardBody>
@@ -824,64 +845,65 @@ export function CheckoutScreen() {
                     )}
                   </button>
 
-                  {/* Delivery Coupon Section */}
-                  {orderType === 'delivery' && (
-                    <div className="mt-4 p-4 bg-primary/5 rounded-2xl border border-primary/10">
-                      <div className="flex justify-between items-center mb-3">
-                        <h4 className="font-black text-xs uppercase tracking-widest text-primary">Apply Coupon</h4>
-                        {appliedOffer && (
-                          <button 
-                            onClick={removeCoupon}
-                            className="text-[10px] font-black text-red-500 uppercase flex items-center gap-1"
-                          >
-                            <X className="w-3 h-3" /> Remove
-                          </button>
-                        )}
-                      </div>
-                      
-                      {appliedOffer ? (
-                        <div className="flex items-center justify-between p-3 bg-white rounded-xl border-2 border-dashed border-green-500">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center text-xl">🎉</div>
-                            <div>
-                              <p className="font-black text-sm text-green-700">{appliedOffer.discount_code}</p>
-                              <p className="text-[10px] text-green-600 font-medium">{appliedOffer.description}</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-xs font-black text-green-700">-₹{getDiscountAmount()}</p>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            placeholder="Enter Code (e.g. NAV30)"
-                            value={couponCode}
-                            onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                            className="flex-1 p-3 bg-white border border-border rounded-xl focus:ring-2 focus:ring-primary outline-none font-bold text-sm uppercase"
-                          />
-                          <Button 
-                            className="px-6 h-12 rounded-xl"
-                            disabled={!couponCode || isApplying}
-                            onClick={async () => {
-                              setIsApplying(true);
-                              const result = await applyCoupon(couponCode);
-                              if (result.success) {
-                                toast.success(result.message);
-                                setCouponCode('');
-                              } else {
-                                toast.error(result.message);
-                              }
-                              setIsApplying(false);
-                            }}
-                          >
-                            {isApplying ? '...' : 'APPLY'}
-                          </Button>
-                        </div>
+                  {/* Coupon Section */}
+                  <div className="mt-4 p-4 bg-primary/5 rounded-2xl border border-primary/10">
+                    <div className="flex justify-between items-center mb-3">
+                      <h4 className="font-black text-xs uppercase tracking-widest text-primary">Offers & Coupons</h4>
+                      {appliedOffer && (
+                        <button 
+                          onClick={removeCoupon}
+                          className="text-[10px] font-black text-red-500 uppercase flex items-center gap-1"
+                        >
+                          <X className="w-3 h-3" /> Remove
+                        </button>
                       )}
                     </div>
-                  )}
+                    
+                    {appliedOffer ? (
+                      <div className="flex items-center justify-between p-3 bg-white rounded-xl border-2 border-dashed border-green-500">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center text-xl">🎉</div>
+                          <div>
+                            <p className="font-black text-sm text-green-700">{appliedOffer.discount_code}</p>
+                            <p className="text-[10px] text-green-600 font-medium">{appliedOffer.description}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs font-black text-green-700">-₹{getDiscountAmount().toFixed(2)}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Enter Code (e.g. NAV30)"
+                          value={couponCode}
+                          onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                          className="flex-1 p-3 bg-white border border-border rounded-xl focus:ring-2 focus:ring-primary outline-none font-bold text-sm uppercase"
+                        />
+                        <Button 
+                          className="px-6 h-12 rounded-xl"
+                          disabled={!couponCode || isApplying}
+                          onClick={async () => {
+                            setIsApplying(true);
+                            try {
+                                const result = await applyCoupon(couponCode);
+                                if (result.success) {
+                                    toast.success(result.message);
+                                    setCouponCode('');
+                                } else {
+                                    toast.error(result.message);
+                                }
+                            } finally {
+                                setIsApplying(false);
+                            }
+                          }}
+                        >
+                          {isApplying ? '...' : 'APPLY'}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </CardBody>
             </Card>

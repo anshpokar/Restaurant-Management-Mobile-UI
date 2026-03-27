@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 
 import { supabase } from '@/lib/supabase';
 import { verifyUPIPayment } from '@/lib/upi-payment';
@@ -10,17 +9,18 @@ import {
   RefreshCw,
   Search,
   Filter,
-  DollarSign,
-  CreditCard
+  IndianRupee,
+  CreditCard,
+  UserCircle
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '@/components/design-system/button';
-import { Card } from '@/components/design-system/card';
+import { Card, CardBody } from '@/components/design-system/card';
 import { Badge } from '@/components/design-system/badge';
+import { AppHeader } from '@/components/design-system/app-header';
 import { toast } from 'sonner';
 
 export function AdminUPIVerificationScreen() {
-  const navigate = useNavigate();
-  
   // State
   const [upiPayments, setUpiPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,7 +78,7 @@ export function AdminUPIVerificationScreen() {
         .from('profiles')
         .select('*')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
       
       if (profileError) {
         console.error('Profile fetch error:', profileError);
@@ -102,7 +102,6 @@ export function AdminUPIVerificationScreen() {
 
   const fetchUpiPayments = async () => {
     try {
-      // First try without the orders join to see if that's the issue
       let query = supabase
         .from('upi_payments')
         .select('*')
@@ -119,7 +118,6 @@ export function AdminUPIVerificationScreen() {
         throw paymentsError;
       }
 
-      // If we have payments, try to enrich with order data separately
       if (paymentsData && paymentsData.length > 0) {
         const enrichedPayments = await Promise.all(
           paymentsData.map(async (payment) => {
@@ -128,11 +126,11 @@ export function AdminUPIVerificationScreen() {
                 .from('orders')
                 .select('id, user_id, total_amount, order_type')
                 .eq('id', payment.order_id)
-                .single();
+                .maybeSingle();
               
               return { ...payment, orders: orderData };
-            } catch (orderError) {
-              console.warn(`Could not fetch order ${payment.order_id}:`, orderError);
+            } catch (err) {
+              console.warn(`Error fetching order for payment ${payment.id}:`, err);
               return { ...payment, orders: null };
             }
           })
@@ -142,17 +140,13 @@ export function AdminUPIVerificationScreen() {
         setUpiPayments([]);
       }
     } catch (error: any) {
-      console.error('Error fetching UPI payments:', error);
-      // Don't show toast for every error, only critical ones
-      if (error.message?.includes('relation') || error.message?.includes('does not exist')) {
-        toast.error('Database configuration issue. Please contact administrator.');
-      }
+      console.error('Error in fetchUpiPayments:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleVerify = async (qrId: string, orderId: string) => {
+  const handleVerify = async (qrId: string) => {
     if (!currentUser) {
       toast.error('Admin authentication required');
       return;
@@ -209,21 +203,6 @@ export function AdminUPIVerificationScreen() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'verified':
-        return <Badge variant="success">Verified</Badge>;
-      case 'verification_requested':
-        return <Badge variant="warning">Pending Verification</Badge>;
-      case 'failed':
-        return <Badge variant="destructive">Failed</Badge>;
-      case 'expired':
-        return <Badge variant="secondary">Expired</Badge>;
-      default:
-        return <Badge variant="secondary">Pending</Badge>;
-    }
-  };
-
   const filteredPayments = upiPayments.filter(payment => {
     if (!searchTerm) return true;
     
@@ -243,246 +222,196 @@ export function AdminUPIVerificationScreen() {
     failed: upiPayments.filter(p => p.status === 'failed').length
   };
 
-  if (loading) {
+  if (loading && upiPayments.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <RefreshCw className="w-8 h-8 animate-spin text-orange-500" />
+      <div className="min-h-screen bg-muted/5 pb-20">
+        <AppHeader title="UPI Audit" />
+        <div className="flex flex-col items-center justify-center h-[60vh]">
+          <RefreshCw className="w-10 h-10 animate-spin text-brand-maroon/20 mb-4" />
+          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">Verifying Signal Bridge...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            UPI Payment Verification
-          </h1>
-          <p className="text-gray-600">
-            Verify and manage customer UPI payments
-          </p>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Total</p>
-                <p className="text-2xl font-bold">{stats.total}</p>
-              </div>
-              <DollarSign className="w-8 h-8 text-gray-400" />
-            </div>
-          </Card>
-
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Pending</p>
-                <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
-              </div>
-              <Clock className="w-8 h-8 text-yellow-500" />
-            </div>
-          </Card>
-
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Verified</p>
-                <p className="text-2xl font-bold text-green-600">{stats.verified}</p>
-              </div>
-              <CheckCircle className="w-8 h-8 text-green-500" />
-            </div>
-          </Card>
-
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Failed</p>
-                <p className="text-2xl font-bold text-red-600">{stats.failed}</p>
-              </div>
-              <XCircle className="w-8 h-8 text-red-500" />
-            </div>
-          </Card>
+    <div className="min-h-screen bg-muted/5 pb-20">
+      <AppHeader title="UPI Intelligence" />
+      
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="px-4 py-6 space-y-8 max-w-[1400px] mx-auto"
+      >
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { label: 'Total Volume', value: stats.total, icon: <CreditCard className="w-5 h-5" />, color: 'from-slate-700 to-slate-900' },
+            { label: 'Awaiting', value: stats.pending, icon: <Clock className="w-5 h-5" />, color: 'from-amber-500 to-orange-600' },
+            { label: 'Verified', value: stats.verified, icon: <CheckCircle className="w-5 h-5" />, color: 'from-emerald-500 to-teal-600' },
+            { label: 'Rejected', value: stats.failed, icon: <XCircle className="w-5 h-5" />, color: 'from-rose-500 to-red-600' },
+          ].map((stat, i) => (
+            <motion.div
+              key={stat.label}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: i * 0.1 }}
+            >
+              <Card className={`border-none shadow-xl bg-gradient-to-br ${stat.color} text-white rounded-3xl overflow-hidden relative group`}>
+                <CardBody className="p-5 relative z-10">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-md">
+                      {stat.icon}
+                    </div>
+                    <span className="text-2xl font-black tracking-tighter">{stat.value}</span>
+                  </div>
+                  <p className="text-[9px] font-black uppercase tracking-widest opacity-60">{stat.label}</p>
+                </CardBody>
+                <div className="absolute -right-4 -bottom-4 w-16 h-16 bg-white/5 rounded-full blur-xl group-hover:scale-150 transition-transform duration-700" />
+              </Card>
+            </motion.div>
+          ))}
         </div>
 
         {/* Filters and Search */}
-        <Card className="mb-6 p-4">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search by Transaction ID, Order ID, or Name..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Filter className="w-5 h-5 text-gray-400" />
-              <select
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              >
-                <option value="all">All</option>
-                <option value="pending">Pending</option>
-                <option value="verification_requested">Pending Verification</option>
-                <option value="verified">Verified</option>
-                <option value="failed">Failed</option>
-                <option value="expired">Expired</option>
-              </select>
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="md:col-span-3 relative group">
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-brand-maroon transition-colors" />
+            <input
+              type="text"
+              placeholder="Query by Transaction ID, Order # or Name..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-12 pr-6 py-4 bg-white border-2 border-transparent focus:border-brand-maroon/20 rounded-[2rem] shadow-xl shadow-black/5 outline-none transition-all placeholder:text-[10px] placeholder:font-black placeholder:uppercase placeholder:tracking-widest"
+            />
           </div>
-        </Card>
+
+          <div className="relative">
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="w-full px-6 py-4 bg-white border-none rounded-[2rem] shadow-xl shadow-black/5 text-[10px] font-black uppercase tracking-widest appearance-none outline-none focus:ring-2 focus:ring-brand-maroon/20 transition-all cursor-pointer"
+            >
+              <option value="all">Full Protocol</option>
+              <option value="verification_requested">Awaiting Auth</option>
+              <option value="verified">Verified Clear</option>
+              <option value="failed">Rejected Entry</option>
+            </select>
+            <Filter className="absolute right-5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+          </div>
+        </div>
 
         {/* UPI Payments List */}
-        <div className="space-y-4">
-          {filteredPayments.length === 0 ? (
-            <Card className="p-8 text-center">
-              <CreditCard className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                No UPI Payments Found
-              </h3>
-              <p className="text-gray-600">
-                {filter === 'verification_requested' 
-                  ? 'No pending verifications at the moment'
-                  : `No ${filter} payments`
-                }
-              </p>
-            </Card>
-          ) : (
-            filteredPayments.map((payment) => (
-              <Card key={payment.id} className="p-6">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  {/* Payment Details */}
-                  <div className="lg:col-span-2">
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <h3 className="font-semibold text-lg mb-1">
-                          Order #{payment.orders?.id?.slice(0, 8) || 'N/A'}
-                        </h3>
-                        <p className="text-sm text-gray-600">
-                          {new Date(payment.created_at).toLocaleString()}
-                        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <AnimatePresence mode="popLayout">
+            {filteredPayments.length === 0 ? (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="col-span-full py-24 text-center bg-white rounded-[3rem] border-2 border-dashed border-muted shadow-inner"
+              >
+                <CreditCard className="w-16 h-16 text-muted/30 mx-auto mb-6" />
+                <h3 className="text-[12px] font-black uppercase tracking-[0.3em] text-muted-foreground">
+                  No Signals Detected
+                </h3>
+              </motion.div>
+            ) : (
+              filteredPayments.map((payment, index) => (
+                <motion.div
+                  key={payment.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ delay: index * 0.05 }}
+                >
+                  <Card className="shadow-xl shadow-black/5 border-none rounded-[2.5rem] group hover:shadow-2xl hover:shadow-brand-maroon/5 overflow-hidden transition-all duration-300">
+                    <CardBody className="p-8">
+                      <div className="flex justify-between items-start mb-8">
+                        <div className="flex items-center gap-4">
+                          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner border transition-colors ${
+                            payment.status === 'verified' ? 'bg-emerald-50 border-emerald-100 text-emerald-600' :
+                            payment.status === 'failed' ? 'bg-rose-50 border-rose-100 text-rose-600' :
+                            'bg-brand-maroon/5 border-brand-maroon/10 text-brand-maroon'
+                          }`}>
+                            <IndianRupee className="w-7 h-7" />
+                          </div>
+                          <div>
+                            <h4 className="font-black text-foreground tracking-tight group-hover:text-brand-maroon transition-colors text-lg">
+                              Order #{payment.order_id?.slice(0, 8)}
+                            </h4>
+                            <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest opacity-60 mt-0.5">
+                              {new Date(payment.created_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-2xl font-black text-foreground tracking-tighter leading-none mb-1">₹{payment.amount}</p>
+                          <Badge 
+                            variant={payment.status === 'verified' ? 'success' : payment.status === 'failed' ? 'error' : 'warning'}
+                            className="px-3 py-1 rounded-full text-[8px] font-black tracking-widest uppercase border-0"
+                          >
+                            {payment.status === 'verification_requested' ? 'AWAITING' : payment.status}
+                          </Badge>
+                        </div>
                       </div>
-                      {getStatusBadge(payment.status)}
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <p className="text-sm text-gray-600 mb-1">Amount</p>
-                        <p className="font-semibold text-lg">₹{payment.amount}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600 mb-1">Order Type</p>
-                        <Badge variant="secondary">
-                          {payment.orders?.order_type || 'Unknown'}
-                        </Badge>
-                      </div>
-                    </div>
+                      <div className="space-y-4">
+                        {payment.transaction_id && (
+                          <div className="bg-muted/30 p-4 rounded-3xl border border-dashed border-border/50">
+                            <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1">Transaction Anchor (UTR)</p>
+                            <p className="font-mono text-sm font-bold text-brand-maroon break-all">{payment.transaction_id}</p>
+                            {payment.beneficiary_name && (
+                              <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/50">
+                                <UserCircle className="w-3.5 h-3.5 text-muted-foreground" />
+                                <span className="text-[10px] font-black uppercase text-muted-foreground">{payment.beneficiary_name}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
 
-                    {payment.transaction_id && (
-                      <div className="bg-blue-50 p-3 rounded-lg mb-3">
-                        <p className="text-sm font-medium text-blue-900 mb-1">
-                          Transaction ID (UTR)
-                        </p>
-                        <p className="font-mono text-blue-700">
-                          {payment.transaction_id}
-                        </p>
-                        {payment.beneficiary_name && (
-                          <p className="text-sm text-blue-600 mt-2">
-                            Paid by: {payment.beneficiary_name}
-                          </p>
+                        {payment.verification_notes && (
+                          <div className="bg-rose-50/50 p-4 rounded-3xl border border-rose-100/50">
+                            <p className="text-[9px] font-black text-rose-600 uppercase tracking-widest mb-1">Audit Feedback</p>
+                            <p className="text-xs font-bold text-rose-800">{payment.verification_notes}</p>
+                          </div>
                         )}
                       </div>
-                    )}
 
-                    {payment.verification_notes && (
-                      <div className="bg-gray-50 p-3 rounded-lg">
-                        <p className="text-sm font-medium text-gray-700 mb-1">
-                          Notes
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          {payment.verification_notes}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="border-t lg:border-t-0 lg:border-l pt-4 lg:pt-0 lg:pl-6">
-                    <div className="space-y-3">
                       {payment.status === 'verification_requested' && (
-                        <>
+                        <div className="pt-8 mt-4 border-t border-dashed border-border/50 flex gap-4">
                           <Button
-                            onClick={() => handleVerify(payment.id, payment.order_id)}
+                            onClick={() => handleVerify(payment.id)} 
                             disabled={verifyingId === payment.id}
-                            className="w-full bg-green-600 hover:bg-green-700"
+                            className="flex-1 h-16 rounded-[2rem] bg-emerald-600 hover:bg-emerald-700 text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-100"
                           >
                             {verifyingId === payment.id ? (
-                              <>
-                                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                                Verifying...
-                              </>
+                              <RefreshCw className="w-5 h-5 animate-spin mx-auto" />
                             ) : (
-                              <>
-                                <CheckCircle className="w-4 h-4 mr-2" />
-                                Verify Payment
-                              </>
+                              <div className="flex items-center justify-center gap-2">
+                                <CheckCircle className="w-5 h-5" />
+                                <span>AUTHORIZE CLEARANCE</span>
+                              </div>
                             )}
                           </Button>
 
-                          <Button
+                          <button
                             onClick={() => handleReject(payment.id)}
-                            variant="outline"
-                            className="w-full border-red-300 text-red-600 hover:bg-red-50"
+                            className="w-16 h-16 rounded-[2rem] bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-100 transition-all active:scale-95"
                           >
-                            <XCircle className="w-4 h-4 mr-2" />
-                            Reject
-                          </Button>
-                        </>
-                      )}
-
-                      {payment.status === 'verified' && (
-                        <div className="text-center py-3">
-                          <CheckCircle className="w-8 h-8 text-green-500 mx-auto mb-2" />
-                          <p className="text-green-700 font-medium">Verified</p>
-                          <p className="text-sm text-gray-600">
-                            {payment.verified_at 
-                              ? new Date(payment.verified_at).toLocaleString()
-                              : ''
-                            }
-                          </p>
+                            <XCircle className="w-7 h-7" />
+                          </button>
                         </div>
                       )}
-
-                      {payment.status === 'failed' && (
-                        <div className="text-center py-3">
-                          <XCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
-                          <p className="text-red-700 font-medium">Rejected</p>
-                        </div>
-                      )}
-
-                      {payment.status === 'expired' && (
-                        <div className="text-center py-3">
-                          <Clock className="w-8 h-8 text-yellow-500 mx-auto mb-2" />
-                          <p className="text-yellow-700 font-medium">Expired</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            ))
-          )}
+                    </CardBody>
+                  </Card>
+                </motion.div>
+              ))
+            )}
+          </AnimatePresence>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

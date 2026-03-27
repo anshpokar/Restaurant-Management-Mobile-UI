@@ -59,6 +59,7 @@ import { DeliveryHistory } from '@/pages/delivery/history-screen';
 import { DeliveryProfile } from '@/pages/delivery/profile-screen';
 import { AddressPickerScreen } from '@/pages/delivery/address-picker-screen';
 import { LeafletAddressPicker } from '@/pages/delivery/leaflet-address-picker';
+import { DeliverySettlementsScreen } from '@/pages/delivery/settlements-screen';
 
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { Profile, UserRole } from '@/lib/supabase';
@@ -194,6 +195,9 @@ export function AppRoutes({ userRole, userProfile, isLoadingAuth, handleLogout }
                 <Route path="tasks" element={<DeliveryTasksScreen />} />
                 <Route path="history" element={<DeliveryHistory />} />
                 <Route path="profile" element={<DeliveryProfile />} />
+                <Route path="settlements" element={<DeliverySettlementsScreen />} />
+                <Route path="payment/:orderId" element={<PaymentScreen />} />
+                <Route path="payment/session/:sessionId" element={<PaymentScreen />} />
             </Route>
 
             {/* 404 / Default */}
