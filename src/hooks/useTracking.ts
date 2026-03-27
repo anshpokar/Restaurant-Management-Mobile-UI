@@ -10,6 +10,7 @@ export function useTracking(orderId?: string) {
   const [driverLocation, setDriverLocation] = useState<Location | null>(null);
   const [history, setHistory] = useState<Location[]>([]);
   const [routePolyline, setRoutePolyline] = useState<[number, number][] | undefined>(undefined);
+  const [etaMinutes, setEtaMinutes] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -99,15 +100,31 @@ export function useTracking(orderId?: string) {
         .eq('id', orderId)
         .single();
 
-      if (order?.delivery_latitude && driverLocation) {
+      if (order?.delivery_latitude && order?.delivery_longitude && driverLocation) {
         const apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjQwNTkzNjEzY2JjNzRkZTRiMWYyZjBmNGM2OWQzOTFjIiwiaCI6Im11cm11cjY0In0=";
         const response = await fetch(
-          `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${apiKey}&start=${driverLocation.lng},${driverLocation.lat}&end=${order.delivery_longitude},${order.delivery_latitude}`
+          `https://api.openrouteservice.org/v2/directions/driving-car?start=${driverLocation.lng},${driverLocation.lat}&end=${order.delivery_longitude},${order.delivery_latitude}`,
+          {
+            headers: {
+              'Authorization': apiKey,
+              'Content-Type': 'application/json'
+            }
+          }
         );
+        
+        if (!response.ok) {
+          throw new Error(`ORS API Error: ${response.status} ${response.statusText}`);
+        }
+        
         const data = await response.json();
-        if (data.features && data.features[0]) {
+        if (data.features && data.features.length > 0) {
           const coords = data.features[0].geometry.coordinates.map((c: any) => [c[1], c[0]]);
           setRoutePolyline(coords);
+          
+          // Set ETA (duration is in seconds)
+          if (data.features[0].properties?.summary?.duration) {
+            setEtaMinutes(Math.ceil(data.features[0].properties.summary.duration / 60));
+          }
         }
       }
     } catch (error) {
@@ -115,5 +132,5 @@ export function useTracking(orderId?: string) {
     }
   }
 
-  return { driverLocation, history, routePolyline, loading };
+  return { driverLocation, history, routePolyline, etaMinutes, loading };
 }

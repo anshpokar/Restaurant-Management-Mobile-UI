@@ -5,8 +5,7 @@ import { AppHeader } from '@/components/design-system/app-header';
 import { Button } from '@/components/design-system/button';
 import { Card, CardBody } from '@/components/design-system/card';
 import { Badge } from '@/components/design-system/badge';
-import { UtensilsCrossed, Clock, Package, CheckCircle2, Truck, Phone, ChevronRight, IndianRupee } from 'lucide-react';
-import { toast } from 'sonner';
+import { UtensilsCrossed, Clock, Package, CheckCircle2, Truck, Phone, ChevronRight, IndianRupee, Navigation } from 'lucide-react';
 import { SessionPaymentModal } from '@/components/customer/SessionPaymentModal';
 
 export function OrdersScreen() {
@@ -381,7 +380,7 @@ export function OrdersScreen() {
                   </div>
 
                   {/* Delivery Tracking Section */}
-                  {(order.status === 'out_for_delivery' || order.status === 'delivered') && order.delivery_person && (
+                  {(['assigned', 'picked', 'out_for_delivery', 'delivered'].includes(order.status)) && order.delivery_person && (
                     <div className="bg-primary/5 p-4 rounded-2xl space-y-3">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-xl">
@@ -389,17 +388,33 @@ export function OrdersScreen() {
                         </div>
                         <div className="flex-1">
                           <p className="text-[10px] font-black text-primary uppercase">
-                            {order.status === 'out_for_delivery' ? 'Out for Delivery' : 'Delivered By'}
+                            {order.status === 'delivered' ? 'Delivered By' : 'Rider Assigned'}
                           </p>
                           <p className="font-bold text-foreground">{(order.delivery_person as any).full_name}</p>
                         </div>
-                        <a
-                          href={`tel:${(order.delivery_person as any).phone_number}`}
-                          className="w-10 h-10 bg-green-500 text-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform"
-                        >
-                          <Phone className="w-5 h-5" />
-                        </a>
+                        <div className="flex gap-2">
+                          <a
+                            href={`tel:${(order.delivery_person as any).phone}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-10 h-10 bg-green-500 text-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform"
+                          >
+                            <Phone className="w-5 h-5" />
+                          </a>
+                        </div>
                       </div>
+                      
+                      {order.status !== 'delivered' && (
+                        <Button 
+                          className="w-full bg-primary hover:bg-primary/90 font-black text-xs uppercase tracking-widest h-12 rounded-xl shadow-lg shadow-primary/20"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/customer/tracking/${order.id}`);
+                          }}
+                        >
+                          <Navigation className="w-4 h-4 mr-2" />
+                          Track Order
+                        </Button>
+                      )}
                     </div>
                   )}
 

@@ -24,6 +24,8 @@ interface DeliveryOrder {
   delivery_status: string;
   delivery_latitude?: number;
   delivery_longitude?: number;
+  restaurant_latitude?: number;
+  restaurant_longitude?: number;
   delivery_instructions?: string;
   assigned_at: string;
   otp?: string;
@@ -130,8 +132,12 @@ export function DeliveryTasksScreen() {
     if (activeOrders.length > 0 && currentLocation) {
       const order = activeOrders[0];
       if (order.delivery_status === 'picked' || order.delivery_status === 'out_for_delivery') {
-        const dest: [number, number] = [order.delivery_latitude!, order.delivery_longitude!];
-        fetchRoute(currentLocation, dest);
+        const destLat = order.delivery_latitude;
+        const destLng = order.delivery_longitude;
+        
+        if (destLat && destLng && (destLat !== 0 || destLng !== 0)) {
+          fetchRoute(currentLocation, [destLat, destLng]);
+        }
       } else {
         setRoutePolyline(undefined);
       }
@@ -142,10 +148,21 @@ export function DeliveryTasksScreen() {
     try {
       const apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjQwNTkzNjEzY2JjNzRkZTRiMWYyZjBmNGM2OWQzOTFjIiwiaCI6Im11cm11cjY0In0=";
       const response = await fetch(
-        `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${apiKey}&start=${start[1]},${start[0]}&end=${end[1]},${end[0]}`
+        `https://api.openrouteservice.org/v2/directions/driving-car?start=${start[1]},${start[0]}&end=${end[1]},${end[0]}`,
+        {
+          headers: {
+            'Authorization': apiKey,
+            'Content-Type': 'application/json'
+          }
+        }
       );
+      
+      if (!response.ok) {
+        throw new Error(`ORS API Error: ${response.status} ${response.statusText}`);
+      }
+      
       const data = await response.json();
-      if (data.features && data.features[0]) {
+      if (data.features && data.features.length > 0) {
         const coords = data.features[0].geometry.coordinates.map((c: any) => [c[1], c[0]]);
         setRoutePolyline(coords);
       }
@@ -286,196 +303,130 @@ export function DeliveryTasksScreen() {
     <MobileContainer>
       <AppHeader title="My Deliveries" />
       
-      <div className="p-4 space-y-4 pb-32">
-        {/* Status Dashboard */}
-        <Card className="bg-gradient-to-br from-orange-500 to-red-600 text-white p-5 border-0 shadow-lg relative overflow-hidden">
-          <div className="relative z-10 flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-xs font-bold uppercase tracking-wider opacity-80">Rider Dashboard</p>
-              <h2 className="text-2xl font-black">
-                {isOnDuty ? (isAvailable ? 'Available' : 'On Order') : 'Off Duty'}
-              </h2>
-            </div>
-            <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-md">
-              <Package className="w-6 h-6 text-white" />
-            </div>
-          </div>
-          
-          <div className="mt-6 flex gap-3 relative z-10">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={toggleDuty}
-              className={`flex-1 ${isOnDuty ? 'bg-white text-red-600' : 'bg-white/20 text-white border-0'}`}
-            >
-              {isOnDuty ? 'Go Off Duty' : 'Go On Duty'}
-            </Button>
-            {isOnDuty && (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={toggleAvailability}
-                className={`flex-1 ${isAvailable ? 'bg-white text-green-600' : 'bg-white/20 text-white border-0'}`}
-              >
-                {isAvailable ? 'Active' : 'Busy'}
-              </Button>
-            )}
-          </div>
-          {/* Decorative background circle */}
-          <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
-        </Card>
+      <div className="relative h-[calc(100vh-64px)] w-full overflow-hidden">
+        {/* Full Screen Map Background */}
+        <div className="absolute inset-0 z-0">
+          <MapView 
+            center={currentLocation || [28.6139, 77.2090]}
+            zoom={15}
+            driverLocation={currentLocation || undefined}
+            customerLocation={activeOrders[0]?.delivery_latitude && activeOrders[0]?.delivery_longitude ? [activeOrders[0].delivery_latitude, activeOrders[0].delivery_longitude] : undefined}
+            restaurantLocation={activeOrders[0]?.restaurant_latitude && activeOrders[0]?.restaurant_longitude ? [activeOrders[0].restaurant_latitude, activeOrders[0].restaurant_longitude] : undefined}
+            routePolyline={routePolyline}
+            className="h-full w-full"
+          />
+        </div>
 
-        {/* Live Tracking Map */}
-        {activeOrders.length > 0 && currentLocation && (
-          <Card className="p-0 overflow-hidden border-2 border-divider shadow-md">
-            <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                <span className="text-xs font-bold text-muted-foreground uppercase">Live Tracking</span>
+        {/* Top Overlay: Rider Dashboard Mini */}
+        <div className="absolute top-4 left-4 right-4 z-10">
+          <Card className="bg-white/90 backdrop-blur-md shadow-xl border-0 p-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`w-3 h-3 rounded-full ${isOnDuty ? (isAvailable ? 'bg-green-500 animate-pulse' : 'bg-blue-500') : 'bg-gray-400'}`} />
+              <div>
+                <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Rider Status</p>
+                <p className="font-bold text-sm">
+                  {isOnDuty ? (isAvailable ? 'Available' : 'On Order') : 'Off Duty'}
+                </p>
               </div>
-              {activeOrders[0].delivery_status === 'out_for_delivery' && (
-                <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">Route Active</span>
-              )}
             </div>
-            <MapView 
-              center={currentLocation}
-              zoom={15}
-              driverLocation={currentLocation}
-              customerLocation={activeOrders[0].delivery_latitude && activeOrders[0].delivery_longitude ? [activeOrders[0].delivery_latitude, activeOrders[0].delivery_longitude] : undefined}
-              routePolyline={routePolyline}
-              className="h-[220px] w-full"
-            />
+            <div className="flex gap-2">
+              <Button size="sm" variant={isOnDuty ? "primary" : "outline"} onClick={toggleDuty} className="h-8 text-[10px] font-bold px-3">
+                {isOnDuty ? 'ON DUTY' : 'OFF DUTY'}
+              </Button>
+            </div>
           </Card>
-        )}
+        </div>
 
-        {/* Active Orders Section */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="font-bold text-lg flex items-center gap-2">
-              Active Tasks
-              <span className="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-full">
-                {activeOrders.length}
-              </span>
-            </h3>
-          </div>
-          
+        {/* Bottom Overlay: Active Task Card */}
+        <div className="absolute bottom-6 left-4 right-4 z-10">
           {activeOrders.length === 0 ? (
-            <Card className="text-center py-10 bg-muted/20 border-dashed border-2">
-              <CheckCircle className="w-12 h-12 text-muted/40 mx-auto mb-3" />
-              <p className="text-sm font-bold text-muted-foreground">No active orders</p>
-              <p className="text-xs text-muted-foreground mt-1">Waiting for assignments...</p>
+            <Card className="bg-white/95 backdrop-blur-md p-6 text-center shadow-2xl border-0">
+              <Package className="w-10 h-10 text-muted/30 mx-auto mb-2" />
+              <h3 className="font-black text-lg">Waiting for Orders</h3>
+              <p className="text-xs text-muted-foreground">Stay in this area for faster assignments</p>
+              {!isOnDuty && (
+                <Button className="mt-4 w-full" onClick={toggleDuty}>Go On Duty</Button>
+              )}
             </Card>
           ) : (
             activeOrders.map((order) => (
-              <Card key={order.id} className="p-0 overflow-hidden border-divider shadow-sm">
-                <div className="p-4 space-y-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-xs font-bold text-primary uppercase tracking-tighter">Order #{order.order_number}</p>
-                      <h4 className="font-bold text-base mt-0.5">{order.customer_name}</h4>
-                    </div>
-                    <div className={`px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${
-                      order.delivery_status === 'assigned' ? 'bg-blue-100 text-blue-700' :
-                      order.delivery_status === 'picked' ? 'bg-orange-100 text-orange-700' :
-                      'bg-green-100 text-green-700'
-                    }`}>
-                      {order.delivery_status.replace(/_/g, ' ')}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 bg-muted/30 p-3 rounded-xl">
-                    <div className="flex items-start gap-2 text-sm">
-                      <MapPin className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
-                      <span className="font-medium text-muted-foreground leading-tight">{order.delivery_address}</span>
-                    </div>
-                    {order.delivery_instructions && (
-                      <div className="flex items-start gap-2 text-xs bg-white p-2 rounded-lg border border-divider">
-                        <AlertCircle className="w-4 h-4 text-orange-500 flex-shrink-0" />
-                        <span className="text-muted-foreground italic">"{order.delivery_instructions}"</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2">
-                    <div className="flex items-center gap-4">
+              <motion.div 
+                key={order.id}
+                initial={{ y: 100, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                className="space-y-3"
+              >
+                <Card className="bg-white/95 backdrop-blur-md shadow-2xl border-0 overflow-hidden">
+                  <div className={`h-1.5 w-full ${
+                    order.delivery_status === 'assigned' ? 'bg-blue-500' :
+                    order.delivery_status === 'picked' ? 'bg-orange-500' : 'bg-green-500'
+                  }`} />
+                  
+                  <div className="p-4 space-y-4">
+                    <div className="flex items-start justify-between">
                       <div>
-                        <p className="text-[10px] text-muted-foreground font-bold uppercase">Amount</p>
-                        <p className="font-black text-lg">₹{order.total_amount}</p>
+                        <div className="flex items-center gap-2">
+                          <span className="bg-primary/10 text-primary text-[10px] font-black px-2 py-0.5 rounded-full uppercase">Active</span>
+                          <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">#{order.order_number}</p>
+                        </div>
+                        <h4 className="font-black text-xl mt-1">{order.customer_name}</h4>
                       </div>
-                      <div className="w-px h-8 bg-divider" />
-                      <div>
-                        <p className="text-[10px] text-muted-foreground font-bold uppercase">Payment</p>
-                        <p className="text-xs font-bold uppercase text-primary">{order.payment_method}</p>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" className="rounded-full w-10 h-10 p-0" onClick={() => window.open(`tel:${order.customer_phone}`)}>
+                          <Phone className="w-4 h-4" />
+                        </Button>
+                        <Button size="sm" variant="outline" className="rounded-full w-10 h-10 p-0" onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${order.delivery_latitude},${order.delivery_longitude}`)}>
+                          <Navigation className="w-4 h-4" />
+                        </Button>
                       </div>
                     </div>
-                    
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline" onClick={() => window.open(`tel:${order.customer_phone}`)}>
-                        <Phone className="w-4 h-4" />
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${order.delivery_latitude},${order.delivery_longitude}`)}>
-                        <Navigation className="w-4 h-4" />
-                      </Button>
+
+                    <div className="flex items-start gap-3 bg-muted/20 p-3 rounded-2xl">
+                      <MapPin className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Delivery Address</p>
+                        <p className="text-sm font-bold leading-tight mt-0.5">{order.delivery_address}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div>
+                          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Collection</p>
+                          <p className="font-black text-lg">₹{order.total_amount}</p>
+                        </div>
+                        <div className="w-px h-8 bg-divider" />
+                        <div>
+                          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Method</p>
+                          <p className="text-xs font-bold uppercase text-primary">{order.payment_method}</p>
+                        </div>
+                      </div>
+                      
+                      {order.delivery_status === 'assigned' && (
+                        <Button className="bg-blue-600 hover:bg-blue-700 font-black text-xs px-6" onClick={() => pickUpOrder(order.id)} disabled={updatingStatus === order.id}>
+                          PICK UP
+                        </Button>
+                      )}
+                      {order.delivery_status === 'picked' && (
+                        <Button className="bg-orange-600 hover:bg-orange-700 font-black text-xs px-6" onClick={() => handleOutForDelivery(order.id)} disabled={updatingStatus === order.id}>
+                          START RUN
+                        </Button>
+                      )}
+                      {order.delivery_status === 'out_for_delivery' && (
+                        <Button className="bg-green-600 hover:bg-green-700 font-black text-xs px-6" 
+                          onClick={() => {
+                            setVerifyingOrder(order.id);
+                            setOtpInput('');
+                          }}>
+                          REACHED
+                        </Button>
+                      )}
                     </div>
                   </div>
-                </div>
-
-                <div className="p-1.5 bg-muted/30 border-t flex gap-2">
-                  {order.delivery_status === 'assigned' && (
-                    <Button 
-                      className="w-full bg-blue-600 hover:bg-blue-700 font-bold" 
-                      onClick={() => pickUpOrder(order.id)}
-                      disabled={updatingStatus === order.id}
-                    >
-                      Pick Up from Restaurant
-                    </Button>
-                  )}
-                  {order.delivery_status === 'picked' && (
-                    <Button 
-                      className="w-full bg-primary hover:bg-primary/90 font-bold" 
-                      onClick={() => handleOutForDelivery(order.id)}
-                      disabled={updatingStatus === order.id}
-                    >
-                      Start Delivery Run
-                    </Button>
-                  )}
-                  {order.delivery_status === 'out_for_delivery' && (
-                    <Button 
-                      className="w-full bg-green-600 hover:bg-green-700 font-bold text-white shadow-lg"
-                      onClick={() => {
-                        setVerifyingOrder(order.id);
-                        setOtpInput('');
-                      }}
-                    >
-                      <Navigation className="w-4 h-4 mr-2" />
-                      Reached Location (Enter OTP)
-                    </Button>
-                  )}
-                </div>
-              </Card>
+                </Card>
+              </motion.div>
             ))
           )}
-        </div>
-
-        {/* History Snippet */}
-        <div className="space-y-3">
-          <h3 className="font-bold text-base text-muted-foreground">Recently Delivered</h3>
-          <div className="space-y-2">
-            {completedOrders.map((order) => (
-              <div key={order.id} className="flex items-center justify-between p-3 bg-muted/20 border border-divider rounded-xl">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600">
-                    <CheckCircle className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold">#{order.order_number}</p>
-                    <p className="text-[10px] text-muted-foreground">{new Date(order.assigned_at).toLocaleDateString()}</p>
-                  </div>
-                </div>
-                <p className="font-black text-sm">₹{order.total_amount}</p>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
 

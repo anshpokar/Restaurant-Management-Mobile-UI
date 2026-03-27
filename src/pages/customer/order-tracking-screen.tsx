@@ -19,6 +19,8 @@ interface Order {
   delivery_address: string;
   delivery_latitude: number;
   delivery_longitude: number;
+  restaurant_latitude?: number;
+  restaurant_longitude?: number;
   total_amount: number;
   created_at: string;
   otp?: string;
@@ -38,10 +40,29 @@ export function OrderTrackingScreen() {
   const [deliveryPerson, setDeliveryPerson] = useState<DeliveryPerson | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const { driverLocation, history, routePolyline } = useTracking(orderId);
+  const { driverLocation, history, routePolyline, etaMinutes } = useTracking(orderId);
 
   useEffect(() => {
     fetchOrderDetails();
+
+    const channel = supabase
+      .channel(`order_status_${orderId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'orders',
+        filter: `id=eq.${orderId}`
+      }, (payload) => {
+        setOrder(payload.new as Order);
+        if (payload.new.delivery_person_id && !deliveryPerson) {
+          fetchOrderDetails(); // Re-fetch to get rider profile if newly assigned
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [orderId]);
 
   async function fetchOrderDetails() {
@@ -124,6 +145,7 @@ export function OrderTrackingScreen() {
             zoom={15}
             driverLocation={driverLocation ? [driverLocation.lat, driverLocation.lng] : undefined}
             customerLocation={order.delivery_latitude && order.delivery_longitude ? [order.delivery_latitude, order.delivery_longitude] : undefined}
+            restaurantLocation={order.restaurant_latitude && order.restaurant_longitude ? [order.restaurant_latitude, order.restaurant_longitude] : undefined}
             history={history.map(h => [h.lat, h.lng])}
             routePolyline={routePolyline}
             className="h-full w-full"
@@ -140,7 +162,7 @@ export function OrderTrackingScreen() {
               </div>
               <div className="text-right">
                 <p className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">Arriving In</p>
-                <p className="font-black text-lg text-primary">~12 Mins</p>
+                <p className="font-black text-lg text-primary">~{etaMinutes || '12'} Mins</p>
               </div>
             </Card>
           </div>
@@ -183,7 +205,7 @@ export function OrderTrackingScreen() {
             )}
 
             {/* Delivery OTP - Swiggy Style */}
-            {order.delivery_status === 'out_for_delivery' && order.otp && (
+            {['picked', 'out_for_delivery'].includes(order.delivery_status) && order.otp && (
               <Card className="p-5 bg-primary text-white border-0 shadow-xl overflow-hidden relative">
                 <div className="relative z-10 flex items-center justify-between">
                   <div className="space-y-1">
