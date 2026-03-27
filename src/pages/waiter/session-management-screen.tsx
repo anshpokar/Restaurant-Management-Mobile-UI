@@ -27,6 +27,23 @@ export function WaiterSessionManagementScreen() {
       setLoading(true);
       fetchSessionDetails();
       fetchOrderHistory();
+
+      // Real-time subscription for session metadata
+      const channel = supabase.channel(`session-mgmt-${sessionId}`)
+        .on('postgres_changes', {
+          event: '*',
+          table: 'dine_in_sessions',
+          schema: 'public',
+          filter: `id=eq.${sessionId}`
+        }, () => {
+          console.log('Real-time: Session metadata update triggered');
+          fetchSessionDetails();
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [sessionId]);
 

@@ -37,6 +37,28 @@ export function WaiterDashboard() {
         if (tables.length > 0) {
             fetchActiveSessions();
         }
+
+        // Live Real-time Subscription for Waiter Dashboard
+        const channel = supabase.channel('waiter-dash-realtime')
+            .on('postgres_changes', 
+                { event: '*', schema: 'public', table: 'dine_in_sessions' }, 
+                () => {
+                    console.log('Real-time: Session change detected');
+                    fetchActiveSessions();
+                }
+            )
+            .on('postgres_changes',
+                { event: '*', schema: 'public', table: 'orders' },
+                () => {
+                    console.log('Real-time: Order change detected (for session totals)');
+                    fetchActiveSessions();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [tables]);
 
     const fetchActiveSessions = async () => {

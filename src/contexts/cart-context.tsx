@@ -116,6 +116,34 @@ export function CartProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (tableId || sessionId) {
       fetchOrderHistory();
+
+      // Real-time subscription for order history
+      // We import supabase inside to avoid circular dependencies if any
+      const setupSubscription = async () => {
+        const { supabase: sb } = await import('@/lib/supabase');
+        
+        const channel = sb.channel('cart-order-history')
+          .on('postgres_changes', { 
+            event: '*', 
+            table: 'orders', 
+            schema: 'public',
+            filter: sessionId ? `session_id=eq.${sessionId}` : `table_id=eq.${tableId}`
+          }, () => {
+            console.log('Real-time: Order history update triggered');
+            fetchOrderHistory();
+          })
+          .subscribe();
+          
+        return channel;
+      };
+
+      const subscriptionPromise = setupSubscription();
+
+      return () => {
+        subscriptionPromise.then(channel => {
+          import('@/lib/supabase').then(({ supabase: sb }) => sb.removeChannel(channel));
+        });
+      };
     }
   }, [tableId, sessionId]);
 
