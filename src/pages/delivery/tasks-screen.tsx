@@ -236,17 +236,45 @@ export function DeliveryTasksScreen() {
   }
 
   async function handleOutForDelivery(orderId: string) {
-    setUpdatingStatus(orderId);
-    const { error } = await supabase.from('orders').update({
-      delivery_status: 'out_for_delivery'
-    }).eq('id', orderId);
+    // Optimistic Update
+    const previousOrders = [...activeOrders];
+    setActiveOrders(current => 
+      current.map(o => o.id === orderId ? { ...o, delivery_status: 'out_for_delivery' } : o)
+    );
     
-    if (!error) {
+    setUpdatingStatus(orderId);
+    try {
+      const { error } = await supabase.from('orders').update({
+        delivery_status: 'out_for_delivery'
+      }).eq('id', orderId);
+      
+      if (error) throw error;
       toast.success('Order is now out for delivery!');
-      loadAssignedOrders();
+      // Note: No need to loadAssignedOrders here as the optimistic update already handled it,
+      // and the real-time subscription will confirm it eventually.
+    } catch (error) {
+      console.error('Error updating status:', error);
+      setActiveOrders(previousOrders); // Revert on error
+      toast.error('Failed to update status');
     }
     setUpdatingStatus(null);
   }
+
+  const handlePickUp = async (orderId: string) => {
+    // Optimistic Update
+    const previousOrders = [...activeOrders];
+    setActiveOrders(current => 
+      current.map(o => o.id === orderId ? { ...o, delivery_status: 'picked' } : o)
+    );
+
+    setUpdatingStatus(orderId);
+    try {
+      await pickUpOrder(orderId); // Call the hook function
+    } catch {
+      setActiveOrders(previousOrders); // Revert on error
+    }
+    setUpdatingStatus(null);
+  };
 
   async function handleVerifyAndDeliver(orderId: string, correctOtp: string) {
     if (otpInput !== correctOtp) {
@@ -405,7 +433,7 @@ export function DeliveryTasksScreen() {
                       </div>
                       
                       {order.delivery_status === 'assigned' && (
-                        <Button className="bg-blue-600 hover:bg-blue-700 font-black text-xs px-6" onClick={() => pickUpOrder(order.id)} disabled={updatingStatus === order.id}>
+                        <Button className="bg-blue-600 hover:bg-blue-700 font-black text-xs px-6" onClick={() => handlePickUp(order.id)} disabled={updatingStatus === order.id}>
                           PICK UP
                         </Button>
                       )}
