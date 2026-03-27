@@ -8,19 +8,14 @@
 CREATE OR REPLACE FUNCTION update_session_orders_paid(p_session_id UUID)
 RETURNS VOID AS $$
 BEGIN
-    -- Update orders linked by notes (session ID)
+    -- Update orders linked by direct session_id column
     UPDATE orders
     SET 
         payment_status = 'paid',
         is_paid = true,
         updated_at = NOW()
     WHERE 
-        (notes LIKE CONCAT('Dine-in Session: ', p_session_id)
-        OR session_name IN (
-            SELECT session_name 
-            FROM dine_in_sessions 
-            WHERE id = p_session_id
-        ))
+        session_id = p_session_id
         AND order_type = 'dine_in';
 END;
 $$ LANGUAGE plpgsql;

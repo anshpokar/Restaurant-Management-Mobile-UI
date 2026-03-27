@@ -98,7 +98,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
             quantity,
             price,
             special_instructions,
-            spice_level
+            spice_level,
+            is_served
           )
         `);
 

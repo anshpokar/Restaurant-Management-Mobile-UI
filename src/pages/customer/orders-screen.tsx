@@ -7,9 +7,13 @@ import { Card, CardBody } from '@/components/design-system/card';
 import { Badge } from '@/components/design-system/badge';
 import { UtensilsCrossed, Clock, Package, CheckCircle2, Truck, Phone, ChevronRight, IndianRupee, Navigation } from 'lucide-react';
 import { SessionPaymentModal } from '@/components/customer/SessionPaymentModal';
+import { useCart } from '@/contexts/cart-context';
 
 export function OrdersScreen() {
   const { profile } = useOutletContext<{ profile: Profile | null }>();
+  // Get cart context for sessionId and tableId
+  const { sessionId: cartSessionId, tableId: cartTableId } = useCart();
+  
   const navigate = useNavigate();
   const [filter, setFilter] = useState<'all' | 'ongoing' | 'completed'>('all');
   const [orders, setOrders] = useState<Order[]>([]);
@@ -88,19 +92,25 @@ export function OrdersScreen() {
 
   const fetchActiveSessions = async () => {
     try {
-      if (!userId) return;
-
-      console.log('Fetching active sessions for user:', userId);
-
       // First, fetch active sessions
-      const { data: sessionsData, error: sessionsError } = await supabase
+      let query = supabase
         .from('dine_in_sessions')
         .select(`
           *,
           restaurant_tables (table_number)
         `)
-        .eq('user_id', userId)
-        .eq('session_status', 'active')
+        .eq('session_status', 'active');
+        
+      if (userId) {
+        query = query.eq('user_id', userId);
+      } else if (cartSessionId) {
+        query = query.eq('id', cartSessionId);
+      } else {
+        setActiveSessions([]);
+        return;
+      }
+
+      const { data: sessionsData, error: sessionsError } = await query
         .order('started_at', { ascending: false });
 
       if (sessionsError) {

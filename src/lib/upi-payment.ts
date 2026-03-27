@@ -243,43 +243,69 @@ export const verifyUPIPayment = async (
       console.log('✅ Order payment updated successfully');
       
     } else {
-      // This is a SESSION payment
-      console.log('🍽️ Updating DINE-IN SESSION payment:', upiPayment.order_id);
-      
-      const { data: sessionData, error: sessionError } = await supabase
-        .from('dine_in_sessions')
-        .update({
-          payment_status: 'paid',
-          payment_method: 'upi',
-          paid_amount: upiPayment.amount,
-          payment_completed_at: new Date().toISOString(),
-          session_status: 'completed',  // Explicitly set completed
-          completed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
+      // Check if it's a Table Booking
+      const { data: bookingCheck } = await supabase
+        .from('table_bookings')
+        .select('id')
         .eq('id', upiPayment.order_id)
-        .select();
-      
-      if (sessionError) {
-        console.error('❌ Failed to update session:', sessionError);
-        throw new Error(`Session update failed: ${sessionError.message}`);
-      }
-      
-      console.log('✅ Session payment updated successfully:', sessionData);
-      
-      // Optional: Call RPC function to ensure related orders are also updated
-      try {
-        const { error: rpcError } = await supabase.rpc('update_session_orders_paid', {
-          p_session_id: upiPayment.order_id
-        });
+        .maybeSingle();
+
+      if (bookingCheck) {
+        console.log('📅 Updating TABLE BOOKING payment:', upiPayment.order_id);
         
-        if (rpcError) {
-          console.warn('⚠️ RPC function failed (non-critical):', rpcError.message);
-        } else {
-          console.log('✅ Session orders also updated via RPC');
+        const { error: bookingError } = await supabase
+          .from('table_bookings')
+          .update({
+            status: 'confirmed',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', upiPayment.order_id);
+
+        if (bookingError) {
+          console.error('❌ Failed to update booking:', bookingError);
+          throw new Error(`Booking update failed: ${bookingError.message}`);
         }
-      } catch (rpcErr: any) {
-        console.warn('⚠️ RPC call skipped - orders will need manual update if needed');
+        
+        console.log('✅ Booking payment updated successfully');
+      } else {
+        // This is a SESSION payment
+        console.log('🍽️ Updating DINE-IN SESSION payment:', upiPayment.order_id);
+        
+        const { data: sessionData, error: sessionError } = await supabase
+          .from('dine_in_sessions')
+          .update({
+            payment_status: 'paid',
+            payment_method: 'upi',
+            paid_amount: upiPayment.amount,
+            payment_completed_at: new Date().toISOString(),
+            session_status: 'completed',  // Explicitly set completed
+            completed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', upiPayment.order_id)
+          .select();
+        
+        if (sessionError) {
+          console.error('❌ Failed to update session:', sessionError);
+          throw new Error(`Session update failed: ${sessionError.message}`);
+        }
+        
+        console.log('✅ Session payment updated successfully:', sessionData);
+        
+        // Optional: Call RPC function to ensure related orders are also updated
+        try {
+          const { error: rpcError } = await supabase.rpc('update_session_orders_paid', {
+            p_session_id: upiPayment.order_id
+          });
+          
+          if (rpcError) {
+            console.warn('⚠️ RPC function failed (non-critical):', rpcError.message);
+          } else {
+            console.log('✅ Session orders also updated via RPC');
+          }
+        } catch (rpcErr: any) {
+          console.warn('⚠️ RPC call skipped - orders will need manual update if needed');
+        }
       }
     }
 

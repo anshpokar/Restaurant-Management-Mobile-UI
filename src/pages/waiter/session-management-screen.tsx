@@ -5,12 +5,13 @@ import { Card, CardBody } from '@/components/design-system/card';
 import { Button } from '@/components/design-system/button';
 import { Badge } from '@/components/design-system/badge';
 import { supabase } from '@/lib/supabase';
-import { ShoppingBag, Plus, Utensils, User, Receipt, Shield } from 'lucide-react';
+import { ShoppingBag, Plus, Utensils, User, Receipt, Shield, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useCart } from '@/contexts/cart-context';
 import { SessionPaymentModal } from '@/components/customer/SessionPaymentModal';
 import { SessionBillModal } from '@/components/admin/SessionBillModal';
 import { toast } from 'sonner';
+import { SpiceLevel } from '@/components/design-system/spice-level';
 
 export function WaiterSessionManagementScreen() {
 
@@ -168,12 +169,49 @@ export function WaiterSessionManagementScreen() {
     return sum + items.reduce((itemSum: number, item: any) => itemSum + item.quantity, 0);
   }, 0);
 
+  const handleToggleItemServed = async (orderId: string, itemId: string, currentStatus: boolean, allOrderItems: any[]) => {
+    try {
+      const newStatus = !currentStatus;
+      
+      // 1. Update the item status
+      const { error: itemError } = await supabase
+        .from('order_items')
+        .update({ is_served: newStatus })
+        .eq('id', itemId);
+
+      if (itemError) throw itemError;
+
+      // 2. Refresh local state via fetchOrderHistory (from context)
+      await fetchOrderHistory();
+
+      // 3. Check if ALL items in THIS order are now served
+      const updatedItems = allOrderItems.map(item => 
+        item.id === itemId ? { ...item, is_served: newStatus } : item
+      );
+      
+      const allServed = updatedItems.every(item => item.is_served);
+      
+      if (allServed) {
+        const { error: orderError } = await supabase
+          .from('orders')
+          .update({ status: 'served' })
+          .eq('id', orderId);
+          
+        if (orderError) throw orderError;
+        toast.success('All items served! Order marked as SERVED.');
+      }
+    } catch (err: any) {
+      toast.error('Failed to update: ' + err.message);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-warm-off-white pb-4">
       <AppHeader title={session.session_name} showBack onBack={() => navigate('/waiter')} />
 
       <div className="px-4 py-8 space-y-8">
         {/* Session Identity Card */}
+        {/* ... (keep existing card) */}
         <Card className="border-none shadow-premium rounded-[2rem] overflow-hidden bg-white">
           <CardBody className="p-6">
             <div className="flex items-start justify-between mb-6">
@@ -188,7 +226,7 @@ export function WaiterSessionManagementScreen() {
                   </h2>
                 </div>
               </div>
-              <Badge variant="paid" className="bg-brand-gold/20 text-brand-gold border-brand-gold/30 font-black text-[10px] px-3">
+              <Badge className="bg-brand-gold text-white border-none font-black text-[10px] px-3 shadow-sm shadow-brand-gold/20">
                 {session.session_status.toUpperCase()}
               </Badge>
             </div>
@@ -223,6 +261,7 @@ export function WaiterSessionManagementScreen() {
         </Card>
 
         {/* Financial Matrix */}
+        {/* ... (keep financial matrix) */}
         <div className="space-y-4">
           <div className="flex items-center justify-between px-1">
             <h3 className="text-xs font-black text-brand-maroon uppercase tracking-[0.2em]">Financial Matrix</h3>
@@ -244,7 +283,7 @@ export function WaiterSessionManagementScreen() {
           </div>
         </div>
 
-        {/* Order Registry */}
+        {/* Order Registry - SHOW DETAILED ITEMS */}
         {orders.length > 0 && (
           <div className="space-y-4">
             <div className="flex items-center justify-between px-1">
@@ -253,29 +292,58 @@ export function WaiterSessionManagementScreen() {
               <ShoppingBag className="w-4 h-4 text-brand-maroon opacity-40" />
             </div>
 
-            <div className="space-y-3">
-              {orders.slice(0, 5).map((order, index) => (
-                <div key={order.id} className="group bg-white p-4 rounded-2xl border border-divider shadow-sm hover:shadow-md transition-all flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-warm-beige rounded-xl flex items-center justify-center font-black text-brand-maroon text-xs">
-                      #{orders.length - index}
-                    </div>
+            <div className="space-y-6">
+              {orders.map((order, orderIdx) => (
+                <div key={order.id} className="bg-white rounded-3xl border border-divider shadow-sm overflow-hidden">
+                  {/* Order Header */}
+                  <div className="bg-muted/30 px-6 py-4 flex justify-between items-center border-b border-divider">
                     <div>
-                      <p className="text-sm font-black text-foreground">Registry Entry</p>
-                      <p className="text-[10px] font-medium text-muted-foreground">
-                        {new Date(order.created_at).toLocaleTimeString()}
-                      </p>
+                      <p className="text-[10px] font-black text-brand-maroon uppercase tracking-widest">Order Group #{orders.length - orderIdx}</p>
+                      <p className="text-[10px] font-bold text-muted-foreground">{new Date(order.created_at).toLocaleTimeString()}</p>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-black text-brand-maroon">₹{order.total_amount}</p>
                     <Badge
-                      variant={order.status === 'completed' ? 'success' : 'pending'}
-                      size="sm"
-                      className="mt-1 text-[9px] font-black"
+                      variant={order.status === 'served' ? 'success' : 'pending'}
+                      className="text-[9px] font-black"
                     >
                       {order.status.toUpperCase()}
                     </Badge>
+                  </div>
+
+                  {/* Order Items with Ticking Support */}
+                  <div className="divide-y divide-divider">
+                    {order.order_items?.map((item: any) => (
+                      <div 
+                        key={item.id} 
+                        className={`flex items-center gap-4 p-4 transition-all ${item.is_served ? 'bg-green-50/30' : 'bg-white'}`}
+                      >
+                          <button
+                            onClick={() => handleToggleItemServed(order.id, item.id, item.is_served, order.order_items)}
+                            className={`w-7 h-7 rounded-xl border-2 flex items-center justify-center transition-all ${
+                              item.is_served 
+                                ? 'bg-green-600 border-green-600 text-white shadow-lg shadow-green-100' 
+                                : 'bg-white border-brand-maroon/30 text-brand-maroon/20 hover:border-brand-maroon hover:text-brand-maroon/40'
+                            }`}
+                          >
+                            <CheckCircle2 className={`w-4 h-4 ${!item.is_served ? 'opacity-40' : ''}`} />
+                          </button>
+                        <div className="flex-1 min-w-0">
+                          <p className={`font-bold text-sm leading-tight transition-all ${item.is_served ? 'text-muted-foreground line-through' : 'text-foreground'}`}>
+                            {item.name}
+                          </p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[10px] font-black text-brand-maroon bg-brand-maroon/5 px-2 py-0.5 rounded-full">x{item.quantity}</span>
+                            <SpiceLevel level={item.spice_level} className="opacity-90" />
+                          </div>
+                        </div>
+                        <p className="text-sm font-black text-foreground">₹{item.price * item.quantity}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Order Footer */}
+                  <div className="px-6 py-3 bg-muted/10 flex justify-between items-center">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase">Subtotal</span>
+                    <span className="text-sm font-black text-brand-maroon">₹{order.total_amount}</span>
                   </div>
                 </div>
               ))}

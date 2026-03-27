@@ -160,6 +160,7 @@ export interface OrderItem {
   image: string;
   special_instructions?: string;
   spice_level?: 'mild' | 'medium' | 'spicy' | 'extra_spicy';
+  is_served: boolean;
 }
 
 // Additional interfaces for complete database integration
@@ -239,7 +240,7 @@ export interface Upayment {
   amount: number;
   upi_link: string;
   transaction_id?: string; // UTR number submitted by customer
-  status: 'pending' | 'verified' | 'failed' | 'expired';
+  status: 'pending' | 'verification_requested' | 'verified' | 'failed' | 'expired';
   expires_at: string;
   verified_at?: string;
   verified_by?: string; // Admin ID who verified

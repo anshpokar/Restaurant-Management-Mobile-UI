@@ -23,7 +23,7 @@ export function AdminPaymentVerificationScreen() {
   const [searchTerm, setSearchTerm] = useState('');
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'upi' | 'cod' | 'all'>('all');
+  const [activeTab, setActiveTab] = useState<'upi' | 'cod' | 'bookings' | 'all'>('all');
   const [showVerified, setShowVerified] = useState(false); // Toggle between pending and verified
 
   // Fetch current user
@@ -160,6 +160,68 @@ export function AdminPaymentVerificationScreen() {
         }
       }
 
+      // Fetch Table Bookings
+      if (activeTab === 'all' || activeTab === 'bookings') {
+        let bookingQuery = supabase
+          .from('table_bookings')
+          .select(`
+            *,
+            restaurant_tables (table_number)
+          `)
+          .order('created_at', { ascending: false });
+
+        if (!showVerified) {
+          bookingQuery = bookingQuery.eq('status', 'pending');
+        } else {
+          bookingQuery = bookingQuery.eq('status', 'confirmed');
+        }
+
+        const { data: bookingsData } = await bookingQuery;
+        
+        if (bookingsData) {
+          const enrichedBookings = bookingsData.map(booking => ({
+            ...booking,
+            payment_type: 'booking',
+            status: booking.status === 'confirmed' ? 'verified' : booking.status,
+            amount: 0, // Bookings might not have an amount, but we track them for verification
+            transaction_id: booking.phone_number // Use phone as a reference
+          }));
+          
+          allPayments.push(...enrichedBookings);
+        }
+      }
+
+      // Fetch Table Bookings
+      if (activeTab === 'all' || activeTab === 'bookings') {
+        let bookingQuery = supabase
+          .from('table_bookings')
+          .select(`
+            *,
+            restaurant_tables (table_number)
+          `)
+          .order('created_at', { ascending: false });
+
+        if (!showVerified) {
+          bookingQuery = bookingQuery.eq('status', 'pending');
+        } else {
+          bookingQuery = bookingQuery.eq('status', 'confirmed');
+        }
+
+        const { data: bookingsData } = await bookingQuery;
+        
+        if (bookingsData) {
+          const enrichedBookings = bookingsData.map(booking => ({
+            ...booking,
+            payment_type: 'booking',
+            status: booking.status === 'confirmed' ? 'verified' : booking.status,
+            amount: 0, // Bookings might not have an amount, but we track them for verification
+            transaction_id: booking.phone_number // Use phone as a reference
+          }));
+          
+          allPayments.push(...enrichedBookings);
+        }
+      }
+
       allPayments.sort((a, b) => {
         const dateA = new Date(a.created_at || a.completed_at).getTime();
         const dateB = new Date(b.created_at || b.completed_at).getTime();
@@ -275,6 +337,49 @@ export function AdminPaymentVerificationScreen() {
     }
   };
 
+  const handleConfirmBooking = async (bookingId: string) => {
+    if (!currentUser) return;
+    if (!window.confirm('Confirm this table reservation?')) return;
+
+    setVerifyingId(bookingId);
+    try {
+      const { error } = await supabase
+        .from('table_bookings')
+        .update({ status: 'confirmed' })
+        .eq('id', bookingId);
+
+      if (error) throw error;
+      toast.success('Booking confirmed');
+      fetchAllPayments();
+    } catch (error: any) {
+      toast.error('Failed to confirm booking');
+    } finally {
+      setVerifyingId(null);
+    }
+  };
+
+  const handleRejectBooking = async (bookingId: string) => {
+    if (!currentUser) return;
+    const reason = window.prompt('Enter rejection reason:');
+    if (!reason) return;
+
+    setVerifyingId(bookingId);
+    try {
+      const { error } = await supabase
+        .from('table_bookings')
+        .update({ status: 'cancelled' })
+        .eq('id', bookingId);
+
+      if (error) throw error;
+      toast.success('Booking rejected');
+      fetchAllPayments();
+    } catch (error: any) {
+      toast.error('Failed to reject booking');
+    } finally {
+      setVerifyingId(null);
+    }
+  };
+
   const handleReject = async (paymentId: string, isUPI: boolean) => {
     const reason = window.prompt('Enter rejection reason:');
     if (!reason) return;
@@ -304,6 +409,11 @@ export function AdminPaymentVerificationScreen() {
         default: return <Badge variant="secondary" className="px-3 py-1 rounded-full text-[8px] font-black tracking-widest uppercase border-0">AWAITING</Badge>;
       }
     }
+    if (payment.payment_type === 'booking') {
+      return payment.status === 'verified' 
+        ? <Badge variant="success" className="px-3 py-1 rounded-full text-[8px] font-black tracking-widest uppercase border-0">CONFIRMED</Badge> 
+        : <Badge variant="warning" className="px-3 py-1 rounded-full text-[8px] font-black tracking-widest uppercase border-0 animate-pulse">PENDING</Badge>;
+    }
     return payment.payment_status === 'paid' 
       ? <Badge variant="success" className="px-3 py-1 rounded-full text-[8px] font-black tracking-widest uppercase border-0">PAID</Badge> 
       : <Badge variant="warning" className="px-3 py-1 rounded-full text-[8px] font-black tracking-widest uppercase border-0">CASH DUE</Badge>;
@@ -319,8 +429,16 @@ export function AdminPaymentVerificationScreen() {
     );
   });
 
-  const pendingCount = payments.filter(p => p.status === 'verification_requested' || p.payment_status === 'pending').length;
-  const verifiedCount = payments.filter(p => p.status === 'verified' || p.payment_status === 'paid').length;
+  const pendingCount = payments.filter(p => 
+    p.status === 'verification_requested' || 
+    p.payment_status === 'pending' || 
+    (p.payment_type === 'booking' && p.status !== 'verified')
+  ).length;
+  const verifiedCount = payments.filter(p => 
+    p.status === 'verified' || 
+    p.payment_status === 'paid' ||
+    (p.payment_type === 'booking' && p.status === 'verified')
+  ).length;
 
 
   if (loading && payments.length === 0) {
@@ -364,7 +482,7 @@ export function AdminPaymentVerificationScreen() {
         {/* Filters & Search */}
         <div className="space-y-4">
           <div className="flex gap-2 pb-2 overflow-x-auto no-scrollbar">
-            {['all', 'upi', 'cod'].map(tab => (
+            {['all', 'upi', 'cod', 'bookings'].map(tab => (
               <button 
                 key={tab} 
                 onClick={() => setActiveTab(tab as any)} 
@@ -449,6 +567,23 @@ export function AdminPaymentVerificationScreen() {
                           >
                             {verifyingId === payment.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'CONFIRM CASH RECEIPT'}
                           </Button>
+                        )}
+                        {payment.payment_type === 'booking' && (
+                          <>
+                            <Button 
+                              onClick={() => handleConfirmBooking(payment.id)} 
+                              disabled={verifyingId === payment.id} 
+                              className="flex-1 h-14 rounded-2xl bg-brand-gold text-brand-maroon text-[10px] font-black uppercase tracking-widest shadow-lg shadow-brand-gold/10"
+                            >
+                              {verifyingId === payment.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'CONFIRM RESERVATION'}
+                            </Button>
+                            <button 
+                              onClick={() => handleRejectBooking(payment.id)}
+                              className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-100 transition-colors"
+                            >
+                              <XCircle className="w-6 h-6" />
+                            </button>
+                          </>
                         )}
                       </div>
                     )}

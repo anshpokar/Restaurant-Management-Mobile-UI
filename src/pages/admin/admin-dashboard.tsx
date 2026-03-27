@@ -130,6 +130,17 @@ export function AdminDashboard() {
         if (bookingError) {
           console.warn('Table bookings query error:', bookingError.message);
         }
+
+        // 7. Pending COD Sessions (Add to Payment Verification KPI)
+        const { count: codCount, error: codError } = await supabase
+          .from('dine_in_sessions')
+          .select('*', { count: 'exact', head: true })
+          .eq('payment_method', 'cod')
+          .eq('payment_status', 'pending');
+
+        if (codError) {
+          console.warn('COD sessions query error:', codError.message);
+        }
         
         setStats({
           ordersCount: ordersCount || 0,
@@ -137,7 +148,7 @@ export function AdminDashboard() {
           activeTables,
           totalTables,
           bookingsCount: bookingsCount || 0,
-          pendingUpiVerifications: upiCount || 0,
+          pendingUpiVerifications: (upiCount || 0) + (codCount || 0), // Combined payment verifications
           pendingTableBookings: bookingCount || 0
         });
       } catch (error) {

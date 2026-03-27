@@ -8,6 +8,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ItemCustomizationModal } from "@/components/customer/ItemCustomizationModal";
+import { SpiceLevel } from "@/components/design-system/spice-level";
 
 export function CartSlider({ isOpen, onOpenChange }: { isOpen: boolean, onOpenChange: (open: boolean) => void }) {
   const [activeTab, setActiveTab] = useState<'menu' | 'draft'>('menu');
@@ -60,20 +61,27 @@ export function CartSlider({ isOpen, onOpenChange }: { isOpen: boolean, onOpenCh
     return matchesCategory && matchesSearch;
   });
 
-  const handleMarkAsServed = async (orderId: string) => {
+  const handleToggleItemServed = async (orderId: string, itemId: string, currentStatus: boolean, allOrderItems: any[]) => {
     try {
-      // Need dynamic import or use supabase from lib
-      const { supabase } = await import('@/lib/supabase');
-      const { error } = await supabase
-        .from('orders')
-        .update({ status: 'served' })
-        .eq('id', orderId);
+      const newStatus = !currentStatus;
+      const { error: itemError } = await supabase
+        .from('order_items')
+        .update({ is_served: newStatus })
+        .eq('id', itemId);
 
-      if (error) throw error;
-      toast.success('Order marked as served');
-      fetchOrderHistory(); // Refresh from context
+      if (itemError) throw itemError;
+      await fetchOrderHistory();
+
+      const updatedItems = allOrderItems.map(item => 
+        item.id === itemId ? { ...item, is_served: newStatus } : item
+      );
+      
+      if (updatedItems.every(item => item.is_served)) {
+        await supabase.from('orders').update({ status: 'served' }).eq('id', orderId);
+        toast.success('Order fully served!');
+      }
     } catch (err: any) {
-      toast.error('Failed to update status: ' + err.message);
+      toast.error('Update failed: ' + err.message);
     }
   };
 
@@ -333,7 +341,7 @@ export function CartSlider({ isOpen, onOpenChange }: { isOpen: boolean, onOpenCh
           <section className="space-y-3">
             <div className="flex items-center gap-2 text-[10px] font-black text-muted-foreground uppercase tracking-widest border-l-2 border-primary pl-2">
               <Package className="w-3 h-3" />
-              New Items
+              New Items (Draft)
             </div>
             
             <div className="space-y-3">
@@ -387,14 +395,16 @@ export function CartSlider({ isOpen, onOpenChange }: { isOpen: boolean, onOpenCh
             </div>
           </section>
 
-          {/* Previous Items Section */}
-          <section className="space-y-3">
-            <div className="flex items-center gap-2 text-[10px] font-black text-muted-foreground uppercase tracking-widest border-l-2 border-green-500 pl-2">
-              <CheckCircle2 className="w-3 h-3 text-green-500" />
-              Previous Items
+          {/* Previous Items Section - TICKING SUPPORT */}
+          <section className="space-y-4">
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-2 text-[10px] font-black text-green-600 uppercase tracking-widest border-l-2 border-green-500 pl-2">
+                <CheckCircle2 className="w-3 h-3 text-green-500" />
+                Previous Items
+              </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-6">
               {isLoadingHistory ? (
                 <div className="py-4 text-center text-xs text-muted-foreground animate-pulse">Loading history...</div>
               ) : previousOrders.length === 0 ? (
@@ -406,46 +416,52 @@ export function CartSlider({ isOpen, onOpenChange }: { isOpen: boolean, onOpenCh
                   <div key={order.id} className="bg-white rounded-2xl border border-divider shadow-sm overflow-hidden">
                     <div className="bg-muted/5 p-3 border-b border-divider flex justify-between items-center">
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold text-muted-foreground">#{order.id.slice(0, 6)}</span>
+                        <span className="text-[10px] font-bold text-muted-foreground italic">Order #{order.id.slice(0, 6)}</span>
                         <Badge variant={
                           order.status === 'served' ? 'success' :
-                          order.status === 'prepared' ? 'paid' :
-                          order.status === 'preparing' ? 'info' : 'warning'
-                        } className="text-[10px] py-0 px-2 uppercase font-black">
+                          order.status === 'prepared' ? 'paid' : 'pending'
+                        } className="text-[9px] py-0 px-2 uppercase font-black tracking-tighter">
                           {order.status}
                         </Badge>
                       </div>
-                      <span className="text-[10px] text-muted-foreground">
+                      <span className="text-[9px] font-bold text-muted-foreground">
                         {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
                     
-                    <div className="p-3 space-y-2">
+                    <div className="divide-y divide-divider/50">
                       {order.order_items?.map((item: any) => (
-                        <div key={item.id} className="flex justify-between text-xs">
-                          <span className="text-muted-foreground">
-                            <span className="font-bold text-foreground">x{item.quantity}</span> {item.name}
-                          </span>
-                          <span className="font-medium">₹{item.price * item.quantity}</span>
+                        <div 
+                          key={item.id} 
+                          className={`flex items-center gap-4 p-3 transition-all ${item.is_served ? 'bg-green-50/20' : 'bg-white'}`}
+                        >
+                          <button
+                            onClick={() => handleToggleItemServed(order.id, item.id, item.is_served, order.order_items)}
+                            className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
+                              item.is_served 
+                                ? 'bg-green-600 border-green-600 text-white' 
+                                : 'bg-white border-brand-maroon/30 text-brand-maroon/20 hover:border-brand-maroon hover:text-brand-maroon/40'
+                            }`}
+                          >
+                            <CheckCircle2 className={`w-3.5 h-3.5 ${!item.is_served ? 'opacity-40' : ''}`} />
+                          </button>
+                          <div className="flex-1 min-w-0">
+                            <p className={`font-bold text-xs leading-tight transition-all ${item.is_served ? 'text-muted-foreground line-through' : 'text-foreground'}`}>
+                              {item.name}
+                            </p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <p className="text-[9px] font-bold text-muted-foreground">x{item.quantity} • ₹{item.price * item.quantity}</p>
+                              <SpiceLevel level={item.spice_level} className="scale-75 origin-left opacity-80" />
+                            </div>
+                          </div>
                         </div>
                       ))}
-                      <div className="pt-2 border-t border-divider flex justify-between font-black text-xs text-primary">
-                        <span>Order Total</span>
-                        <span>₹{order.total_amount}</span>
-                      </div>
                     </div>
 
-                    {order.status === 'prepared' && (
-                      <div className="p-2 bg-green-50/50 border-t border-green-100">
-                        <Button 
-                          size="sm" 
-                          className="w-full h-8 bg-green-600 hover:bg-green-700 text-white text-[10px] font-black"
-                          onClick={() => handleMarkAsServed(order.id)}
-                        >
-                          MARK AS SERVED
-                        </Button>
-                      </div>
-                    )}
+                    <div className="px-3 py-2 bg-muted/5 flex justify-between items-center border-t border-divider/50">
+                      <span className="text-[9px] font-bold text-muted-foreground uppercase">Order Total</span>
+                      <span className="text-xs font-black text-brand-maroon">₹{order.total_amount}</span>
+                    </div>
                   </div>
                 ))
               )}
