@@ -11,8 +11,18 @@ import { LeafletAddressPicker } from '../delivery/leaflet-address-picker';
 
 export function CheckoutScreen() {
   const navigate = useNavigate();
-  const { cartItems, clearCart, getTotalAmount } = useCart();
+  const { 
+    cartItems, 
+    clearCart, 
+    getTotalAmount, 
+    appliedOffer, 
+    applyCoupon, 
+    removeCoupon, 
+    getDiscountAmount 
+  } = useCart();
   const [loading, setLoading] = useState(false);
+  const [couponCode, setCouponCode] = useState('');
+  const [isApplying, setIsApplying] = useState(false);
   
   // Order type selection
   const [orderType, setOrderType] = useState<'dine_in' | 'delivery' | null>(null);
@@ -29,7 +39,6 @@ export function CheckoutScreen() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searchCache, setSearchCache] = useState<Record<string, any[]>>({});
-  const [isSavingAddress, setIsSavingAddress] = useState(false);
   const [newAddress, setNewAddress] = useState({
     address_line1: '',
     flat_number: '',
@@ -127,7 +136,7 @@ export function CheckoutScreen() {
   }
 
   async function handleSaveAddress() {
-    setIsSavingAddress(true);
+    setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -176,11 +185,8 @@ export function CheckoutScreen() {
       });
 
       toast.success('Address saved successfully!');
-    } catch (error: any) {
-      console.error('Full error object:', error);
-      toast.error('Failed to save address: ' + (error.message || 'Unknown error'));
     } finally {
-      setIsSavingAddress(false);
+      setLoading(false);
     }
   }
 
@@ -269,8 +275,10 @@ export function CheckoutScreen() {
 
       setLoading(true);
 
-      // Calculate total
-      const totalAmount = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      // Calculate total (discounted)
+      const totalAmount = getTotalAmount();
+      const discountAmount = getDiscountAmount();
+      const couponUsed = appliedOffer?.discount_code;
 
       // ============================================
       // SPECIAL FLOW: Dine-In Session Management
@@ -420,6 +428,8 @@ export function CheckoutScreen() {
           delivery_latitude: deliveryLatitude,
           delivery_longitude: deliveryLongitude,
           total_amount: totalAmount,
+          discount_amount: discountAmount,
+          coupon_code: couponUsed,
           status: 'placed',
           payment_status: 'pending',
           payment_method: paymentMethod,
@@ -518,10 +528,24 @@ export function CheckoutScreen() {
                   ))}
                 </div>
 
-                <div className="border-t mt-3 pt-3">
-                  <div className="flex justify-between items-center font-bold text-lg">
-                    <span>Total:</span>
-                    <span className="text-primary">₹{calculateTotal()}</span>
+                <div className="border-t mt-3 pt-3 space-y-2">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">Subtotal:</span>
+                    <span className="font-medium">₹{cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)}</span>
+                  </div>
+                  
+                  {getDiscountAmount() > 0 && (
+                    <div className="flex justify-between items-center text-sm text-green-600 font-bold">
+                      <div className="flex items-center gap-1">
+                        <span>Discount ({appliedOffer?.discount_code}):</span>
+                      </div>
+                      <span>-₹{getDiscountAmount()}</span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between items-center font-bold text-lg pt-1 border-t border-dashed">
+                    <span>Total Payable:</span>
+                    <span className="text-primary">₹{getTotalAmount()}</span>
                   </div>
                 </div>
               </CardBody>
@@ -799,6 +823,65 @@ export function CheckoutScreen() {
                       </div>
                     )}
                   </button>
+
+                  {/* Delivery Coupon Section */}
+                  {orderType === 'delivery' && (
+                    <div className="mt-4 p-4 bg-primary/5 rounded-2xl border border-primary/10">
+                      <div className="flex justify-between items-center mb-3">
+                        <h4 className="font-black text-xs uppercase tracking-widest text-primary">Apply Coupon</h4>
+                        {appliedOffer && (
+                          <button 
+                            onClick={removeCoupon}
+                            className="text-[10px] font-black text-red-500 uppercase flex items-center gap-1"
+                          >
+                            <X className="w-3 h-3" /> Remove
+                          </button>
+                        )}
+                      </div>
+                      
+                      {appliedOffer ? (
+                        <div className="flex items-center justify-between p-3 bg-white rounded-xl border-2 border-dashed border-green-500">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center text-xl">🎉</div>
+                            <div>
+                              <p className="font-black text-sm text-green-700">{appliedOffer.discount_code}</p>
+                              <p className="text-[10px] text-green-600 font-medium">{appliedOffer.description}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs font-black text-green-700">-₹{getDiscountAmount()}</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder="Enter Code (e.g. NAV30)"
+                            value={couponCode}
+                            onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                            className="flex-1 p-3 bg-white border border-border rounded-xl focus:ring-2 focus:ring-primary outline-none font-bold text-sm uppercase"
+                          />
+                          <Button 
+                            className="px-6 h-12 rounded-xl"
+                            disabled={!couponCode || isApplying}
+                            onClick={async () => {
+                              setIsApplying(true);
+                              const result = await applyCoupon(couponCode);
+                              if (result.success) {
+                                toast.success(result.message);
+                                setCouponCode('');
+                              } else {
+                                toast.error(result.message);
+                              }
+                              setIsApplying(false);
+                            }}
+                          >
+                            {isApplying ? '...' : 'APPLY'}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </CardBody>
             </Card>

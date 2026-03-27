@@ -28,6 +28,7 @@ export function useLiveDeliveries() {
 
     const locationChannel = supabase.channel('admin_driver_locations')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, (payload) => {
+        // Update both active orders and available drivers in state
         setActiveOrders(prev => prev.map(order => 
           order.delivery_person_id === payload.new.id 
             ? { ...order, driver_lat: payload.new.current_latitude, driver_lng: payload.new.current_longitude }
@@ -36,15 +37,28 @@ export function useLiveDeliveries() {
       })
       .subscribe();
 
+    const trackingChannel = supabase.channel('admin_tracking_sync')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'delivery_locations' }, (payload) => {
+        // High frequency updates for active deliveries
+        setActiveOrders(prev => prev.map(order => 
+          order.delivery_person_id === payload.new.delivery_person_id 
+            ? { ...order, driver_lat: payload.new.latitude, driver_lng: payload.new.longitude }
+            : order
+        ));
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(ordersChannel);
       supabase.removeChannel(locationChannel);
+      supabase.removeChannel(trackingChannel);
     };
   }, []);
 
   async function fetchActiveOrders() {
     try {
-      const { data, error } = await supabase
+      // 1. Fetch Active Orders
+      const { data: orders, error: ordersError } = await supabase
         .from('orders')
         .select(`
           id, order_number, delivery_status, customer_name,
@@ -55,11 +69,20 @@ export function useLiveDeliveries() {
             current_longitude
           )
         `)
-        .in('delivery_status', ['assigned', 'picked', 'out_for_delivery']);
+        .in('delivery_status', ['assigned', 'accepted', 'picked', 'out_for_delivery']);
 
-      if (error) throw error;
+      if (ordersError) throw ordersError;
 
-      const formatted = data.map((o: any) => ({
+      // 2. Fetch ALL Online Delivery Partners (Live Radar)
+      const { data: drivers, error: driversError } = await supabase
+        .from('profiles')
+        .select('id, full_name, current_latitude, current_longitude, last_location_update')
+        .eq('role', 'delivery')
+        .not('current_latitude', 'is', null);
+
+      if (driversError) throw driversError;
+
+      const formatted = orders.map((o: any) => ({
         id: o.id,
         order_number: o.order_number,
         delivery_status: o.delivery_status,
@@ -72,7 +95,24 @@ export function useLiveDeliveries() {
         driver_lng: o.delivery_person?.current_longitude
       }));
 
-      setActiveOrders(formatted);
+      // Find drivers who are online but NOT in active orders to show as 'Available'
+      const activeDriverIds = new Set(formatted.map(o => o.delivery_person_id));
+      const availableDrivers = drivers
+        .filter(d => !activeDriverIds.has(d.id))
+        .map(d => ({
+          id: `available-${d.id}`,
+          order_number: 'AVAILABLE',
+          delivery_status: 'available',
+          customer_name: 'Waiting for Order',
+          delivery_latitude: 0,
+          delivery_longitude: 0,
+          delivery_person_id: d.id,
+          driver_name: d.full_name,
+          driver_lat: d.current_latitude,
+          driver_lng: d.current_longitude
+        } as LiveOrder));
+
+      setActiveOrders([...formatted, ...availableDrivers]);
     } catch (err) {
       console.error('Error fetching live deliveries:', err);
     } finally {

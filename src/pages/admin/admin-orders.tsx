@@ -4,17 +4,17 @@ import { Card, CardBody } from '@/components/design-system/card';
 import { Badge } from '@/components/design-system/badge';
 import { Input } from '@/components/design-system/input';
 import { supabase, type Order } from '@/lib/supabase';
-import { RefreshCw, ShoppingBag, Clock, Package, Truck, CheckCircle, Search, Calendar, List } from 'lucide-react';
+import { RefreshCw, Search, Calendar, List, ShoppingBag, Clock, Package, Truck, CheckCircle } from 'lucide-react';
 
 export function AdminOrders() {
-  const [activeTab, setActiveTab] = useState<Order['status'] | 'all'>('all');
+  const [activeTab, setActiveTab] = useState<string>('all');
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState<'today' | 'yesterday' | 'last7days' | 'custom'>('today');
   const [customDate, setCustomDate] = useState('');
 
-  const statuses: Array<Order['status'] | 'all' | 'served'> = ['all', 'placed', 'preparing', 'cooking', 'prepared', 'served', 'out_for_delivery', 'delivered'];
+  const statuses = ['all', 'pending', 'preparing', 'prepared', 'out_for_delivery', 'delivered'];
 
   useEffect(() => {
     fetchOrders();
@@ -164,9 +164,18 @@ export function AdminOrders() {
 
   // Get filtered orders
   const getFilteredOrders = () => {
-    let filtered = activeTab === 'all' 
-      ? orders 
-      : orders.filter(order => order.status === activeTab);
+    let filtered = orders;
+    
+    if (activeTab !== 'all') {
+      filtered = orders.filter(order => {
+        if (activeTab === 'pending') return order.status === 'placed';
+        if (activeTab === 'preparing') return order.status === 'preparing';
+        if (activeTab === 'prepared') return order.status === 'prepared';
+        if (activeTab === 'out_for_delivery') return order.delivery_status === 'out_for_delivery';
+        if (activeTab === 'delivered') return order.delivery_status === 'delivered';
+        return order.status === activeTab;
+      });
+    }
     
     filtered = filterByDate(filtered);
     filtered = filterBySearch(filtered);
@@ -186,7 +195,10 @@ export function AdminOrders() {
       case 'out_for_delivery':
         return <Truck className="w-4 h-4" />;
       case 'served':
+      case 'delivered':
         return <CheckCircle className="w-4 h-4" />;
+      case 'cancelled':
+        return <ShoppingBag className="w-4 h-4 opacity-50" />;
       default:
         return <Clock className="w-4 h-4" />;
     }
@@ -203,7 +215,10 @@ export function AdminOrders() {
       case 'out_for_delivery':
         return 'bg-purple-50 text-purple-700 border-purple-200';
       case 'served':
+      case 'delivered':
         return 'bg-green-50 text-green-700 border-green-200';
+      case 'cancelled':
+        return 'bg-red-50 text-red-700 border-red-200';
       default:
         return 'bg-gray-50 text-gray-700 border-gray-200';
     }
@@ -276,10 +291,18 @@ export function AdminOrders() {
                 : 'bg-card text-muted-foreground hover:bg-muted'
                 }`}
             >
-              {getStatusIcon(status)}
+              {getStatusIcon(status === 'pending' ? 'placed' : status)}
               <span>{status.replace(/_/g, ' ').toUpperCase()}</span>
               <span className="text-xs opacity-75">
-                ({orders.filter(o => o.status === status).length})
+                ({filterBySearch(filterByDate(orders)).filter(order => {
+                   if (status === 'all') return true;
+                   if (status === 'pending') return order.status === 'placed';
+                   if (status === 'preparing') return order.status === 'preparing';
+                   if (status === 'prepared') return order.status === 'prepared';
+                   if (status === 'out_for_delivery') return order.delivery_status === 'out_for_delivery';
+                   if (status === 'delivered') return order.delivery_status === 'delivered';
+                   return order.status === status;
+                }).length})
               </span>
             </button>
           ))}

@@ -15,6 +15,7 @@ export function AdminMenu() {
   const [isAdding, setIsAdding] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [showOnlyAvailable, setShowOnlyAvailable] = useState(false);
+  const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
 
   // New Item Form State
   const [newItem, setNewItem] = useState({
@@ -98,32 +99,64 @@ export function AdminMenu() {
 
   };
 
-  const handleAddItem = async (e: React.FormEvent) => {
+  const handleSaveItem = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const { data, error } = await supabase
-        .from('menu_items')
-        .insert({
-          name: newItem.name,
-          price: parseFloat(newItem.price),
-          category: newItem.category,
-          veg: newItem.veg,
-          image: newItem.image,
-          rating: 4.5,
-          is_available: true
-        })
-        .select()
-        .single();
+      if (editingItem) {
+        // Update existing item
+        const { error } = await supabase
+          .from('menu_items')
+          .update({
+            name: newItem.name,
+            price: parseFloat(newItem.price),
+            category: newItem.category,
+            veg: newItem.veg,
+            image: newItem.image
+          })
+          .eq('id', editingItem.id);
 
-      if (error) throw error;
-      setItems(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+        if (error) throw error;
+        setItems(prev => prev.map(i => i.id === editingItem.id ? { ...i, ...newItem, price: parseFloat(newItem.price) } : i));
+        toast.success('Dish updated successfully!');
+      } else {
+        // Insert new item
+        const { data, error } = await supabase
+          .from('menu_items')
+          .insert({
+            name: newItem.name,
+            price: parseFloat(newItem.price),
+            category: newItem.category,
+            veg: newItem.veg,
+            image: newItem.image,
+            rating: 4.5,
+            is_available: true
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        setItems(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+        toast.success('Dish added to menu successfully!');
+      }
+      
       setIsAdding(false);
+      setEditingItem(null);
       setNewItem({ name: '', price: '', category: 'Main Course', veg: true, image: '🍽️' });
-      toast.success('Dish added to menu successfully!');
     } catch (error) {
-      toast.error('Failed to add item');
+      toast.error(editingItem ? 'Failed to update item' : 'Failed to add item');
     }
+  };
 
+  const openEditModal = (item: MenuItem) => {
+    setEditingItem(item);
+    setNewItem({
+      name: item.name,
+      price: item.price.toString(),
+      category: item.category,
+      veg: item.veg,
+      image: item.image || '🍽️'
+    });
+    setIsAdding(true);
   };
 
   return (
@@ -177,13 +210,13 @@ export function AdminMenu() {
             <Card className="w-full max-w-md border-none shadow-2xl animate-in zoom-in-95 duration-200">
               <CardBody className="p-6 space-y-4">
                 <div className="flex justify-between items-center">
-                  <h3 className="text-xl font-black">Add New Dish</h3>
-                  <button onClick={() => setIsAdding(false)} className="p-2 hover:bg-muted rounded-full">
+                  <h3 className="text-xl font-black">{editingItem ? 'Edit Dish' : 'Add New Dish'}</h3>
+                  <button onClick={() => { setIsAdding(false); setEditingItem(null); }} className="p-2 hover:bg-muted rounded-full">
                     <X className="w-5 h-5" />
                   </button>
                 </div>
 
-                <form onSubmit={handleAddItem} className="space-y-4">
+                <form onSubmit={handleSaveItem} className="space-y-4">
                   <div className="space-y-1">
                     <label className="text-xs font-black text-muted-foreground uppercase">Dish Name</label>
                     <input
@@ -242,7 +275,7 @@ export function AdminMenu() {
                   </div>
 
                   <Button type="submit" className="w-full h-12 text-lg font-black">
-                    SAVE TO MENU
+                    {editingItem ? 'UPDATE DISH' : 'SAVE TO MENU'}
                   </Button>
                 </form>
               </CardBody>
@@ -250,73 +283,69 @@ export function AdminMenu() {
           </div>
         )}
 
-        {/* Menu Items List */}
+        {/* Menu Items Grid */}
         {loading ? (
           <div className="py-20 text-center text-muted-foreground animate-pulse">
             <RefreshCw className="w-10 h-10 mx-auto mb-2 animate-spin" />
-            <p>Loading your menu...</p>
+            <p className="font-bold">Refreshing menu...</p>
           </div>
         ) : (
-          items
+          <div className="grid grid-cols-2 gap-3 pb-8">
+          {items
             .filter(item => selectedCategory === 'All' || item.category === selectedCategory)
             .filter(item => !showOnlyAvailable || item.is_available)
             .map((item) => (
-              <Card key={item.id} className={`${!item.is_available ? 'opacity-60 bg-muted/30' : ''} border-none shadow-sm`}>
-                <CardBody className="p-4">
-                  <div className="flex gap-4">
-                    <div className="text-5xl drop-shadow-sm">{item.image}</div>
-                    <div className="flex-1">
-                      <div className="flex items-start justify-between mb-1">
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <h4 className="font-black text-foreground">{item.name}</h4>
-                            {item.veg ? <VegBadge /> : <div className="inline-flex items-center justify-center w-5 h-5 border-2 border-red-600 rounded"><div className="w-2 h-2 bg-red-600 rounded-full"></div></div>}
-                          </div>
-                          <p className="text-xs font-bold text-muted-foreground uppercase">{item.category}</p>
-                        </div>
-                        <div className="flex flex-col items-end gap-2">
-                          <button
-                            onClick={() => toggleAvailability(item)}
-                            className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider"
-                          >
-                            <span className={item.is_available ? 'text-green-600' : 'text-red-500'}>
-                              {item.is_available ? 'Available' : 'Sold Out'}
-                            </span>
-                            {item.is_available ?
-                              <ToggleRight className="w-6 h-6 text-green-600" /> :
-                              <ToggleLeft className="w-6 h-6 text-red-500" />
-                            }
-                          </button>
-                          <button
-                            onClick={() => toggleSpecial(item)}
-                            className={`flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-lg border ${item.is_special ? 'bg-yellow-50 border-yellow-200 text-yellow-600' : 'bg-muted/50 border-muted text-muted-foreground'
-                              }`}
-                          >
-                            <Star className={`w-3 h-3 ${item.is_special ? 'fill-yellow-500' : ''}`} />
-                            {item.is_special ? 'Special' : 'Mark Special'}
-                          </button>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-divider">
-                        <span className="text-lg font-black text-primary">₹{item.price}</span>
-                        <div className="flex gap-1">
-                          <button className="p-2 hover:bg-muted rounded-xl transition-colors">
-                            <Edit className="w-4 h-4 text-foreground" />
-                          </button>
-                          <button
-                            onClick={() => deleteItem(item.id)}
-                            className="p-2 hover:bg-red-50 rounded-xl transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4 text-red-500" />
-                          </button>
-                        </div>
-                      </div>
+              <Card key={item.id} className={`overflow-hidden border-none shadow-sm transition-all active:scale-95 ${!item.is_available ? 'opacity-60 grayscale-[0.5]' : ''}`}>
+                <CardBody className="p-3 flex flex-col h-full">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{item.category}</p>
+                    {item.veg ? <VegBadge /> : <div className="inline-flex items-center justify-center w-4 h-4 border border-red-600 rounded bg-white"><div className="w-1.5 h-1.5 bg-red-600 rounded-full"></div></div>}
+                  </div>
+
+                  <div className="flex-1 space-y-1 min-h-[60px]">
+                    <h4 className="font-black text-xs text-foreground line-clamp-1">{item.name}</h4>
+                    <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">{item.category}</p>
+                    <div className="flex items-center justify-between mt-1">
+                       <span className="text-sm font-black text-primary">₹{item.price}</span>
+                       <button
+                         onClick={(e) => { e.stopPropagation(); toggleSpecial(item); }}
+                         className={`p-1.5 rounded-lg border shadow-sm transition-all active:scale-90 ${item.is_special ? 'bg-yellow-50 border-yellow-200 text-yellow-600 shadow-yellow-100' : 'bg-muted/50 border-transparent text-muted-foreground'}`}
+                         title={item.is_special ? "Remove from Specials" : "Mark as Special"}
+                       >
+                         <Star className={`w-3.5 h-3.5 ${item.is_special ? 'fill-yellow-500' : ''}`} />
+                       </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 mt-3 pt-2 border-t border-divider">
+                    <button
+                      onClick={() => toggleAvailability(item)}
+                      className={`flex-1 flex items-center justify-center py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-colors ${
+                        item.is_available ? 'bg-green-50 border-green-200 text-green-600' : 'bg-red-50 border-red-200 text-red-500'
+                      }`}
+                    >
+                      {item.is_available ? 'AVAIL' : 'SOLD'}
+                    </button>
+                    <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                      <button 
+                        onClick={() => openEditModal(item)}
+                        className="p-1.5 hover:bg-primary/10 hover:border-primary/30 rounded-lg transition-colors border border-border"
+                      >
+                        <Edit className="w-3 h-3 text-foreground" />
+                      </button>
+                      <button
+                        onClick={() => deleteItem(item.id)}
+                        className="p-1.5 hover:bg-red-50 rounded-lg transition-colors border border-red-100"
+                      >
+                        <Trash2 className="w-3 h-3 text-red-500" />
+                      </button>
                     </div>
                   </div>
                 </CardBody>
               </Card>
-            ))
-        )}
+            ))}
+        </div>
+      )}
       </div>
     </div>
   );

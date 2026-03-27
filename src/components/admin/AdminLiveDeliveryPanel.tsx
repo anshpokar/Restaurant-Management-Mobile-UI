@@ -1,8 +1,7 @@
-import { MapPin, Truck, ExternalLink, RefreshCw } from 'lucide-react';
-import { Card, CardBody } from '../design-system/card';
+import { Truck, ExternalLink, RefreshCw } from 'lucide-react';
+import { Card } from '../design-system/card';
 import { MapView } from '../map/MapView';
 import { useLiveDeliveries } from '../../hooks/useLiveDeliveries';
-import { Button } from '../design-system/button';
 import { useNavigate } from 'react-router-dom';
 
 export function AdminLiveDeliveryPanel() {
@@ -73,7 +72,9 @@ export function AdminLiveDeliveryPanel() {
                     <h4 className="font-bold text-sm truncate max-w-[150px]">{order.customer_name}</h4>
                   </div>
                   <div className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
-                    order.delivery_status === 'out_for_delivery' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                    order.delivery_status === 'out_for_delivery' ? 'bg-purple-100 text-purple-700' : 
+                    order.delivery_status === 'available' ? 'bg-green-100 text-green-700' :
+                    'bg-blue-100 text-blue-700'
                   }`}>
                     {order.delivery_status.replace(/_/g, ' ')}
                   </div>

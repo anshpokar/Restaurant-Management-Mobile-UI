@@ -1,7 +1,7 @@
 import { MapContainer, TileLayer, Marker, Polyline, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 
 // Fix for default marker icon issue in React Leaflet
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -65,7 +65,7 @@ export function MapView({
   zoom = 13, 
   driverLocation, 
   customerLocation, 
-  restaurantLocation = [28.6139, 77.2090], // Default to New Delhi center
+  restaurantLocation = [19.1669, 73.2359], // Default to Restaurant Location (Badlapur)
   history,
   deliveryRadius,
   className = "h-[300px] w-full",
@@ -124,7 +124,7 @@ export function MapView({
 
         {/* Admin Multi-Tracking Mode */}
         {showAllActive && activeOrders?.map(order => (
-          <div key={order.id}>
+          <React.Fragment key={order.id}>
              {/* Customer Marker */}
              <Marker 
                position={[order.delivery_latitude, order.delivery_longitude]} 
@@ -148,7 +148,7 @@ export function MapView({
                  />
                </>
              )}
-          </div>
+          </React.Fragment>
         ))}
 
         {/* Global Restaurant Hub for Admin */}

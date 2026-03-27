@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { AppHeader } from '@/components/design-system/app-header';
 import { Card, CardBody } from '@/components/design-system/card';
-import { Button } from '@/components/design-system/button';
 import { Badge } from '@/components/design-system/badge';
-import { User, Search, Loader2 } from 'lucide-react';
+import { User, Search, Loader2, Edit } from 'lucide-react';
 import { supabase, type UserRole, type Profile } from '@/lib/supabase';
 import { toast } from 'sonner';
 
@@ -109,57 +108,29 @@ export function AdminUserManagement() {
                     </Badge>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 pt-3 border-t border-divider">
-                    <Button
-                      variant={user.role === 'customer' ? 'primary' : 'outline'}
-                      size="sm"
-                      className="text-xs"
-                      onClick={() => updateUserRole(user.id, 'customer')}
-                      isLoading={updatingId === user.id}
-                      disabled={user.role === 'customer'}
-                    >
-                      Customer
-                    </Button>
-                    <Button
-                      variant={user.role === 'chef' ? 'secondary' : 'outline'}
-                      size="sm"
-                      className="text-xs font-bold"
-                      onClick={() => updateUserRole(user.id, 'chef')}
-                      isLoading={updatingId === user.id}
-                      disabled={user.role === 'chef'}
-                    >
-                      🍳 Chef
-                    </Button>
-                    <Button
-                      variant={user.role === 'waiter' ? 'secondary' : 'outline'}
-                      size="sm"
-                      className="text-xs font-bold"
-                      onClick={() => updateUserRole(user.id, 'waiter')}
-                      isLoading={updatingId === user.id}
-                      disabled={user.role === 'waiter'}
-                    >
-                      🤵 Waiter
-                    </Button>
-                    <Button
-                      variant={user.role === 'delivery' ? 'secondary' : 'outline'}
-                      size="sm"
-                      className="text-xs font-bold"
-                      onClick={() => updateUserRole(user.id, 'delivery')}
-                      isLoading={updatingId === user.id}
-                      disabled={user.role === 'delivery'}
-                    >
-                      🚚 Delivery
-                    </Button>
-                    <Button
-                      variant={user.role === 'admin' ? 'primary' : 'outline'}
-                      size="sm"
-                      className="text-xs font-bold"
-                      onClick={() => updateUserRole(user.id, 'admin')}
-                      isLoading={updatingId === user.id}
-                      disabled={user.role === 'admin'}
-                    >
-                      🛡️ Admin
-                    </Button>
+                  <div className="pt-3 border-t border-divider">
+                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">Change User Role</p>
+                    <div className="relative group">
+                       <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                          <Loader2 className={`w-4 h-4 text-primary ${updatingId === user.id ? 'animate-spin' : 'hidden'}`} />
+                          {!updatingId && <div className="w-2 h-2 rounded-full bg-primary" />}
+                       </div>
+                       <select
+                         defaultValue={user.role}
+                         onChange={(e) => updateUserRole(user.id, e.target.value as UserRole)}
+                         disabled={updatingId === user.id}
+                         className="w-full pl-9 pr-4 py-3 bg-muted/50 hover:bg-muted border border-transparent focus:border-primary/30 rounded-xl text-sm font-bold text-foreground appearance-none outline-none transition-all cursor-pointer"
+                       >
+                         <option value="customer">👤 Customer</option>
+                         <option value="chef">🧑‍🍳 Chef</option>
+                         <option value="waiter">🤵 Waiter</option>
+                         <option value="delivery">🚚 Delivery Partner</option>
+                         <option value="admin">🛡️ Admin</option>
+                       </select>
+                       <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-muted-foreground">
+                          <Edit className="w-3 h-3" />
+                       </div>
+                    </div>
                   </div>
                 </CardBody>
               </Card>

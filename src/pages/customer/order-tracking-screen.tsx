@@ -25,6 +25,7 @@ interface Order {
   total_amount: number;
   created_at: string;
   otp?: string;
+  delivery_person_id?: string;
 }
 
 interface DeliveryPerson {
@@ -41,7 +42,7 @@ export function OrderTrackingScreen() {
   const [deliveryPerson, setDeliveryPerson] = useState<DeliveryPerson | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const { driverLocation, history, routePolyline, etaMinutes } = useTracking(orderId);
+  const { driverLocation, history, routePolyline, etaMinutes } = useTracking(orderId, order?.delivery_person_id);
 
   useEffect(() => {
     fetchOrderDetails();

@@ -40,6 +40,20 @@ export function HomeScreen() {
 
   useEffect(() => {
     fetchHomeData();
+
+    // Real-time subscription for menu and offers
+    const channel = supabase.channel('customer-home-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items' }, () => {
+        fetchHomeData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'offers' }, () => {
+        fetchHomeData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Auto-slide effect for specials and offers

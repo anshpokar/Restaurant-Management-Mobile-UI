@@ -22,6 +22,17 @@ export function MenuScreen() {
 
   useEffect(() => {
     fetchMenu();
+
+    // Real-time subscription for menu updates (availability, price, etc.)
+    const channel = supabase.channel('customer-menu-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items' }, () => {
+        fetchMenu();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const fetchMenu = async () => {

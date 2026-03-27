@@ -17,7 +17,14 @@ export function AdminDashboard() {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddingOffer, setIsAddingOffer] = useState(false);
-  const [newOffer, setNewOffer] = useState({ title: '', description: '', discount_code: '' });
+  const [newOffer, setNewOffer] = useState({ 
+    title: '', 
+    description: '', 
+    discount_code: '', 
+    discount_value: 0, 
+    discount_type: 'flat' as 'flat' | 'percentage',
+    min_order_amount: 0
+  });
   const [stats, setStats] = useState({
     ordersCount: 0,
     revenue: 0,
@@ -30,6 +37,37 @@ export function AdminDashboard() {
 
   useEffect(() => {
     fetchData();
+
+    // REAL-TIME SYSTEM SYNC
+    // Listen for any high-level changes that affect KPIs
+    const channels = [
+      supabase.channel('admin-orders-sync')
+        .on('postgres_changes', { event: '*', table: 'orders', schema: 'public' }, () => {
+          console.log('📦 Admin Sync: Orders change detected');
+          fetchKpis();
+        }),
+      supabase.channel('admin-tables-sync')
+        .on('postgres_changes', { event: '*', table: 'restaurant_tables', schema: 'public' }, () => {
+          console.log('🪑 Admin Sync: Tables change detected');
+          fetchKpis();
+        }),
+      supabase.channel('admin-bookings-sync')
+        .on('postgres_changes', { event: '*', table: 'table_bookings', schema: 'public' }, () => {
+          console.log('📅 Admin Sync: Bookings change detected');
+          fetchKpis();
+        }),
+      supabase.channel('admin-payments-sync')
+        .on('postgres_changes', { event: '*', table: 'upi_payments', schema: 'public' }, () => {
+          console.log('💳 Admin Sync: Payments change detected');
+          fetchKpis();
+        })
+    ];
+
+    channels.forEach(ch => ch.subscribe());
+
+    return () => {
+      channels.forEach(ch => supabase.removeChannel(ch));
+    };
   }, []);
 
   const fetchKpis = async () => {
@@ -150,17 +188,30 @@ export function AdminDashboard() {
     try {
       const { data, error } = await supabase
         .from('offers')
-        .insert([{ ...newOffer, is_active: true }])
+        .insert([{ 
+          ...newOffer, 
+          is_active: true,
+          // Ensure numbers are numbers
+          discount_value: Number(newOffer.discount_value),
+          min_order_amount: Number(newOffer.min_order_amount)
+        }])
         .select()
         .single();
       if (error) throw error;
       setOffers([data, ...offers]);
       setIsAddingOffer(false);
-      setNewOffer({ title: '', description: '', discount_code: '' });
-    } catch (error) {
-      toast.error('Failed to add offer');
+      setNewOffer({ 
+        title: '', 
+        description: '', 
+        discount_code: '', 
+        discount_value: 0, 
+        discount_type: 'flat',
+        min_order_amount: 0
+      });
+      toast.success('Offer created successfully');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to add offer');
     }
-
   };
 
   const deleteOffer = async (id: string) => {
@@ -389,6 +440,16 @@ export function AdminDashboard() {
                     />
                   </div>
                   <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Discount Code</label>
+                    <input
+                      required
+                      className="w-full p-3 bg-muted rounded-xl border-none outline-none focus:ring-2 focus:ring-primary font-black uppercase tracking-widest"
+                      value={newOffer.discount_code}
+                      onChange={e => setNewOffer({ ...newOffer, discount_code: e.target.value.toUpperCase() })}
+                      placeholder="e.g. SAVE50"
+                    />
+                  </div>
+                  <div className="space-y-1">
                     <label className="text-xs font-bold uppercase text-muted-foreground">Description</label>
                     <input
                       required
@@ -398,19 +459,45 @@ export function AdminDashboard() {
                       placeholder="e.g. On orders above ₹499"
                     />
                   </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold uppercase text-muted-foreground">Type</label>
+                      <select
+                        className="w-full p-3 bg-muted rounded-xl border-none outline-none focus:ring-2 focus:ring-primary h-12"
+                        value={newOffer.discount_type}
+                        onChange={e => setNewOffer({ ...newOffer, discount_type: e.target.value as any })}
+                      >
+                        <option value="flat">Flat (₹)</option>
+                        <option value="percentage">Percent (%)</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold uppercase text-muted-foreground">Value</label>
+                      <input
+                        type="number"
+                        required
+                        className="w-full p-3 bg-muted rounded-xl border-none outline-none focus:ring-2 focus:ring-primary h-12"
+                        value={newOffer.discount_value}
+                        onChange={e => setNewOffer({ ...newOffer, discount_value: Number(e.target.value) })}
+                        placeholder="e.g. 50"
+                      />
+                    </div>
+                  </div>
+
                   <div className="space-y-1">
-                    <label className="text-xs font-bold uppercase text-muted-foreground">Discount Code</label>
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Min Order Amount (Optional)</label>
                     <input
-                      required
-                      className="w-full p-3 bg-muted rounded-xl border-none outline-none focus:ring-2 focus:ring-primary"
-                      value={newOffer.discount_code}
-                      onChange={e => setNewOffer({ ...newOffer, discount_code: e.target.value.toUpperCase() })}
-                      placeholder="e.g. NAV30"
+                      type="number"
+                      className="w-full p-3 bg-muted rounded-xl border-none outline-none focus:ring-2 focus:ring-primary h-12"
+                      value={newOffer.min_order_amount}
+                      onChange={e => setNewOffer({ ...newOffer, min_order_amount: Number(e.target.value) })}
+                      placeholder="e.g. 499"
                     />
                   </div>
-                  <div className="flex gap-3">
-                    <Button type="button" variant="outline" className="flex-1" onClick={() => setIsAddingOffer(false)}>{COMMON_TEXT.CANCEL}</Button>
-                    <Button type="submit" className="flex-[2]">{ADMIN_TEXT.NEW_OFFER}</Button>
+
+                  <div className="flex gap-3 pt-2">
+                    <Button type="button" variant="outline" className="flex-1 h-12 rounded-xl" onClick={() => setIsAddingOffer(false)}>{COMMON_TEXT.CANCEL}</Button>
+                    <Button type="submit" className="flex-[2] h-12 rounded-xl font-bold">{ADMIN_TEXT.NEW_OFFER}</Button>
                   </div>
                 </form>
               </CardBody>

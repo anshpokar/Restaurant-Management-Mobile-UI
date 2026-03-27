@@ -19,7 +19,9 @@ ADD COLUMN IF NOT EXISTS assignment_status text DEFAULT 'pending'
 ADD COLUMN IF NOT EXISTS restaurant_latitude numeric DEFAULT 19.1669,
 ADD COLUMN IF NOT EXISTS restaurant_longitude numeric DEFAULT 73.2359,
 ADD COLUMN IF NOT EXISTS picked_up_at timestamp with time zone,
-ADD COLUMN IF NOT EXISTS delivered_at timestamp with time zone;
+ADD COLUMN IF NOT EXISTS delivered_at timestamp with time zone,
+ADD COLUMN IF NOT EXISTS discount_amount numeric DEFAULT 0,
+ADD COLUMN IF NOT EXISTS coupon_code text;
 
 -- 3. Create Cash Settlements Table
 CREATE TABLE IF NOT EXISTS public.cash_settlements (

@@ -23,7 +23,7 @@ interface TableWithSession extends RestaurantTable {
 
 export function WaiterDashboard() {
     const navigate = useNavigate();
-    const { tables, loading, fetchTables, profile } = useOutletContext<{
+    const { tables, loading, fetchTables } = useOutletContext<{
         tables: RestaurantTable[],
         loading: boolean,
         fetchTables: () => void,
@@ -37,6 +37,20 @@ export function WaiterDashboard() {
         if (tables.length > 0) {
             fetchActiveSessions();
         }
+
+        // Real-time subscription for session and table changes
+        const sessionsChannel = supabase.channel('waiter-sessions-sync')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'dine_in_sessions' }, () => {
+                fetchActiveSessions();
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurant_tables' }, () => {
+                fetchTables(); // This will trigger the effect again and then fetchActiveSessions
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(sessionsChannel);
+        };
     }, [tables]);
 
     const fetchActiveSessions = async () => {

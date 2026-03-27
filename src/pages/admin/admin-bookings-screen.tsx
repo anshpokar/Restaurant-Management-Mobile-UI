@@ -10,7 +10,6 @@ import {
   CheckCircle2, 
   XCircle, 
   Search,
-  Filter,
   Phone,
   Mail,
   Gift,
@@ -19,7 +18,6 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { supabase, type TableBooking } from '@/lib/supabase';
-import { Input } from '@/components/design-system/input';
 import { toast } from 'sonner';
 
 
@@ -32,6 +30,17 @@ export function AdminBookingsScreen() {
 
   useEffect(() => {
     fetchBookings();
+
+    // Real-time subscription for booking updates
+    const channel = supabase.channel('admin-bookings-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'table_bookings' }, () => {
+        fetchBookings();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [view]);
 
   async function fetchBookings() {

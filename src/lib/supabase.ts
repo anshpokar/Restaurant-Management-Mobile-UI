@@ -64,6 +64,10 @@ export interface Profile {
   current_longitude?: number;
   last_location_update?: string;
   rating?: number;
+  cash_collected?: number;
+  total_earnings?: number;
+  is_available?: boolean;
+  is_on_duty?: boolean;
 }
 
 export interface RestaurantTable {
@@ -90,7 +94,10 @@ export interface Offer {
   title: string;
   description: string;
   discount_code: string;
+  discount_value: number;
+  discount_type: 'flat' | 'percentage';
   is_active: boolean;
+  min_order_amount?: number;
   created_at: string;
 }
 
@@ -132,6 +139,7 @@ export interface Order {
   otp?: string;
   is_paid: boolean;
   created_at: string;
+  order_number: string;
   picked_up_at?: string;
   delivered_at?: string;
   // Join data

@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { MenuItem } from '@/lib/supabase';
+import { MenuItem, Offer, supabase } from '@/lib/supabase';
 
 export interface CartItem {
   menu_item_id: number;
@@ -29,6 +29,10 @@ interface CartContextType {
   previousOrders: any[];
   isLoadingHistory: boolean;
   fetchOrderHistory: () => Promise<void>;
+  appliedOffer: Offer | null;
+  applyCoupon: (code: string) => Promise<{ success: boolean; message: string }>;
+  removeCoupon: () => void;
+  getDiscountAmount: () => number;
   getTotalSessionItems: () => number;
   getTotalSessionAmount: () => number;
 }
@@ -48,6 +52,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   });
   const [previousOrders, setPreviousOrders] = useState<any[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [appliedOffer, setAppliedOffer] = useState<Offer | null>(null);
 
   // Persist changes to localStorage
   useEffect(() => {
@@ -188,8 +193,57 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setCustomerInfo(cInfo);
   };
 
+  const getSubtotal = () => {
+    return cartItems.reduce((total, item) => total + item.price * item.quantity, 0);
+  };
+
+  const getDiscountAmount = () => {
+    if (!appliedOffer) return 0;
+    const subtotal = getSubtotal();
+    
+    if (appliedOffer.discount_type === 'flat') {
+      return Math.min(appliedOffer.discount_value, subtotal);
+    } else {
+      return (subtotal * appliedOffer.discount_value) / 100;
+    }
+  };
+
+  const applyCoupon = async (code: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('offers')
+        .select('*')
+        .eq('discount_code', code.toUpperCase())
+        .eq('is_active', true)
+        .single();
+
+      if (error || !data) {
+        return { success: false, message: 'Invalid or expired coupon code' };
+      }
+
+      const subtotal = getSubtotal();
+      if (data.min_order_amount && subtotal < data.min_order_amount) {
+        return { success: false, message: `Minimum order amount of ₹${data.min_order_amount} required` };
+      }
+
+      setAppliedOffer(data as Offer);
+      return { success: true, message: 'Coupon applied successfully!' };
+    } catch (err) {
+      console.error('Error applying coupon:', err); // Added error logging
+      return { success: false, message: 'Error checking coupon' };
+    }
+  };
+
+  const removeCoupon = () => {
+    setAppliedOffer(null);
+  };
+
   const getTotalItems = () => cartItems.reduce((sum: number, item: CartItem) => sum + item.quantity, 0);
-  const getTotalAmount = () => cartItems.reduce((sum: number, item: CartItem) => sum + (item.price * item.quantity), 0);
+  const getTotalAmount = () => {
+    const subtotal = getSubtotal();
+    const discount = getDiscountAmount();
+    return Math.max(0, subtotal - discount);
+  };
 
   const getTotalSessionItems = () => {
     const newItems = getTotalItems();
@@ -221,8 +275,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
       previousOrders,
       isLoadingHistory,
       fetchOrderHistory,
+      appliedOffer,
+      applyCoupon,
+      removeCoupon,
+      getDiscountAmount,
       getTotalSessionItems,
-      getTotalSessionAmount
+      getTotalSessionAmount,
     }}>
       {children}
     </CartContext.Provider>

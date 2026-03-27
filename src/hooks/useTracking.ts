@@ -6,7 +6,7 @@ interface Location {
   lng: number;
 }
 
-export function useTracking(orderId?: string) {
+export function useTracking(orderId?: string, deliveryPersonId?: string) {
   const [driverLocation, setDriverLocation] = useState<Location | null>(null);
   const [history, setHistory] = useState<Location[]>([]);
   const [routePolyline, setRoutePolyline] = useState<[number, number][] | undefined>(undefined);
@@ -18,6 +18,9 @@ export function useTracking(orderId?: string) {
       setLoading(false);
       return;
     }
+
+    // Use passed deliveryPersonId or fetch it
+    const activeDriverId = deliveryPersonId;
 
     // 1. Fetch initial location and history
     async function fetchInitialLocation() {
@@ -66,13 +69,11 @@ export function useTracking(orderId?: string) {
     // 2. Subscribe to real-time updates
     async function setupSubscriptions() {
       // Get the driver ID first to subscribe to their profile updates
-      const { data: order } = await supabase
+      const driverId = activeDriverId || (await supabase
         .from('orders')
         .select('delivery_person_id')
         .eq('id', orderId)
-        .single();
-
-      const driverId = order?.delivery_person_id;
+        .single()).data?.delivery_person_id;
       
       const channel = supabase.channel(`tracking:${orderId}`);
 
@@ -135,7 +136,7 @@ export function useTracking(orderId?: string) {
         if (channel) supabase.removeChannel(channel);
       });
     };
-  }, [orderId]);
+  }, [orderId, deliveryPersonId]);
 
   useEffect(() => {
     if (driverLocation && !loading) {

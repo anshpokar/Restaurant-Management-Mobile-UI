@@ -124,7 +124,7 @@ export function DeliveryTasksScreen() {
         }) : Promise.resolve()
       ]);
     } catch (err) {
-      console.error('Error updating location:', err);
+      console.error('Error updating location', err);
     }
   }
 
@@ -186,8 +186,8 @@ export function DeliveryTasksScreen() {
         setIsAvailable(data.is_available ?? true);
         setIsOnDuty(data.is_on_duty ?? false);
       }
-    } catch (error) {
-      console.error('Error loading profile:', error);
+    } catch {
+      console.error('Error loading profile');
     } finally {
       setLoading(false);
     }

@@ -39,6 +39,20 @@ export function BookingsScreen({ hideHeader = false }: { hideHeader?: boolean })
     if (view === 'my-bookings') {
       fetchMyBookings();
     }
+
+    // Real-time subscription for booking changes
+    const channel = supabase.channel('customer-bookings-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'table_bookings' }, () => {
+        fetchMyBookings();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurant_tables' }, () => {
+        fetchTables();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [view]);
 
   // Update filtered tables when date, time, or guests change

@@ -4,10 +4,10 @@ import { supabase } from '../../lib/supabase';
 import { toast } from 'sonner';
 
 import { AppHeader } from '../../components/design-system/app-header';
-import { Card, CardBody, CardHeader } from '../../components/design-system/card';
+import { Card, CardBody } from '../../components/design-system/card';
 import { Button } from '../../components/design-system/button';
 import { Badge } from '../../components/design-system/badge';
-import { Calendar, Clock, Users, CheckCircle2, XCircle, Trash2, RefreshCw } from 'lucide-react';
+import { Calendar, Clock, Users, CheckCircle2, Trash2, RefreshCw } from 'lucide-react';
 
 interface TableReservation {
   id: string;
@@ -28,6 +28,17 @@ export function AdminTableReservationsScreen() {
 
   useEffect(() => {
     fetchReservations();
+
+    // Real-time subscription for table updates
+    const channel = supabase.channel('admin-reservations-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurant_tables' }, () => {
+        fetchReservations();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const fetchReservations = async () => {

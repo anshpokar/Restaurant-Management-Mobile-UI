@@ -29,6 +29,20 @@ export function AdminTables() {
 
     useEffect(() => {
         fetchData();
+
+        // Real-time subscription for tables and sessions
+        const channel = supabase.channel('admin-tables-sync')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurant_tables' }, () => {
+                fetchData();
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'dine_in_sessions' }, () => {
+                fetchData();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, []);
 
     const fetchData = async () => {

@@ -15,10 +15,21 @@ export function useSettlements() {
 
   useEffect(() => {
     fetchDriverFinances();
+
+    const channel = supabase.channel('driver-finance-sync')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: 'role=eq.delivery' }, () => {
+        fetchDriverFinances();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   async function fetchDriverFinances() {
     try {
+      setLoading(true);
       const { data, error } = await supabase
         .from('profiles')
         .select('id, full_name, cash_collected, total_earnings')
@@ -28,7 +39,7 @@ export function useSettlements() {
 
       const formatted = data.map(d => ({
         ...d,
-        pending_settlement: (d.cash_collected || 0) - (d.total_earnings || 0)
+        pending_settlement: Math.max(0, (d.cash_collected || 0) - (d.total_earnings || 0))
       }));
 
       setDrivers(formatted);
@@ -44,6 +55,9 @@ export function useSettlements() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
+      const driver = drivers.find(d => d.id === driverId);
+      if (!driver) throw new Error('Driver not found');
+
       // 1. Create settlement record
       const { error: settlementError } = await supabase
         .from('cash_settlements')
@@ -56,20 +70,20 @@ export function useSettlements() {
 
       if (settlementError) throw settlementError;
 
-      // 2. We need to decide how to handle the reset/reduction of cash_collected
-      // For simplicity, let's assume settling reduces both cash_collected and total_earnings by the amount settled
-      // or we can just reset them if they were fully settled.
-      // Usually, it's better to decrement the counters.
+      // 2. Intelligent adjustment:
+      // When a driver hands over 'amount', it effectively pays off their collected cash.
+      // If they were 'paying themselves' from the cash (offsetting earnings), 
+      // then we should also decrement their earnings by that same offset amount.
       
-      // Let's assume the 'amount' represents the CASH the driver handed over.
-      // We should probably have a more complex accounting but for now:
-      // Subtract amount from cash_collected.
+      const earningsOffset = Math.min(driver.total_earnings || 0, driver.cash_collected || 0);
+      const newCashCollected = Math.max(0, (driver.cash_collected || 0) - amount - earningsOffset);
+      const newTotalEarnings = Math.max(0, (driver.total_earnings || 0) - earningsOffset);
       
       const { error: updateError } = await supabase
         .from('profiles')
         .update({
-          cash_collected: 0, // Simplified: reset on settlement
-          total_earnings: 0  // Simplified: reset on settlement
+          cash_collected: newCashCollected,
+          total_earnings: newTotalEarnings
         })
         .eq('id', driverId);
 
