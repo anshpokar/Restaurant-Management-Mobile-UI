@@ -17,7 +17,7 @@ export function WaiterSessionManagementScreen() {
   const { userProfile } = useAuth();
   const { sessionId } = useParams<{ sessionId: string }>();
   const { setWaiterContext, previousOrders: orders, fetchOrderHistory } = useCart();
-  
+
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -27,23 +27,6 @@ export function WaiterSessionManagementScreen() {
       setLoading(true);
       fetchSessionDetails();
       fetchOrderHistory();
-
-      // Real-time subscription for session metadata
-      const channel = supabase.channel(`session-mgmt-${sessionId}`)
-        .on('postgres_changes', {
-          event: '*',
-          table: 'dine_in_sessions',
-          schema: 'public',
-          filter: `id=eq.${sessionId}`
-        }, () => {
-          console.log('Real-time: Session metadata update triggered');
-          fetchSessionDetails();
-        })
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
     }
   }, [sessionId]);
 
@@ -60,7 +43,7 @@ export function WaiterSessionManagementScreen() {
 
       if (rpcError) {
         console.log('⚠️ RPC failed, trying REST API:', rpcError);
-        
+
         // Fallback to REST API
         const { data: sessionData, error: sessionError } = await supabase
           .from('dine_in_sessions')
@@ -76,13 +59,13 @@ export function WaiterSessionManagementScreen() {
 
         if (!sessionData || sessionData.length === 0) {
           console.error('❌ No data returned - checking database...');
-          
+
           // Debug: Check if session exists in DB
           const { data: allSessions } = await supabase
             .from('dine_in_sessions')
             .select('id, session_name, session_status')
             .eq('session_status', 'active');
-          
+
           console.log('📋 All active sessions:', allSessions);
           throw new Error('Session not found. Please check if the session exists in the database.');
         }
@@ -116,7 +99,7 @@ export function WaiterSessionManagementScreen() {
       } else {
         console.log('✅ RPC success:', rpcData);
         const sessionSingle = Array.isArray(rpcData) ? rpcData[0] : rpcData;
-        
+
         const { data: tableData } = await supabase
           .from('restaurant_tables')
           .select('id, table_number, capacity')
@@ -213,7 +196,7 @@ export function WaiterSessionManagementScreen() {
                 <div>
                   <p className="text-xs font-bold text-green-600 uppercase">Status</p>
                   <div className="mt-1">
-                    <Badge 
+                    <Badge
                       variant={session.session_status === 'active' ? 'success' : 'secondary'}
                     >
                       {session.session_status.toUpperCase()}
@@ -292,7 +275,7 @@ export function WaiterSessionManagementScreen() {
               <div className="bg-surface p-3 rounded-xl border border-border">
                 <p className="text-xs text-muted-foreground mb-1">Payment</p>
                 <div className="mt-1">
-                  <Badge 
+                  <Badge
                     variant={session.payment_status === 'paid' ? 'paid' : 'pending'}
                   >
                     {session.payment_status.toUpperCase()}
@@ -320,7 +303,7 @@ export function WaiterSessionManagementScreen() {
                     <div className="text-right">
                       <p className="text-sm font-bold text-foreground">₹{order.total_amount}</p>
                       <div className="mt-1">
-                        <Badge 
+                        <Badge
                           variant={order.status === 'completed' ? 'success' : order.status === 'placed' ? 'info' : 'secondary'}
                           size="sm"
                         >
@@ -371,8 +354,8 @@ export function WaiterSessionManagementScreen() {
             <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
               <User className="w-4 h-4 text-primary" /> Admin Controls
             </h3>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="w-full border-red-200 text-red-600 hover:bg-red-50"
               onClick={async () => {
                 if (!confirm('ADMIN: Force vacate this table? This will not mark payment as completed.')) return;
@@ -380,7 +363,7 @@ export function WaiterSessionManagementScreen() {
                   // 1. Mark the session as completed/cancelled
                   const { error: sessionError } = await supabase
                     .from('dine_in_sessions')
-                    .update({ 
+                    .update({
                       session_status: 'completed',
                       completed_at: new Date().toISOString()
                     })
@@ -391,12 +374,12 @@ export function WaiterSessionManagementScreen() {
                   // 2. Clear the table
                   const { error: tableError } = await supabase
                     .from('restaurant_tables')
-                    .update({ 
-                      status: 'available', 
-                      current_session_id: null 
+                    .update({
+                      status: 'available',
+                      current_session_id: null
                     })
                     .eq('id', session.restaurant_tables.id);
-                  
+
                   if (tableError) throw tableError;
 
                   toast.success('Table vacated successfully');

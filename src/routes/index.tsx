@@ -187,7 +187,7 @@ export function AppRoutes({ userRole, userProfile, isLoadingAuth, handleLogout }
             {/* Delivery Routes */}
             <Route path="/delivery" element={
                 <ProtectedRoute userRole={userRole} allowedRoles={['delivery']} isLoading={isLoadingAuth}>
-                    <DeliveryApp onLogout={handleLogout} />
+                    <DeliveryApp onLogout={handleLogout} profile={userProfile} />
                 </ProtectedRoute>
             }>
                 <Route index element={<Navigate to="/delivery/tasks" replace />} />

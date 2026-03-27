@@ -59,6 +59,11 @@ export interface Profile {
   phone_number: string;
   role: UserRole;
   email: string;
+  avatar_url?: string;
+  current_latitude?: number;
+  current_longitude?: number;
+  last_location_update?: string;
+  rating?: number;
 }
 
 export interface RestaurantTable {
@@ -127,6 +132,8 @@ export interface Order {
   otp?: string;
   is_paid: boolean;
   created_at: string;
+  picked_up_at?: string;
+  delivered_at?: string;
   // Join data
   profiles?: Profile;
   delivery_person?: Profile;

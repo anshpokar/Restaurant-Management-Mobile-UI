@@ -8,17 +8,17 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 
 interface TableSession {
-  id: string;
-  table_id: string;
-  user_id?: string;
-  session_name?: string;
-  status: 'active' | 'pending' | 'completed';
-  total_amount?: number;
-  started_at: string;
+    id: string;
+    table_id: string;
+    user_id?: string;
+    session_name?: string;
+    status: 'active' | 'pending' | 'completed';
+    total_amount?: number;
+    started_at: string;
 }
 
 interface TableWithSession extends RestaurantTable {
-  active_session?: TableSession | null;
+    active_session?: TableSession | null;
 }
 
 export function WaiterDashboard() {
@@ -29,7 +29,7 @@ export function WaiterDashboard() {
         fetchTables: () => void,
         profile: Profile | null
     }>();
-    
+
     const [tablesWithSessions, setTablesWithSessions] = useState<TableWithSession[]>([]);
     const [sessionsLoading, setSessionsLoading] = useState(false);
 
@@ -37,28 +37,6 @@ export function WaiterDashboard() {
         if (tables.length > 0) {
             fetchActiveSessions();
         }
-
-        // Live Real-time Subscription for Waiter Dashboard
-        const channel = supabase.channel('waiter-dash-realtime')
-            .on('postgres_changes', 
-                { event: '*', schema: 'public', table: 'dine_in_sessions' }, 
-                () => {
-                    console.log('Real-time: Session change detected');
-                    fetchActiveSessions();
-                }
-            )
-            .on('postgres_changes',
-                { event: '*', schema: 'public', table: 'orders' },
-                () => {
-                    console.log('Real-time: Order change detected (for session totals)');
-                    fetchActiveSessions();
-                }
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
     }, [tables]);
 
     const fetchActiveSessions = async () => {
@@ -134,15 +112,14 @@ export function WaiterDashboard() {
                         <Card
                             key={table.id}
                             onClick={() => onTableClick(table)}
-                            className={`cursor-pointer transition-all active:scale-95 border-2 ${
-                                table.active_session
+                            className={`cursor-pointer transition-all active:scale-95 border-2 ${table.active_session
                                     ? 'bg-gradient-to-br from-blue-50 to-blue-100 border-blue-300 hover:border-blue-400'
                                     : table.status === 'occupied'
                                         ? 'bg-red-50 border-red-200 hover:border-red-300'
                                         : table.status === 'reserved'
                                             ? 'bg-orange-50 border-orange-200 hover:border-orange-300'
                                             : 'bg-green-50 border-green-200 hover:border-primary'
-                            }`}
+                                }`}
                         >
                             <CardBody className="p-3 text-center flex flex-col h-full justify-between gap-2">
                                 {/* Table Info */}
@@ -153,7 +130,7 @@ export function WaiterDashboard() {
                                     <h3 className="text-base font-black text-foreground">T{table.table_number}</h3>
                                     <p className="text-[10px] font-medium text-muted-foreground">{table.capacity} Seats</p>
                                 </div>
-                                
+
                                 {/* Session Status */}
                                 {table.active_session ? (
                                     <div className="space-y-1.5">

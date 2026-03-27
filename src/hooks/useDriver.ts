@@ -19,24 +19,6 @@ export function useDriver() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Initial Fetch for pending assignments
-      const { data: initialData } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('delivery_person_id', user.id)
-        .eq('delivery_status', 'assigned')
-        .eq('assignment_status', 'pending')
-        .maybeSingle();
-      
-      if (initialData) {
-        setPendingAssignment({
-          id: initialData.id,
-          order_number: initialData.order_number || initialData.id.slice(0, 8),
-          delivery_address: initialData.delivery_address,
-          total_amount: initialData.total_amount
-        });
-      }
-
       const channel = supabase.channel(`driver_assignments_${user.id}`)
         .on('postgres_changes', {
           event: 'UPDATE',

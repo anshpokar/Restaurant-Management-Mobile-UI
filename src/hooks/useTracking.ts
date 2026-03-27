@@ -64,25 +64,76 @@ export function useTracking(orderId?: string) {
     fetchInitialLocation();
 
     // 2. Subscribe to real-time updates
-    const channel = supabase
-      .channel(`tracking:${orderId}`)
-      .on('postgres_changes', {
+    async function setupSubscriptions() {
+      // Get the driver ID first to subscribe to their profile updates
+      const { data: order } = await supabase
+        .from('orders')
+        .select('delivery_person_id')
+        .eq('id', orderId)
+        .single();
+
+      const driverId = order?.delivery_person_id;
+      
+      const channel = supabase.channel(`tracking:${orderId}`);
+
+      // A. Listen for coordinate updates in history table
+      channel.on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'delivery_locations',
         filter: `order_id=eq.${orderId}`
       }, (payload) => {
+        console.log('📍 Real-time: New location breadcrumb', payload.new);
         const newLoc = {
           lat: payload.new.latitude,
           lng: payload.new.longitude
         };
         setDriverLocation(newLoc);
         setHistory(prev => [...prev.slice(-99), newLoc]);
-      })
-      .subscribe();
+      });
+
+      // B. Listen for status changes (Out for Delivery -> Delivered etc.)
+      channel.on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'orders',
+        filter: `id=eq.${orderId}`
+      }, (payload) => {
+        console.log('📦 Real-time: Order status changed', payload.new.delivery_status);
+        // This will trigger a re-render in the component if it listens to this hook
+      });
+
+      // C. Listen for Profile updates (Most frequent/reliable for movement)
+      if (driverId) {
+        channel.on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${driverId}`
+        }, (payload) => {
+          console.log('🚀 Real-time: Driver profile movement', payload.new.current_latitude);
+          if (payload.new.current_latitude && payload.new.current_longitude) {
+            setDriverLocation({
+              lat: payload.new.current_latitude,
+              lng: payload.new.current_longitude
+            });
+          }
+        });
+      }
+
+      channel.subscribe((status) => {
+        console.log(`📡 Tracking Subscription status: ${status} for order: ${orderId}`);
+      });
+
+      return channel;
+    }
+
+    const subscriptionPromise = setupSubscriptions();
 
     return () => {
-      supabase.removeChannel(channel);
+      subscriptionPromise.then(channel => {
+        if (channel) supabase.removeChannel(channel);
+      });
     };
   }, [orderId]);
 

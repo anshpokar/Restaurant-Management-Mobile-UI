@@ -3,11 +3,14 @@ import { BottomNav, BottomNavItem } from '@/components/design-system/bottom-nav'
 import { Truck, Package, User } from 'lucide-react';
 import { AppHeader } from '@/components/design-system/app-header';
 
+import { Profile } from '@/lib/supabase';
+
 interface DeliveryAppProps {
   onLogout: () => void;
+  profile: Profile | null;
 }
 
-export function DeliveryApp({ onLogout }: DeliveryAppProps) {
+export function DeliveryApp({ onLogout, profile }: DeliveryAppProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -25,7 +28,7 @@ export function DeliveryApp({ onLogout }: DeliveryAppProps) {
       <AppHeader title={activeTab === 'tasks' ? 'Delivery Tasks' : activeTab === 'history' ? 'Earnings History' : 'Profile'} />
 
       <div className="flex-1 p-4 space-y-4 overflow-y-auto">
-        <Outlet context={{ onLogout }} />
+        <Outlet context={{ onLogout, profile }} />
       </div>
 
       <BottomNav>

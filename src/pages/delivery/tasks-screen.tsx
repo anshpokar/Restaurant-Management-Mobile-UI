@@ -38,7 +38,7 @@ export function DeliveryTasksScreen() {
   const [isAvailable, setIsAvailable] = useState(true);
   const [isOnDuty, setIsOnDuty] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
-  
+
   // OTP Verification State
   const [verifyingOrder, setVerifyingOrder] = useState<string | null>(null);
   const [otpInput, setOtpInput] = useState('');
@@ -47,12 +47,12 @@ export function DeliveryTasksScreen() {
   const [currentLocation, setCurrentLocation] = useState<[number, number] | null>(null);
   const watchId = useRef<number | null>(null);
 
-  const { 
-    pendingAssignment, 
-    acceptOrder, 
+  const {
+    pendingAssignment,
+    acceptOrder,
     pickUpOrder,
-    rejectOrder, 
-    timeoutOrder 
+    rejectOrder,
+    timeoutOrder
   } = useDriver();
 
   const [routePolyline, setRoutePolyline] = useState<[number, number][] | undefined>(undefined);
@@ -63,9 +63,9 @@ export function DeliveryTasksScreen() {
     loadDeliveryProfile();
     loadAssignedOrders();
     startGPSTracking();
-    
+
     const channel = supabase.channel('delivery_tasks_updates')
-      .on('postgres_changes', 
+      .on('postgres_changes',
         { event: '*', schema: 'public', table: 'orders' },
         () => {
           loadAssignedOrders();
@@ -114,7 +114,7 @@ export function DeliveryTasksScreen() {
           current_longitude: lng,
           last_location_update: new Date().toISOString()
         }).eq('id', user.id),
-        
+
         // Only insert to history if there are active orders
         activeOrders.length > 0 ? supabase.from('delivery_locations').insert({
           delivery_person_id: user.id,
@@ -123,8 +123,8 @@ export function DeliveryTasksScreen() {
           longitude: lng
         }) : Promise.resolve()
       ]);
-    } catch (error) {
-      console.error('Error updating location:', error);
+    } catch (err) {
+      console.error('Error updating location:', err);
     }
   }
 
@@ -134,7 +134,7 @@ export function DeliveryTasksScreen() {
       if (order.delivery_status === 'picked' || order.delivery_status === 'out_for_delivery') {
         const destLat = order.delivery_latitude;
         const destLng = order.delivery_longitude;
-        
+
         if (destLat && destLng && (destLat !== 0 || destLng !== 0)) {
           fetchRoute(currentLocation, [destLat, destLng]);
         }
@@ -156,11 +156,11 @@ export function DeliveryTasksScreen() {
           }
         }
       );
-      
+
       if (!response.ok) {
         throw new Error(`ORS API Error: ${response.status} ${response.statusText}`);
       }
-      
+
       const data = await response.json();
       if (data.features && data.features.length > 0) {
         const coords = data.features[0].geometry.coordinates.map((c: any) => [c[1], c[0]]);
@@ -203,7 +203,6 @@ export function DeliveryTasksScreen() {
         .select('*')
         .eq('delivery_person_id', user.id)
         .in('delivery_status', ['assigned', 'picked', 'out_for_delivery'])
-        .eq('assignment_status', 'accepted')
         .order('assigned_at', { ascending: false });
 
       const { data: completedData } = await supabase
@@ -236,45 +235,17 @@ export function DeliveryTasksScreen() {
   }
 
   async function handleOutForDelivery(orderId: string) {
-    // Optimistic Update
-    const previousOrders = [...activeOrders];
-    setActiveOrders(current => 
-      current.map(o => o.id === orderId ? { ...o, delivery_status: 'out_for_delivery' } : o)
-    );
-    
     setUpdatingStatus(orderId);
-    try {
-      const { error } = await supabase.from('orders').update({
-        delivery_status: 'out_for_delivery'
-      }).eq('id', orderId);
-      
-      if (error) throw error;
+    const { error } = await supabase.from('orders').update({
+      delivery_status: 'out_for_delivery'
+    }).eq('id', orderId);
+
+    if (!error) {
       toast.success('Order is now out for delivery!');
-      // Note: No need to loadAssignedOrders here as the optimistic update already handled it,
-      // and the real-time subscription will confirm it eventually.
-    } catch (error) {
-      console.error('Error updating status:', error);
-      setActiveOrders(previousOrders); // Revert on error
-      toast.error('Failed to update status');
+      loadAssignedOrders();
     }
     setUpdatingStatus(null);
   }
-
-  const handlePickUp = async (orderId: string) => {
-    // Optimistic Update
-    const previousOrders = [...activeOrders];
-    setActiveOrders(current => 
-      current.map(o => o.id === orderId ? { ...o, delivery_status: 'picked' } : o)
-    );
-
-    setUpdatingStatus(orderId);
-    try {
-      await pickUpOrder(orderId); // Call the hook function
-    } catch {
-      setActiveOrders(previousOrders); // Revert on error
-    }
-    setUpdatingStatus(null);
-  };
 
   async function handleVerifyAndDeliver(orderId: string, correctOtp: string) {
     if (otpInput !== correctOtp) {
@@ -305,7 +276,7 @@ export function DeliveryTasksScreen() {
       }).eq('id', orderId);
 
       if (error) throw error;
-      
+
       toast.success('Delivery completed! ₹30 added to your earnings.');
       setVerifyingOrder(null);
       setShowPaymentModal(false);
@@ -332,11 +303,11 @@ export function DeliveryTasksScreen() {
   return (
     <MobileContainer>
       <AppHeader title="My Deliveries" />
-      
+
       <div className="relative h-[calc(100vh-64px)] w-full overflow-hidden">
         {/* Full Screen Map Background */}
         <div className="absolute inset-0 z-0">
-          <MapView 
+          <MapView
             center={currentLocation || [28.6139, 77.2090]}
             zoom={15}
             driverLocation={currentLocation || undefined}
@@ -380,18 +351,17 @@ export function DeliveryTasksScreen() {
             </Card>
           ) : (
             activeOrders.map((order) => (
-              <motion.div 
+              <motion.div
                 key={order.id}
                 initial={{ y: 100, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 className="space-y-3"
               >
                 <Card className="bg-white/95 backdrop-blur-md shadow-2xl border-0 overflow-hidden">
-                  <div className={`h-1.5 w-full ${
-                    order.delivery_status === 'assigned' ? 'bg-blue-500' :
-                    order.delivery_status === 'picked' ? 'bg-orange-500' : 'bg-green-500'
-                  }`} />
-                  
+                  <div className={`h-1.5 w-full ${order.delivery_status === 'assigned' ? 'bg-blue-500' :
+                      order.delivery_status === 'picked' ? 'bg-orange-500' : 'bg-green-500'
+                    }`} />
+
                   <div className="p-4 space-y-4">
                     <div className="flex items-start justify-between">
                       <div>
@@ -431,9 +401,9 @@ export function DeliveryTasksScreen() {
                           <p className="text-xs font-bold uppercase text-primary">{order.payment_method}</p>
                         </div>
                       </div>
-                      
+
                       {order.delivery_status === 'assigned' && (
-                        <Button className="bg-blue-600 hover:bg-blue-700 font-black text-xs px-6" onClick={() => handlePickUp(order.id)} disabled={updatingStatus === order.id}>
+                        <Button className="bg-blue-600 hover:bg-blue-700 font-black text-xs px-6" onClick={() => pickUpOrder(order.id)} disabled={updatingStatus === order.id}>
                           PICK UP
                         </Button>
                       )}
@@ -443,7 +413,7 @@ export function DeliveryTasksScreen() {
                         </Button>
                       )}
                       {order.delivery_status === 'out_for_delivery' && (
-                        <Button className="bg-green-600 hover:bg-green-700 font-black text-xs px-6" 
+                        <Button className="bg-green-600 hover:bg-green-700 font-black text-xs px-6"
                           onClick={() => {
                             setVerifyingOrder(order.id);
                             setOtpInput('');
@@ -496,8 +466,8 @@ export function DeliveryTasksScreen() {
 
                 <div className="flex gap-3">
                   <Button variant="outline" className="flex-1" onClick={() => setVerifyingOrder(null)}>Cancel</Button>
-                  <Button 
-                    className="flex-2" 
+                  <Button
+                    className="flex-2"
                     onClick={() => handleVerifyAndDeliver(verifyingOrder, activeOrders.find(o => o.id === verifyingOrder)?.otp || '1111')} // Fallback to 1111 for testing if OTP not set
                     disabled={otpInput.length < 4 || updatingStatus === verifyingOrder}
                   >
@@ -521,7 +491,7 @@ export function DeliveryTasksScreen() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <Button 
+                <Button
                   variant={selectedPaymentMethod === 'cash' ? 'primary' : 'outline'}
                   className="h-24 flex-col gap-2"
                   onClick={() => setSelectedPaymentMethod('cash')}
@@ -529,7 +499,7 @@ export function DeliveryTasksScreen() {
                   <span className="text-2xl">💵</span>
                   <span className="font-bold">Cash</span>
                 </Button>
-                <Button 
+                <Button
                   variant={selectedPaymentMethod === 'upi' ? 'primary' : 'outline'}
                   className="h-24 flex-col gap-2"
                   onClick={() => setSelectedPaymentMethod('upi')}
@@ -541,8 +511,8 @@ export function DeliveryTasksScreen() {
 
               <div className="flex gap-3">
                 <Button variant="outline" className="flex-1" onClick={() => setShowPaymentModal(false)}>Cancel</Button>
-                <Button 
-                  className="flex-2 bg-green-600 hover:bg-green-700" 
+                <Button
+                  className="flex-2 bg-green-600 hover:bg-green-700"
                   disabled={!selectedPaymentMethod || updatingStatus !== null}
                   onClick={() => completeDelivery(verifyingOrder!, selectedPaymentMethod === 'cash' ? 'cash' : 'upi')}
                 >

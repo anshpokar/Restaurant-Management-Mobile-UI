@@ -182,7 +182,7 @@ export function OrderTrackingScreen() {
               </div>
               <div className="text-right">
                 <p className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">Arriving In</p>
-                <p className="font-black text-lg text-primary">~{etaMinutes || '12'} Mins</p>
+                <p className="font-black text-lg text-primary">{etaMinutes ? `~${etaMinutes} Mins` : 'Calculating...'}</p>
               </div>
             </Card>
           </div>
@@ -248,31 +248,107 @@ export function OrderTrackingScreen() {
               )
             )}
 
-            {/* Tracking Progress */}
+            {/* Dynamic Tracking Progress */}
             <div className="space-y-4">
-              <h4 className="font-black text-xs uppercase tracking-widest text-muted-foreground">Delivery Progress</h4>
-              <div className="space-y-4 relative">
-                <div className="absolute left-[15px] top-6 bottom-6 w-0.5 bg-muted" />
+              <h4 className="font-black text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Detailed Journey</h4>
+              
+              <div className="space-y-0 relative pl-2">
+                {/* Vertical Line */}
+                <div className="absolute left-[23px] top-6 bottom-6 w-[2px] bg-muted group-last:hidden" />
                 
-                <div className="flex items-start gap-4">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 ${order.delivery_status === 'delivered' ? 'bg-green-500 text-white' : 'bg-primary text-white shadow-lg shadow-primary/30'}`}>
-                    <Package className="w-4 h-4" />
-                  </div>
-                  <div className="pt-1">
-                    <p className="font-bold text-sm">Order Confirmed</p>
-                    <p className="text-xs text-muted-foreground">Your order is being prepared</p>
-                  </div>
-                </div>
+                {[
+                  { 
+                    id: 'placed', 
+                    label: 'Order Placed', 
+                    desc: 'We have received your order', 
+                    icon: Clock,
+                    isActive: true,
+                    isDone: ['preparing', 'cooking', 'prepared', 'served', 'picked', 'out_for_delivery', 'delivered'].includes(order.status) || order.delivery_status !== 'pending',
+                    time: order.created_at
+                  },
+                  { 
+                    id: 'preparing', 
+                    label: 'Chef is Preparing', 
+                    desc: 'Your food is being cooked with care', 
+                    icon: Clock, // Chef icon would be better if available
+                    isActive: ['preparing', 'cooking'].includes(order.status),
+                    isDone: ['prepared', 'served', 'picked', 'out_for_delivery', 'delivered'].includes(order.status) || ['picked', 'out_for_delivery', 'delivered'].includes(order.delivery_status as string),
+                    time: null
+                  },
+                  { 
+                    id: 'prepared', 
+                    label: 'Order Ready', 
+                    desc: 'Food is packed and waiting for rider', 
+                    icon: Package,
+                    isActive: order.status === 'prepared',
+                    isDone: ['picked', 'out_for_delivery', 'delivered'].includes(order.delivery_status as string),
+                    time: null
+                  },
+                  { 
+                    id: 'picked', 
+                    label: 'Picked Up', 
+                    desc: 'Rider has collected your meal', 
+                    icon: Truck,
+                    isActive: order.delivery_status === 'picked',
+                    isDone: ['out_for_delivery', 'delivered'].includes(order.delivery_status as string),
+                    time: (order as any).picked_up_at
+                  },
+                  { 
+                    id: 'out_for_delivery', 
+                    label: 'On the Way', 
+                    desc: 'Rider is zooming towards your location', 
+                    icon: Navigation,
+                    isActive: order.delivery_status === 'out_for_delivery',
+                    isDone: order.delivery_status === 'delivered',
+                    time: null
+                  },
+                  { 
+                    id: 'delivered', 
+                    label: 'Delivered', 
+                    desc: 'Enjoy your delicious meal!', 
+                    icon: Star,
+                    isActive: order.status === 'delivered' || order.delivery_status === 'delivered',
+                    isDone: order.status === 'delivered' || order.delivery_status === 'delivered',
+                    time: (order as any).delivered_at
+                  }
+                ].map((step, idx, arr) => (
+                  <div key={step.id} className={`flex items-start gap-5 pb-8 relative group ${step.isActive || step.isDone ? 'opacity-100' : 'opacity-30'}`}>
+                    {/* Step Indicator */}
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 transition-all duration-500 ${
+                      step.isDone ? 'bg-green-500 scale-110 shadow-lg shadow-green-200' : 
+                      step.isActive ? 'bg-primary scale-125 shadow-xl shadow-primary/30 animate-pulse' : 
+                      'bg-muted'
+                    }`}>
+                      {step.isDone ? (
+                        <ShieldCheck className="w-4 h-4 text-white" />
+                      ) : (
+                        <step.icon className={`w-4 h-4 ${step.isActive ? 'text-white' : 'text-muted-foreground'}`} />
+                      )}
+                    </div>
 
-                <div className={`flex items-start gap-4 transition-opacity ${['out_for_delivery', 'delivered'].includes(order.delivery_status) ? 'opacity-100' : 'opacity-40'}`}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 ${order.delivery_status === 'delivered' ? 'bg-green-500 text-white' : 'bg-primary text-white'}`}>
-                    <Navigation className="w-4 h-4" />
+                    {/* Content */}
+                    <div className="pt-0.5 flex-1">
+                      <div className="flex justify-between items-start">
+                        <h5 className={`font-black text-sm uppercase tracking-tight ${step.isActive ? 'text-primary' : 'text-foreground'}`}>
+                          {step.label}
+                        </h5>
+                        {step.time && (
+                          <span className="text-[10px] font-bold text-muted-foreground bg-muted/30 px-2 py-0.5 rounded-md">
+                            {new Date(step.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground font-medium mt-1 leading-relaxed">
+                        {step.desc}
+                      </p>
+                    </div>
+
+                    {/* Progress Connecting Line Dot */}
+                    {idx < arr.length - 1 && (
+                      <div className={`absolute left-[23px] top-8 w-[2px] h-full ${step.isDone ? 'bg-green-500' : 'bg-muted'}`} />
+                    )}
                   </div>
-                  <div className="pt-1">
-                    <p className="font-bold text-sm">Out for Delivery</p>
-                    <p className="text-xs text-muted-foreground">Driver is on the way to you</p>
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
 
