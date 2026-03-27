@@ -6,11 +6,10 @@ import {
   XCircle, 
   RefreshCw,
   Search,
-  DollarSign,
-  CreditCard,
   IndianRupee,
   UtensilsCrossed
 } from 'lucide-react';
+
 import { Button } from '@/components/design-system/button';
 import { Card, CardBody } from '@/components/design-system/card';
 import { Badge } from '@/components/design-system/badge';
@@ -181,7 +180,8 @@ export function AdminPaymentVerificationScreen() {
       return;
     }
 
-    if (!confirm('Are you sure you want to verify this UPI payment?')) return;
+    if (!window.confirm('Are you sure you want to verify this UPI payment?')) return;
+
 
     setVerifyingId(qrId);
 
@@ -222,7 +222,8 @@ export function AdminPaymentVerificationScreen() {
       return;
     }
 
-    if (!confirm('Confirm cash payment received?')) return;
+    if (!window.confirm('Confirm cash payment received?')) return;
+
 
     setVerifyingId(sessionId);
 
@@ -274,8 +275,9 @@ export function AdminPaymentVerificationScreen() {
   };
 
   const handleReject = async (paymentId: string, isUPI: boolean) => {
-    const reason = prompt('Enter rejection reason:');
+    const reason = window.prompt('Enter rejection reason:');
     if (!reason) return;
+
 
     try {
       if (isUPI) {
@@ -314,8 +316,9 @@ export function AdminPaymentVerificationScreen() {
     );
   });
 
-  const pendingCount = payments.filter(p => !showVerified).length;
-  const verifiedCount = payments.filter(p => showVerified).length;
+  const pendingCount = payments.filter(payment => !showVerified).length;
+  const verifiedCount = payments.filter(payment => showVerified).length;
+
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center font-bold">LOADING...</div>;

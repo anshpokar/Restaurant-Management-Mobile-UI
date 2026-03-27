@@ -5,8 +5,8 @@ import { Card, CardBody } from '@/components/design-system/card';
 import { Button } from '@/components/design-system/button';
 import { Shield, Mail, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { generateOTP, sendOTPEmail } from '@/lib/send-otp-email';
 import { useCart } from '@/contexts/cart-context';
+import { toast } from 'sonner';
 
 export function WaiterOTPVerificationScreen() {
   const navigate = useNavigate();
@@ -20,11 +20,10 @@ export function WaiterOTPVerificationScreen() {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [countdown, setCountdown] = useState(0);
-  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!email) {
-      alert('No email provided. Please go back and enter customer email.');
+      toast.error('No email provided. Please go back and enter customer email.');
       navigate(`/waiter/customer-info/${tableId}`);
       return;
     }
@@ -59,17 +58,12 @@ export function WaiterOTPVerificationScreen() {
 
       setSent(true);
       setCountdown(300); // 5 minutes as per requirements
-      
-      alert(
-        `📧 OTP Sent to ${email}\n\n` +
-        `The customer should provide you with the 6-digit code.\n\n` +
-        `Ask the customer: "What is your verification code?"\n\n` +
-        `Then enter the code they provide.`
-      );
-      
+
+      toast.success(`OTP Sent to ${email}. Please check and enter the code.`);
+
     } catch (error: any) {
       console.error('Error generating OTP:', error);
-      alert('Failed to generate OTP: ' + error.message);
+      toast.error('Failed to generate OTP: ' + error.message);
     } finally {
       setSending(false);
     }
@@ -98,9 +92,9 @@ export function WaiterOTPVerificationScreen() {
 
   const verifyOTP = async () => {
     const otpCode = otp.join('');
-    
+
     if (otpCode.length !== 6) {
-      alert('Please enter complete 6-digit OTP');
+      toast.error('Please enter complete 6-digit OTP');
       return;
     }
 
@@ -120,7 +114,6 @@ export function WaiterOTPVerificationScreen() {
       }
 
       const verifiedUserId = data.user_id;
-      setUserId(verifiedUserId);
 
       // Fetch profile info to update context
       const { data: profile, error: profileError } = await supabase
@@ -136,7 +129,7 @@ export function WaiterOTPVerificationScreen() {
       // ✅ Store in global context immediately upon verification
       setWaiterContext(tableId || null, null, profile);
 
-      alert('✅ Email verified successfully!');
+      toast.success('Email verified successfully!');
 
       // Navigate to session creation with verified user ID
       navigate(`/waiter/session/start/${tableId}`, {
@@ -150,7 +143,7 @@ export function WaiterOTPVerificationScreen() {
 
     } catch (error: any) {
       console.error('OTP verification error:', error);
-      alert('❌ ' + (error.message || 'Invalid OTP. Please try again.'));
+      toast.error(error.message || 'Invalid OTP. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -234,10 +227,10 @@ export function WaiterOTPVerificationScreen() {
             className="gap-2"
           >
             <RefreshCw className={`w-4 h-4 ${countdown > 0 ? 'animate-spin' : ''}`} />
-            {countdown > 0 
-              ? `Resend in ${countdown}s` 
-              : sent 
-                ? 'Resend OTP' 
+            {countdown > 0
+              ? `Resend in ${countdown}s`
+              : sent
+                ? 'Resend OTP'
                 : 'Send OTP'}
           </Button>
         </div>

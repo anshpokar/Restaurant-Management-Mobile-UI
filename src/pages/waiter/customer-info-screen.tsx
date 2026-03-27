@@ -3,9 +3,11 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { AppHeader } from '@/components/design-system/app-header';
 import { Card, CardBody } from '@/components/design-system/card';
 import { Button } from '@/components/design-system/button';
-import { Input } from '@/components/design-system/input';
+
 import { User, Mail, Phone, SkipForward, Send } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
+
 
 export function WaiterCustomerInfoScreen() {
   const navigate = useNavigate();
@@ -58,26 +60,24 @@ export function WaiterCustomerInfoScreen() {
 
         if (emailError) {
           // Email service failed, show OTP manually
-          alert(
-            `⚠️ Email Service Unavailable\n\n` +
-            `📧 OTP Generated for ${customerEmail}\n\n` +
-            `Your OTP Code: ${generatedOtp}\n\n` +
-            `Please share this code with the customer.`
+          toast.warning(
+            `Email Service Unavailable. OTP Generated: ${generatedOtp}`,
+            { duration: 10000 }
           );
         } else {
           // Email sent successfully
-          alert(`✅ OTP sent to ${customerEmail}!\n\nPlease check the email and enter the code.`);
+          toast.success(`OTP sent to ${customerEmail}!`);
         }
+
       } catch (emailErr) {
         console.error('Email sending error:', emailErr);
         // Fallback: show OTP manually
-        alert(
-          `⚠️ Email Service Unavailable\n\n` +
-          `📧 OTP Generated for ${customerEmail}\n\n` +
-          `Your OTP Code: ${generatedOtp}\n\n` +
-          `Please share this code with the customer.`
+        toast.warning(
+          `Email Service Unavailable. OTP Generated: ${generatedOtp}`,
+          { duration: 10000 }
         );
       }
+
 
       setOtpSent(true);
       
@@ -123,7 +123,8 @@ export function WaiterCustomerInfoScreen() {
         .eq('id', otpData.id);
 
       setOtpVerified(true);
-      alert('OTP verified successfully!');
+      toast.success('OTP verified successfully!');
+
     } catch (err: any) {
       console.error('Error verifying OTP:', err);
       setError(err.message || 'Invalid OTP');

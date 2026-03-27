@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from 'sonner';
+
 import { supabase } from '../../lib/supabase';
 import { AppHeader } from '../../components/design-system/app-header';
 import { Button } from '../../components/design-system/button';
@@ -149,15 +151,16 @@ export function DeliveryAssignmentScreen() {
 
       if (notifError) console.error('Notification error:', notifError);
 
-      alert('Delivery assigned successfully!');
+      toast.success('Delivery assigned successfully!');
       setShowAssignModal(false);
       setSelectedOrder(null);
       await loadPendingOrders();
       await loadDeliveryPersons();
     } catch (error) {
       console.error('Error assigning delivery:', error);
-      alert('Failed to assign delivery. Please try again.');
+      toast.error('Failed to assign delivery. Please try again.');
     } finally {
+
       setAssigningOrder(null);
     }
   }
@@ -169,9 +172,10 @@ export function DeliveryAssignmentScreen() {
       // Get order details
       const order = pendingOrders.find(o => o.id === orderId);
       if (!order || !order.delivery_latitude || !order.delivery_longitude) {
-        alert('Order coordinates not available for auto-assignment.');
+        toast.error('Order coordinates not available for auto-assignment.');
         return;
       }
+
 
       // Call auto-assign function
       const { data, error } = await supabase.rpc('auto_assign_delivery_smart', {
@@ -181,19 +185,20 @@ export function DeliveryAssignmentScreen() {
       if (error) throw error;
 
       if (data?.success) {
-        alert('Order automatically assigned to nearest available delivery person!');
+        toast.success('Order automatically assigned to nearest available delivery person!');
         await loadPendingOrders();
         await loadDeliveryPersons();
       } else {
-        alert(`Auto-assignment failed: ${data?.error || 'Unknown error'}`);
+        toast.error(`Auto-assignment failed: ${data?.error || 'Unknown error'}`);
         // Fallback to manual assignment
         setSelectedOrder(order);
         setShowAssignModal(true);
       }
     } catch (error) {
       console.error('Error in auto-assignment:', error);
-      alert('Failed to auto-assign. Please assign manually.');
+      toast.error('Failed to auto-assign. Please assign manually.');
     } finally {
+
       setAssigningOrder(null);
     }
   }
@@ -206,12 +211,13 @@ export function DeliveryAssignmentScreen() {
       }).eq('id', orderId);
 
       if (error) throw error;
-      alert('Order marked as picked up!');
+      toast.success('Order marked as picked up!');
       await loadPendingOrders();
     } catch (error) {
       console.error('Error updating status:', error);
-      alert('Failed to update status.');
+      toast.error('Failed to update status.');
     }
+
   }
 
   async function handleMarkDelivered(orderId: string) {
@@ -231,12 +237,13 @@ export function DeliveryAssignmentScreen() {
 
       if (assignmentError) console.error('Assignment completion error:', assignmentError);
 
-      alert('Order marked as delivered!');
+      toast.success('Order marked as delivered!');
       await loadPendingOrders();
     } catch (error) {
       console.error('Error marking delivered:', error);
-      alert('Failed to mark as delivered.');
+      toast.error('Failed to mark as delivered.');
     }
+
   }
 
   function getStatusBadge(status: string) {

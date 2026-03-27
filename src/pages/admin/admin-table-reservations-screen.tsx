@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { toast } from 'sonner';
+
 import { AppHeader } from '../../components/design-system/app-header';
 import { Card, CardBody, CardHeader } from '../../components/design-system/card';
 import { Button } from '../../components/design-system/button';
@@ -40,14 +42,16 @@ export function AdminTableReservationsScreen() {
       setReservations(data || []);
     } catch (error: any) {
       console.error('Error fetching reservations:', error);
-      alert('Failed to load table reservations');
+      toast.error('Failed to load table reservations');
     } finally {
+
       setLoading(false);
     }
   };
 
   const handleReleaseTable = async (tableId: string) => {
-    if (!confirm('Release this table? This will make it available immediately.')) return;
+    if (!window.confirm('Release this table? This will make it available immediately.')) return;
+
 
     try {
       const { error } = await supabase
@@ -63,12 +67,13 @@ export function AdminTableReservationsScreen() {
 
       if (error) throw error;
       
-      alert('✅ Table released successfully!');
+      toast.success('Table released successfully!');
       fetchReservations();
     } catch (error: any) {
       console.error('Error releasing table:', error);
-      alert('Failed to release table');
+      toast.error('Failed to release table');
     }
+
   };
 
   const handleReleaseAllExpired = async () => {
@@ -78,12 +83,13 @@ export function AdminTableReservationsScreen() {
       if (error) throw error;
       
       const count = typeof data === 'number' ? data : 0;
-      alert(`✅ Released ${count} expired reservation(s)!`);
+      toast.success(`Released ${count} expired reservation(s)!`);
       fetchReservations();
     } catch (error: any) {
       console.error('Error releasing expired:', error);
-      alert('Failed to release expired reservations');
+      toast.error('Failed to release expired reservations');
     }
+
   };
 
   const filteredReservations = reservations.filter(table => {

@@ -24,31 +24,6 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
     const newErrors: { email?: string; password?: string; username?: string } = {};
     let isValid = true;
 
-    // Name validation
-    if (!name.trim()) {
-      alert('Please enter your full name');
-      return false;
-    }
-
-    // Username validation
-    if (username.length < 3) {
-      newErrors.username = 'Username must be at least 3 characters long';
-      isValid = false;
-    } else if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-      newErrors.username = 'Username can only contain letters, numbers, and underscores';
-      isValid = false;
-    }
-
-    // Phone number validation
-    const phoneRegex = /^[+]?[1-9]\d{1,14}$/;
-    if (!phoneNumber.trim()) {
-      alert('Please enter your phone number');
-      return false;
-    } else if (!phoneRegex.test(phoneNumber.replace(/\s/g, ''))) {
-      alert('Please enter a valid phone number (e.g., +1234567890)');
-      return false;
-    }
-
     // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
@@ -83,37 +58,19 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
 
     try {
       // 0. Check if username is unique
-      console.log('Step 0: Checking username availability...');
-      
-      // Check username separately
-      const { data: existingUsername } = await supabase
+      const { data: existingUser, error: checkError } = await supabase
         .from('profiles')
         .select('username')
         .eq('username', username)
         .maybeSingle();
 
-      if (existingUsername) {
+      if (checkError) throw checkError;
+
+      if (existingUser) {
+        setErrors({ ...errors, username: 'Username is already taken' });
         setIsLoading(false);
-        setErrors({ ...errors, username: 'This username is already taken. Please choose another one.' });
-        alert('❌ Username already taken! Please choose a different username.');
         return;
       }
-
-      // Check email separately
-      const { data: existingEmail } = await supabase
-        .from('profiles')
-        .select('email')
-        .eq('email', email.toLowerCase())
-        .maybeSingle();
-
-      if (existingEmail) {
-        setIsLoading(false);
-        alert('❌ This email is already registered! Please use a different email or try logging in.');
-        setErrors({ ...errors, email: 'Email is already registered' });
-        return;
-      }
-
-      console.log('✅ Username and email are available, proceeding with signup...');
 
       // 1. Sign up with Supabase Auth - Passing extra data in options.data
       const { data, error: authError } = await supabase.auth.signUp({
@@ -129,31 +86,17 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
         }
       });
 
+
       if (authError) throw authError;
 
       if (data.user) {
         // Note: Profile creation is now handled by a Database Trigger for security (RLS)
 
-        console.log('✅ Signup successful! User ID:', data.user.id);
-        
         // If email confirmation is ON, tell the user to check their mail
         if (!data.session) {
-          console.log('📧 Email verification required. Confirmation email sent to:', email);
-          alert(
-            '✅ Account created successfully!\n\n' +
-            '📧 We\'ve sent a verification email to:\n' +
-            `   ${email}\n\n` +
-            'Please check your inbox and click the verification link to activate your account.\n\n' +
-            'Didn\'t receive it? Check your spam folder or contact support.'
-          );
+          alert('Signup successful! Please check your email for the verification link.');
           onLogin();
         } else {
-          console.log('✅ Session created, user logged in immediately');
-          alert(
-            '✅ Welcome aboard!\n\n' +
-            'Your account has been created successfully.\n' +
-            'A verification email has been sent to: ' + email
-          );
           onSignupSuccess('customer', {
             id: data.user.id,
             full_name: name,
@@ -165,8 +108,8 @@ export function SignupScreen({ onLogin, onSignupSuccess }: SignupScreenProps) {
         }
       }
     } catch (error: any) {
-      console.error('Signup Error Full Object:', error);
-      console.log('Error Properties:', Object.getOwnPropertyNames(error));
+      console.error('Signup Error:', error);
+
 
       let message = 'An error occurred during signup';
 

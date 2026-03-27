@@ -7,6 +7,8 @@ import { Input } from '@/components/design-system/input';
 import { ShoppingBag, Users, CheckCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useCart } from '@/contexts/cart-context';
+import { toast } from 'sonner';
+
 
 export function WaiterSessionStartScreen() {
   const navigate = useNavigate();
@@ -45,9 +47,10 @@ export function WaiterSessionStartScreen() {
 
   const handleStartSession = async () => {
     if (!sessionName.trim()) {
-      alert('Please enter a session name (e.g., "Team Lunch", "Table Order")');
+      toast.error('Please enter a session name (e.g., "Team Lunch", "Table Order")');
       return;
     }
+
 
     setLoading(true);
     try {
@@ -83,7 +86,8 @@ export function WaiterSessionStartScreen() {
         })
         .eq('id', tableId);
 
-      alert('✅ Session started successfully!');
+      toast.success('✅ Session started successfully!');
+
 
       // Navigate to session menu/ordering screen
       navigate(`/waiter/ordering/${tableId}`, {
@@ -98,7 +102,7 @@ export function WaiterSessionStartScreen() {
 
     } catch (error: any) {
       console.error('Error starting session:', error);
-      alert('❌ Failed to start session: ' + error.message);
+      toast.error('❌ Failed to start session: ' + error.message);
     } finally {
       setLoading(false);
     }

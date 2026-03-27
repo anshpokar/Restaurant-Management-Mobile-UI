@@ -5,6 +5,8 @@ import { Button } from '@/components/design-system/button';
 import { Badge } from '@/components/design-system/badge';
 import { User, Search, Loader2 } from 'lucide-react';
 import { supabase, type UserRole, type Profile } from '@/lib/supabase';
+import { toast } from 'sonner';
+
 
 export function AdminUserManagement() {
   const [users, setUsers] = useState<Profile[]>([]);
@@ -28,8 +30,9 @@ export function AdminUserManagement() {
       setUsers(data || []);
     } catch (error: any) {
       console.error('Fetch Users Error:', error);
-      alert(error.message || 'Error fetching users');
+      toast.error(error.message || 'Error fetching users');
     } finally {
+
       setIsLoading(false);
     }
   };
@@ -47,8 +50,9 @@ export function AdminUserManagement() {
       setUsers(users.map(u => u.id === userId ? { ...u, role: newRole } : u));
     } catch (error: any) {
       console.error('Update Role Error:', error);
-      alert(error.message || 'Error updating role');
+      toast.error(error.message || 'Error updating role');
     } finally {
+
       setUpdatingId(null);
     }
   };

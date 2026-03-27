@@ -1,24 +1,22 @@
 import { useState, useEffect } from 'react';
-import { supabase } from './supabase';
+import { supabase } from '@/lib/supabase';
 
 export interface TableSession {
   id: string;
   table_id: string;
-  customer_name?: string;
-  customer_email?: string;
-  customer_phone?: string;
+  user_id?: string;
+  session_name?: string;
   started_at: string;
-  ended_at?: string;
-  total_orders: number;
+  completed_at?: string;
   total_amount: number;
-  payment_status: string;
-  status: string;
+  paid_amount: number;
+  payment_status: 'pending' | 'paid' | 'partial';
+  session_status: 'active' | 'pending' | 'completed';
   created_at: string;
   updated_at: string;
   // Joined data
   table_number?: number;
   table_capacity?: number;
-  orders_count?: number;
 }
 
 export function useTableSessions(tableId?: string) {
@@ -29,11 +27,11 @@ export function useTableSessions(tableId?: string) {
   useEffect(() => {
     fetchSessions();
     
-    // Set up real-time subscription
+    // Set up real-time subscription for dine_in_sessions
     const channel = supabase
-      .channel('table-sessions')
+      .channel('dine-in-sessions')
       .on('postgres_changes' as any, 
-        { event: '*', table: 'table_sessions' },
+        { event: '*', table: 'dine_in_sessions' },
         () => {
           fetchSessions();
         }
@@ -51,7 +49,7 @@ export function useTableSessions(tableId?: string) {
       setError(null);
 
       let query = supabase
-        .from('table_sessions')
+        .from('dine_in_sessions')
         .select(`
           *,
           restaurant_tables (
@@ -87,20 +85,20 @@ export function useTableSessions(tableId?: string) {
 
   async function createSession(data: {
     table_id: string;
-    customer_name?: string;
-    customer_email?: string;
-    customer_phone?: string;
+    user_id?: string;
+    session_name: string;
   }) {
     try {
       const { data: newSession, error } = await supabase
-        .from('table_sessions')
+        .from('dine_in_sessions')
         .insert({
           table_id: data.table_id,
-          customer_name: data.customer_name,
-          customer_email: data.customer_email,
-          customer_phone: data.customer_phone,
-          status: 'active',
+          user_id: data.user_id || null,
+          session_name: data.session_name,
+          session_status: 'active',
           payment_status: 'pending',
+          total_amount: 0,
+          paid_amount: 0,
           started_at: new Date().toISOString(),
         })
         .select()
@@ -108,9 +106,7 @@ export function useTableSessions(tableId?: string) {
 
       if (error) throw error;
       
-      // Refresh sessions
       await fetchSessions();
-      
       return newSession;
     } catch (err: any) {
       console.error('Error creating session:', err);
@@ -121,13 +117,11 @@ export function useTableSessions(tableId?: string) {
   async function updateSession(sessionId: string, updates: Partial<TableSession>) {
     try {
       const { error } = await supabase
-        .from('table_sessions')
+        .from('dine_in_sessions')
         .update(updates)
         .eq('id', sessionId);
 
       if (error) throw error;
-      
-      // Refresh sessions
       await fetchSessions();
     } catch (err: any) {
       console.error('Error updating session:', err);
@@ -138,16 +132,14 @@ export function useTableSessions(tableId?: string) {
   async function endSession(sessionId: string) {
     try {
       const { error } = await supabase
-        .from('table_sessions')
+        .from('dine_in_sessions')
         .update({
-          status: 'completed',
-          ended_at: new Date().toISOString(),
+          session_status: 'completed',
+          completed_at: new Date().toISOString(),
         })
         .eq('id', sessionId);
 
       if (error) throw error;
-      
-      // Refresh sessions
       await fetchSessions();
     } catch (err: any) {
       console.error('Error ending session:', err);
@@ -170,11 +162,11 @@ export function useTableSessions(tableId?: string) {
 export async function getActiveSessionForTable(tableId: string): Promise<TableSession | null> {
   try {
     const { data, error } = await supabase
-      .from('table_sessions')
+      .from('dine_in_sessions')
       .select('*')
       .eq('table_id', tableId)
-      .eq('status', 'active')
-      .single();
+      .eq('session_status', 'active')
+      .maybeSingle();
 
     if (error) return null;
     return data as TableSession;
@@ -188,7 +180,7 @@ export async function getActiveSessionForTable(tableId: string): Promise<TableSe
 export async function getAllActiveSessions(): Promise<TableSession[]> {
   try {
     const { data, error } = await supabase
-      .from('table_sessions')
+      .from('dine_in_sessions')
       .select(`
         *,
         restaurant_tables (
@@ -196,7 +188,7 @@ export async function getAllActiveSessions(): Promise<TableSession[]> {
           capacity
         )
       `)
-      .eq('status', 'active')
+      .eq('session_status', 'active')
       .order('started_at', { ascending: false });
 
     if (error) throw error;

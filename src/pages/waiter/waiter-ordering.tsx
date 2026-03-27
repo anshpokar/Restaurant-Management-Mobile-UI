@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { supabase, type RestaurantTable, type Profile, type MenuItem, type Order } from '@/lib/supabase';
 import { useCart, type CartItem } from '@/contexts/cart-context';
+import { toast } from 'sonner';
+
 
 
 export function WaiterOrdering() {
@@ -161,10 +163,11 @@ export function WaiterOrdering() {
                 .maybeSingle();
 
             if (data) setLinkedCustomer(data);
-            else alert('Customer not found');
+            else toast.error('Customer not found');
         } catch (err) {
-            alert('Error searching customer');
+            toast.error('Error searching customer');
         } finally {
+
             setIsSearchingCustomer(false);
         }
     };
@@ -184,7 +187,11 @@ export function WaiterOrdering() {
                         user_id: linkedCustomer?.id || null,
                         total_amount: cart.reduce((s, i) => s + (i.price * i.quantity), 0),
                         status: 'placed',
-                        is_paid: false
+                        is_paid: false,
+                        order_type: 'dine_in',
+                        placed_by: 'waiter',
+                        payment_status: 'pending',
+                        payment_method: 'cod'
                     })
                     .select()
                     .single();
@@ -212,18 +219,30 @@ export function WaiterOrdering() {
             const { error: itemsError } = await supabase.from('order_items').insert(items);
             if (itemsError) throw itemsError;
 
-            alert('Order updated successfully!');
+            // Update dine_in_sessions total_amount
+            if (sessionId) {
+                const currentSessionTotal = previousOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+                const newItemsTotal = cart.reduce((s, i) => s + (i.price * i.quantity), 0);
+                await supabase
+                    .from('dine_in_sessions')
+                    .update({ total_amount: currentSessionTotal + newItemsTotal })
+                    .eq('id', sessionId);
+            }
+            
+            toast.success('Order placed successfully!');
             clearCart();
+
             // Navigate back to session management if coming from a session, otherwise to waiter dashboard
             if (sessionId) {
                 navigate(`/waiter/session/${sessionId}`);
             } else {
                 navigate('/waiter');
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
-            alert('Failed to place order');
+            toast.error('Failed to place order: ' + err.message);
         }
+
     };
 
     const filteredMenu = menuItems.filter(item => {

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
+
 import { useNavigate } from 'react-router-dom';
 import { LoadScript, GoogleMap, Marker } from '@react-google-maps/api';
 import { supabase } from '../../lib/supabase';
@@ -6,7 +7,10 @@ import { AppHeader } from '../../components/design-system/app-header';
 import { Button } from '../../components/design-system/button';
 import { Card } from '../../components/design-system/card';
 import { MobileContainer } from '../../components/MobileContainer';
-import { Package, MapPin, Phone, Navigation, Clock, DollarSign, CheckCircle, XCircle, AlertCircle, Crosshair } from 'lucide-react';
+import { Package, MapPin, Phone, Navigation, Clock, CheckCircle, AlertCircle } from 'lucide-react';
+
+import { toast } from 'sonner';
+
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
@@ -39,9 +43,10 @@ interface DeliveryOrder {
 }
 
 export function DeliveryTasksScreen() {
-  const navigate = useNavigate();
   const [activeOrders, setActiveOrders] = useState<DeliveryOrder[]>([]);
   const [completedOrders, setCompletedOrders] = useState<DeliveryOrder[]>([]);
+
+
   const [loading, setLoading] = useState(true);
   const [isAvailable, setIsAvailable] = useState(true);
   const [isOnDuty, setIsOnDuty] = useState(true);
@@ -230,8 +235,9 @@ export function DeliveryTasksScreen() {
       setIsAvailable(newStatus);
     } catch (error) {
       console.error('Error toggling availability:', error);
-      alert('Failed to update availability status');
+      toast.error('Failed to update availability status');
     }
+
   }
 
   async function toggleDuty() {
@@ -252,8 +258,9 @@ export function DeliveryTasksScreen() {
       setIsOnDuty(newStatus);
     } catch (error) {
       console.error('Error toggling duty:', error);
-      alert('Failed to update duty status');
+      toast.error('Failed to update duty status');
     }
+
   }
 
   async function handlePickup(orderId: string) {
@@ -269,12 +276,13 @@ export function DeliveryTasksScreen() {
 
       if (error) throw error;
       
-      alert('Order picked up! Navigate to customer location.');
+      toast.success('Order picked up! Navigate to customer location.');
       await loadAssignedOrders();
     } catch (error) {
       console.error('Error updating pickup:', error);
-      alert('Failed to update status.');
+      toast.error('Failed to update status.');
     } finally {
+
       setUpdatingStatus(null);
     }
   }
@@ -304,19 +312,21 @@ export function DeliveryTasksScreen() {
 
       if (error) throw error;
       
-      alert('Delivery completed successfully!');
+      toast.success('Delivery completed successfully!');
       await loadAssignedOrders();
     } catch (error) {
       console.error('Error marking delivery:', error);
-      alert('Failed to mark as delivered.');
+      toast.error('Failed to mark as delivered.');
     } finally {
+
       setUpdatingStatus(null);
     }
   }
 
   async function handleRejectOrder(orderId: string) {
-    const reason = prompt('Please enter reason for rejection:');
+    const reason = window.prompt('Please enter reason for rejection:');
     if (!reason) return;
+
 
     try {
       setUpdatingStatus(orderId);
@@ -339,21 +349,23 @@ export function DeliveryTasksScreen() {
 
       if (rejectError) throw rejectError;
       
-      alert('Order rejected. Admin will reassign.');
+      toast.success('Order rejected. Admin will reassign.');
       await loadAssignedOrders();
     } catch (error) {
       console.error('Error rejecting order:', error);
-      alert('Failed to reject order.');
+      toast.error('Failed to reject order.');
     } finally {
+
       setUpdatingStatus(null);
     }
   }
 
   function openNavigation(latitude?: number, longitude?: number) {
     if (!latitude || !longitude) {
-      alert('Coordinates not available for this address.');
+      toast.error('Coordinates not available for this address.');
       return;
     }
+
     
     const url = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
     window.open(url, '_blank');
@@ -361,9 +373,10 @@ export function DeliveryTasksScreen() {
 
   function callCustomer(phone?: string) {
     if (!phone) {
-      alert('Customer phone number not available.');
+      toast.error('Customer phone number not available.');
       return;
     }
+
     
     window.location.href = `tel:${phone}`;
   }

@@ -7,11 +7,13 @@ import { Input } from '@/components/design-system/input';
 import { UserPlus, Shield, CheckCircle, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { generateOTP, sendOTPEmail } from '@/lib/send-otp-email';
+import { toast } from 'sonner';
+
 
 export function WaiterCustomerSignupScreen() {
   const navigate = useNavigate();
   const { tableId } = useParams<{ tableId: string }>();
-  
+
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
@@ -38,26 +40,27 @@ export function WaiterCustomerSignupScreen() {
 
   const validateForm = () => {
     if (!formData.full_name.trim()) {
-      alert('Please enter full name');
+      toast.error('Please enter full name');
       return false;
     }
     if (!formData.email.trim()) {
-      alert('Please enter email address');
+      toast.error('Please enter email address');
       return false;
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
-      alert('Please enter a valid email address');
+      toast.error('Please enter a valid email address');
       return false;
     }
     if (!formData.phone_number.trim()) {
-      alert('Please enter phone number');
+      toast.error('Please enter phone number');
       return false;
     }
     if (!formData.username.trim()) {
-      alert('Please enter username');
+      toast.error('Please enter username');
       return false;
     }
+
     return true;
   };
 
@@ -73,14 +76,15 @@ export function WaiterCustomerSignupScreen() {
         .maybeSingle();
 
       if (existingProfile) {
-        alert('This email is already registered. Please use "Already a Customer" option instead.');
+        toast.error('This email is already registered.');
         setLoading(false);
         return;
       }
 
+
       // 2. Generate a random temporary password
       const tempPassword = Math.random().toString(36).slice(-10) + '!A1';
-      
+
       // 3. Sign up with Supabase Auth
       // This sends the confirmation email automatically
       const { data, error: authError } = await supabase.auth.signUp({
@@ -94,7 +98,9 @@ export function WaiterCustomerSignupScreen() {
             role: 'customer'
           }
         }
+
       });
+
 
       if (authError) throw authError;
 
@@ -104,21 +110,16 @@ export function WaiterCustomerSignupScreen() {
 
       setCreatedUserId(data.user.id);
       setStep('otp');
-      
-      // We still use our internal OTP flow for immediate waiter verification if needed,
-      // but the main account creation is now handled by Supabase Auth + Trigger.
       sendOTP();
-      
-      alert(
-        '✅ Account created successfully!\n\n' +
-        '📧 A confirmation email has been sent to ' + formData.email + '.\n\n' +
-        'Now verifying with phone/internal OTP for immediate session start...'
-      );
+
+      toast.success('Account created successfully! Verification code sent.');
+
 
     } catch (error: any) {
       console.error('Error creating account:', error);
-      alert('❌ Failed to create account: ' + (error.message || 'Unknown error'));
+      toast.error('Failed to create account: ' + (error.message || 'Unknown error'));
     } finally {
+
       setLoading(false);
     }
   };
@@ -129,7 +130,7 @@ export function WaiterCustomerSignupScreen() {
     setSending(true);
     try {
       const otpCode = generateOTP();
-      
+
       // Send OTP (stores in DB, should email customer)
       const { error } = await sendOTPEmail(
         formData.email,
@@ -139,32 +140,24 @@ export function WaiterCustomerSignupScreen() {
 
       setOtpSent(true);
       setCountdown(60);
-      
+
       // If email service failed, show OTP to waiter for manual verification
       if (error) {
-        alert(
-          `⚠️ Email Service Unavailable\n\n` +
-          `📧 OTP Generated for ${formData.email}\n\n` +
-          `Your OTP Code: ${otpCode}\n\n` +
-          `Please share this code with the customer, then enter it below.\n\n` +
-          `${error}`
-        );
+        toast.warning(`Email Service Unavailable. OTP: ${otpCode}`, { duration: 10000 });
       } else {
         // Email sent successfully
-        alert(
-          `📧 OTP Sent to ${formData.email}\n\n` +
-          `The customer should provide you with the 6-digit code.\n\n` +
-          `Ask the customer: "What is your verification code?"\n\n` +
-          `Then enter the code they provide.`
-        );
+        toast.success(`OTP Sent to ${formData.email}`);
       }
-      
-      console.log('🔐 OTP Code:', otpCode);
+
+
+      // console.log('🔐 OTP Code:', otpCode);
+
 
     } catch (error: any) {
       console.error('Error generating OTP:', error);
-      alert('Failed to generate OTP: ' + error.message);
+      toast.error('Failed to generate OTP: ' + error.message);
     } finally {
+
       setSending(false);
     }
   };
@@ -173,11 +166,12 @@ export function WaiterCustomerSignupScreen() {
 
   const verifyOTP = async () => {
     const otpCode = otp.join('');
-    
+
     if (otpCode.length !== 6) {
-      alert('Please enter complete 6-digit OTP');
+      toast.error('Please enter complete 6-digit OTP');
       return;
     }
+
 
     setLoading(true);
     try {
@@ -200,7 +194,8 @@ export function WaiterCustomerSignupScreen() {
         .update({ used: true })
         .eq('id', otpRecord.id);
 
-      alert('✅ Email verified successfully!');
+      toast.success('Email verified successfully!');
+
 
       // Navigate to session creation with new user ID
       navigate(`/waiter/session/start/${tableId}`, {
@@ -215,8 +210,9 @@ export function WaiterCustomerSignupScreen() {
 
     } catch (error: any) {
       console.error('OTP verification error:', error);
-      alert('❌ ' + (error.message || 'Invalid OTP. Please try again.'));
+      toast.error(error.message || 'Invalid OTP. Please try again.');
     } finally {
+
       setLoading(false);
     }
   };
@@ -271,21 +267,21 @@ export function WaiterCustomerSignupScreen() {
                   onChange={(e) => handleInputChange('full_name', e.target.value)}
                   autoFocus
                 />
-                
+
                 <Input
                   type="email"
                   placeholder="Email Address"
                   value={formData.email}
                   onChange={(e) => handleInputChange('email', e.target.value)}
                 />
-                
+
                 <Input
                   type="tel"
                   placeholder="Phone Number"
                   value={formData.phone_number}
                   onChange={(e) => handleInputChange('phone_number', e.target.value)}
                 />
-                
+
                 <Input
                   type="text"
                   placeholder="Username"
@@ -370,10 +366,10 @@ export function WaiterCustomerSignupScreen() {
                 className="gap-2"
               >
                 <RefreshCw className={`w-4 h-4 ${countdown > 0 ? 'animate-spin' : ''}`} />
-                {countdown > 0 
-                  ? `Resend in ${countdown}s` 
-                  : otpSent 
-                    ? 'Resend OTP' 
+                {countdown > 0
+                  ? `Resend in ${countdown}s`
+                  : otpSent
+                    ? 'Resend OTP'
                     : 'Send OTP'}
               </Button>
             </div>

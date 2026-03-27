@@ -7,6 +7,8 @@ import { Button } from '@/components/design-system/button';
 import { Badge } from '@/components/design-system/badge';
 import { supabase, type Profile, getStoredUser, type MenuItem } from '@/lib/supabase';
 import { ShoppingBag, Plus, Minus, Trash2, ChefHat, Flame } from 'lucide-react';
+import { toast } from 'sonner';
+
 
 
 export function WaiterTakeOrderScreen() {
@@ -16,6 +18,8 @@ export function WaiterTakeOrderScreen() {
   
   // Get customer info from navigation state
   const customerInfo = location.state as any || {};
+  const sessionId = customerInfo.sessionId || null;
+
   const { profile } = { profile: null as Profile | null }; // Waiter's profile
   const userId = profile?.id || getStoredUser()?.id;
 
@@ -74,9 +78,10 @@ export function WaiterTakeOrderScreen() {
 
   const handleSubmitOrder = async () => {
     if (!tableId || cartItems.length === 0) {
-      alert('Please add items to cart first');
+      toast.error('Please add items to cart first');
       return;
     }
+
 
     setSubmitting(true);
     try {
@@ -93,9 +98,11 @@ export function WaiterTakeOrderScreen() {
           customer_phone: customerInfo.customerPhone || null,
           total_amount: totalAmount,
           status: 'placed',
+          session_id: sessionId,
           payment_status: 'pending',
           payment_method: null
         })
+
         .select()
         .single();
 
@@ -130,15 +137,15 @@ export function WaiterTakeOrderScreen() {
           current_order_id: order.id
         })
         .eq('id', tableId);
-
-      alert('Order placed successfully! Sent to kitchen.');
+      toast.success('Order placed successfully! Sent to kitchen.');
       clearCart();
       // Navigate back to table selection
       navigate('/waiter/dashboard');
     } catch (error: any) {
       console.error('Error placing order:', error);
-      alert('Failed to place order: ' + error.message);
+      toast.error('Failed to place order: ' + error.message);
     } finally {
+
       setSubmitting(false);
     }
   };

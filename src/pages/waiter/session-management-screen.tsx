@@ -12,6 +12,7 @@ import { SessionPaymentModal } from '@/components/customer/SessionPaymentModal';
 import { toast } from 'sonner';
 
 export function WaiterSessionManagementScreen() {
+
   const navigate = useNavigate();
   const { userProfile } = useAuth();
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -116,7 +117,7 @@ export function WaiterSessionManagementScreen() {
       }
     } catch (error: any) {
       console.error('❌ Error fetching session:', error);
-      alert('Failed to load session details: ' + error.message);
+      toast.error('Failed to load session details: ' + error.message);
     } finally {
       setLoading(false);
     }

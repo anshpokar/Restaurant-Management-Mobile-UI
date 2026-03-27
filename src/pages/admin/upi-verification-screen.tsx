@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+
 import { supabase } from '@/lib/supabase';
 import { verifyUPIPayment } from '@/lib/upi-payment';
 import { 
@@ -157,9 +158,7 @@ export function AdminUPIVerificationScreen() {
       return;
     }
 
-    if (!confirm('Are you sure you want to verify this payment?')) {
-      return;
-    }
+    if (!window.confirm('Are you sure you want to verify this UPI payment?')) return;
 
     setVerifyingId(qrId);
 
@@ -185,8 +184,10 @@ export function AdminUPIVerificationScreen() {
   };
 
   const handleReject = async (qrId: string) => {
-    const reason = prompt('Enter rejection reason:');
+    const reason = window.prompt('Enter rejection reason:');
     if (!reason) return;
+
+
 
     try {
       const { error } = await supabase

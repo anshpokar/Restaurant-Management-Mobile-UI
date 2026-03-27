@@ -51,16 +51,22 @@ export function CartSlider({ isOpen, onOpenChange }: { isOpen: boolean, onOpenCh
     setIsSubmitting(true);
     try {
       // Logic for placing order (similar to waiter-ordering.tsx)
-      const { data: activeOrder, error: fetchError } = await supabase
+      let activeOrderFetcher = supabase
         .from('orders')
-        .select('id, total_amount')
-        .eq('table_id', tableId)
-        .eq('is_paid', false)
+        .select('id, total_amount');
+        
+      if (sessionId) {
+        activeOrderFetcher = activeOrderFetcher.eq('session_id', sessionId);
+      } else {
+        activeOrderFetcher = activeOrderFetcher.eq('table_id', tableId).eq('is_paid', false);
+      }
+      
+      const { data: activeOrder, error: fetchError } = await activeOrderFetcher
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
 
-      if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
+      if (fetchError) throw fetchError;
 
       let orderId = activeOrder?.id;
 
@@ -75,6 +81,8 @@ export function CartSlider({ isOpen, onOpenChange }: { isOpen: boolean, onOpenCh
             order_type: 'dine_in',
             placed_by: 'waiter',
             status: 'placed',
+            payment_status: 'pending',
+            payment_method: 'cod',
             total_amount: getTotalAmount(),
             is_paid: false
           })

@@ -7,6 +7,8 @@ import { TrendingUp, TrendingDown, ShoppingBag, DollarSign, Users, Calendar, Sta
 import { supabase, type MenuItem, type Offer } from '@/lib/supabase';
 import { ADMIN_TEXT, COMMON_TEXT } from '@/constants/text';
 import { startOfDay, endOfDay } from 'date-fns';
+import { toast } from 'sonner';
+
 
 export function AdminDashboard() {
   const navigate = useNavigate();
@@ -155,18 +157,21 @@ export function AdminDashboard() {
       setIsAddingOffer(false);
       setNewOffer({ title: '', description: '', discount_code: '' });
     } catch (error) {
-      alert('Failed to add offer');
+      toast.error('Failed to add offer');
     }
+
   };
 
   const deleteOffer = async (id: string) => {
-    if (!confirm('Delete this offer?')) return;
+    if (!window.confirm('Delete this offer?')) return;
+
     try {
       await supabase.from('offers').delete().eq('id', id);
       setOffers(offers.filter(o => o.id !== id));
     } catch (error) {
-      alert('Failed to delete offer');
+      toast.error('Failed to delete offer');
     }
+
   };
 
   const toggleSpecial = async (item: MenuItem) => {
@@ -177,8 +182,9 @@ export function AdminDashboard() {
         .eq('id', item.id);
       fetchData();
     } catch (error) {
-      alert('Failed to update special status');
+      toast.error('Failed to update special status');
     }
+
   };
   const kpis = [
     { label: ADMIN_TEXT.KPIS.TODAYS_ORDERS, value: stats.ordersCount.toString(), change: '+12%', trend: 'up', icon: ShoppingBag, color: 'text-blue-600', bg: 'bg-blue-100' },

@@ -5,6 +5,8 @@ import { Button } from '@/components/design-system/button';
 import { Badge } from '@/components/design-system/badge';
 import { supabase, type Profile, getStoredUser } from '@/lib/supabase';
 import { Clock, ChefHat, Bell, CheckCircle2, Timer, Utensils } from 'lucide-react';
+import { toast } from 'sonner';
+
 
 interface OrderItem {
   id: string;
@@ -166,8 +168,9 @@ export function ChefDashboardScreen() {
           order.id === orderId ? { ...order, status: order.status } : order
         )
       );
-      alert('Failed to update order status');
+      toast.error('Failed to update order status');
     }
+
   };
 
   const getStatusColor = (status: string) => {

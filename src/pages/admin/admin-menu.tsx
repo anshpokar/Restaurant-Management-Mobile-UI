@@ -3,8 +3,11 @@ import { AppHeader } from '@/components/design-system/app-header';
 import { Card, CardBody } from '@/components/design-system/card';
 import { Button } from '@/components/design-system/button';
 import { VegBadge } from '@/components/design-system/badge';
-import { Plus, Edit, Trash2, ToggleLeft, ToggleRight, RefreshCw, X, Image as ImageIcon, Star } from 'lucide-react';
+import { Plus, Edit, Trash2, ToggleLeft, ToggleRight, RefreshCw, X, Star } from 'lucide-react';
+
 import { supabase, type MenuItem } from '@/lib/supabase';
+import { toast } from 'sonner';
+
 
 export function AdminMenu() {
   const [items, setItems] = useState<MenuItem[]>([]);
@@ -55,9 +58,11 @@ export function AdminMenu() {
 
       if (error) throw error;
       setItems(prev => prev.map(i => i.id === item.id ? { ...i, is_available: !i.is_available } : i));
+      toast.success(`${item.name} is now ${!item.is_available ? 'Available' : 'Sold Out'}`);
     } catch (error) {
-      alert('Failed to update availability');
+      toast.error('Failed to update availability');
     }
+
   };
 
   const toggleSpecial = async (item: MenuItem) => {
@@ -69,9 +74,11 @@ export function AdminMenu() {
 
       if (error) throw error;
       setItems(prev => prev.map(i => i.id === item.id ? { ...i, is_special: !i.is_special } : i));
+      toast.success(`${item.name} ${!item.is_special ? 'marked as Special' : 'removed from Specials'}`);
     } catch (error) {
-      alert('Failed to update special status');
+      toast.error('Failed to update special status');
     }
+
   };
 
   const deleteItem = async (id: number) => {
@@ -84,9 +91,11 @@ export function AdminMenu() {
 
       if (error) throw error;
       setItems(prev => prev.filter(i => i.id !== id));
+      toast.success('Item deleted successfully');
     } catch (error) {
-      alert('Failed to delete item');
+      toast.error('Failed to delete item');
     }
+
   };
 
   const handleAddItem = async (e: React.FormEvent) => {
@@ -110,9 +119,11 @@ export function AdminMenu() {
       setItems(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
       setIsAdding(false);
       setNewItem({ name: '', price: '', category: 'Main Course', veg: true, image: '🍽️' });
+      toast.success('Dish added to menu successfully!');
     } catch (error) {
-      alert('Failed to add item');
+      toast.error('Failed to add item');
     }
+
   };
 
   return (

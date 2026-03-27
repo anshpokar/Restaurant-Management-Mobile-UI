@@ -4,6 +4,8 @@ import { Input } from '@/components/design-system/input';
 import { Sparkles, Eye, EyeOff } from 'lucide-react';
 import { supabase, type UserRole, type Profile } from '@/lib/supabase';
 import { AUTH_TEXT } from '@/constants/text';
+import { toast } from 'sonner';
+
 
 interface LoginScreenProps {
   onLogin: (role: UserRole, profile?: Profile | null) => void;
@@ -166,8 +168,9 @@ export function LoginScreen({ onLogin, onSignup, onForgotPassword }: LoginScreen
       }
 
       setIsLoading(false);
-      alert(message);
+      toast.error(message);
     } finally {
+
       setIsLoading(false);
       console.groupEnd();
       console.log('Login process completed');
@@ -188,9 +191,10 @@ export function LoginScreen({ onLogin, onSignup, onForgotPassword }: LoginScreen
       // Note: redirectTo will handle the actual transition.
     } catch (error: any) {
       console.error('Google Login Error:', error);
-      alert(error.message || 'Failed to sign in with Google');
+      toast.error(error.message || 'Failed to sign in with Google');
       setIsLoading(false);
     }
+
   };
 
   return (
