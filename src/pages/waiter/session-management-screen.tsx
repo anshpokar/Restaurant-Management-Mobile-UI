@@ -18,7 +18,7 @@ export function WaiterSessionManagementScreen() {
   const navigate = useNavigate();
   const { userProfile } = useAuth();
   const { sessionId } = useParams<{ sessionId: string }>();
-  const { setWaiterContext, previousOrders: orders, fetchOrderHistory } = useCart();
+  const { setWaiterContext, previousOrders: orders, fetchOrderHistory, updateItemServedStatus } = useCart();
 
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -173,15 +173,22 @@ export function WaiterSessionManagementScreen() {
     try {
       const newStatus = !currentStatus;
       
-      // 1. Update the item status
+      // 1. Optimistic Update
+      updateItemServedStatus(orderId, itemId, newStatus);
+
+      // Update the item status
       const { error: itemError } = await supabase
         .from('order_items')
         .update({ is_served: newStatus })
         .eq('id', itemId);
 
-      if (itemError) throw itemError;
+      if (itemError) {
+        // Rollback on error
+        updateItemServedStatus(orderId, itemId, currentStatus);
+        throw itemError;
+      }
 
-      // 2. Refresh local state via fetchOrderHistory (from context)
+      // 2. Background Refresh
       await fetchOrderHistory();
 
       // 3. Check if ALL items in THIS order are now served
@@ -321,7 +328,7 @@ export function WaiterSessionManagementScreen() {
                             className={`w-7 h-7 rounded-xl border-2 flex items-center justify-center transition-all ${
                               item.is_served 
                                 ? 'bg-green-600 border-green-600 text-white shadow-lg shadow-green-100' 
-                                : 'bg-white border-brand-maroon/30 text-brand-maroon/20 hover:border-brand-maroon hover:text-brand-maroon/40'
+                                : 'bg-white border-brand-maroon/60 text-brand-maroon/20 hover:border-brand-maroon hover:text-brand-maroon/40'
                             }`}
                           >
                             <CheckCircle2 className={`w-4 h-4 ${!item.is_served ? 'opacity-40' : ''}`} />

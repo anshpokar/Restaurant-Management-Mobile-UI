@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { MenuItem, Offer, supabase } from '@/lib/supabase';
 
 export interface CartItem {
@@ -29,6 +29,7 @@ interface CartContextType {
   previousOrders: any[];
   isLoadingHistory: boolean;
   fetchOrderHistory: () => Promise<void>;
+  updateItemServedStatus: (orderId: string, itemId: string, isServed: boolean) => void;
   appliedOffer: Offer | null;
   applyCoupon: (code: string) => Promise<{ success: boolean; message: string }>;
   removeCoupon: () => void;
@@ -77,12 +78,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
     else localStorage.removeItem('waiter_customer_info');
   }, [customerInfo]);
 
-  const fetchOrderHistory = async () => {
+  const fetchOrderHistory = useCallback(async () => {
     if (!tableId && !sessionId) return;
 
     setIsLoadingHistory(true);
     try {
-      // Need dynamic import or use supabase from lib
       const { supabase } = await import('@/lib/supabase');
 
       const query = supabase
@@ -122,7 +122,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoadingHistory(false);
     }
-  };
+  }, [tableId, sessionId]);
+
+  const updateItemServedStatus = useCallback((orderId: string, itemId: string, isServed: boolean) => {
+    setPreviousOrders(prev => prev.map(order => 
+      order.id === orderId 
+        ? {
+            ...order,
+            order_items: order.order_items?.map((item: any) => 
+              item.id === itemId ? { ...item, is_served: isServed } : item
+            )
+          }
+        : order
+    ));
+  }, []);
 
   useEffect(() => {
     if (tableId || sessionId) {
@@ -299,6 +312,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       previousOrders,
       isLoadingHistory,
       fetchOrderHistory,
+      updateItemServedStatus,
       appliedOffer,
       applyCoupon,
       removeCoupon,

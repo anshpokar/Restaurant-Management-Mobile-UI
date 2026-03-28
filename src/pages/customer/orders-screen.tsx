@@ -12,7 +12,7 @@ import { useCart } from '@/contexts/cart-context';
 export function OrdersScreen() {
   const { profile } = useOutletContext<{ profile: Profile | null }>();
   // Get cart context for sessionId and tableId
-  const { sessionId: cartSessionId, tableId: cartTableId } = useCart();
+  const { sessionId: cartSessionId } = useCart();
   
   const navigate = useNavigate();
   const [filter, setFilter] = useState<'all' | 'ongoing' | 'completed'>('all');

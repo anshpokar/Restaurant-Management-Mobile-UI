@@ -35,7 +35,8 @@ export function CartSlider({
     cartItems, tableId, sessionId, customerInfo, 
     updateQuantity, removeFromCart, clearCart, 
     getTotalAmount, addToCart,
-    previousOrders, isLoadingHistory, fetchOrderHistory
+    previousOrders, isLoadingHistory, fetchOrderHistory,
+    updateItemServedStatus
   } = useCart();
 
   useEffect(() => {
@@ -72,12 +73,22 @@ export function CartSlider({
   const handleToggleItemServed = async (orderId: string, itemId: string, currentStatus: boolean, allOrderItems: any[]) => {
     try {
       const newStatus = !currentStatus;
+      
+      // 1. Optimistic Update
+      updateItemServedStatus(orderId, itemId, newStatus);
+
       const { error: itemError } = await supabase
         .from('order_items')
         .update({ is_served: newStatus })
         .eq('id', itemId);
 
-      if (itemError) throw itemError;
+      if (itemError) {
+        // Rollback on error
+        updateItemServedStatus(orderId, itemId, currentStatus);
+        throw itemError;
+      }
+      
+      // 2. Background Refresh
       await fetchOrderHistory();
 
       const updatedItems = allOrderItems.map(item => 
@@ -205,12 +216,16 @@ export function CartSlider({
 
   return (
     <Drawer open={isOpen} onOpenChange={onOpenChange} direction="right">
+      {trigger && <DrawerTrigger asChild>{trigger}</DrawerTrigger>}
       <DrawerContent className="h-full flex flex-col bg-card border-l border-divider shadow-2xl">
         <DrawerHeader className="border-b border-divider p-0">
           <div className="flex items-center justify-between p-4">
             <div className="flex items-center gap-2">
               <Utensils className="w-5 h-5 text-brand-maroon" />
-              <DrawerTitle className="text-xl font-black">Ordering Console</DrawerTitle>
+              <div>
+                <DrawerTitle className="text-xl font-black">Ordering Console</DrawerTitle>
+                <DrawerDescription className="sr-only">Manage active table sessions and place new orders</DrawerDescription>
+              </div>
             </div>
             <button 
               onClick={() => onOpenChange(false)} 
@@ -448,7 +463,7 @@ export function CartSlider({
                             className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
                               item.is_served 
                                 ? 'bg-green-600 border-green-600 text-white' 
-                                : 'bg-white border-brand-maroon/30 text-brand-maroon/20 hover:border-brand-maroon hover:text-brand-maroon/40'
+                                : 'bg-white border-brand-maroon/60 text-brand-maroon/20 hover:border-brand-maroon hover:text-brand-maroon/40'
                             }`}
                           >
                             <CheckCircle2 className={`w-3.5 h-3.5 ${!item.is_served ? 'opacity-40' : ''}`} />

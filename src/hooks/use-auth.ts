@@ -5,8 +5,35 @@ import { supabase, type UserRole, type Profile } from '@/lib/supabase';
 export function useAuth() {
     const navigate = useNavigate();
     const location = useLocation();
-    const [userRole, setUserRole] = useState<UserRole | null>(null);
-    const [userProfile, setUserProfile] = useState<Profile | null>(null);
+
+    // 1. Initial State Hydration from localStorage
+    const [userRole, setUserRole] = useState<UserRole | null>(() => {
+        const stored = localStorage.getItem('userProfile');
+        if (stored) {
+            try {
+                const parsed = JSON.parse(stored);
+                // Simple freshness check (24h)
+                if (parsed.timestamp && Date.now() - parsed.timestamp < 86400000) {
+                    return parsed.role;
+                }
+            } catch (e) {}
+        }
+        return null;
+    });
+
+    const [userProfile, setUserProfile] = useState<Profile | null>(() => {
+        const stored = localStorage.getItem('userProfile');
+        if (stored) {
+            try {
+                const parsed = JSON.parse(stored);
+                if (parsed.timestamp && Date.now() - parsed.timestamp < 86400000) {
+                    return parsed as Profile;
+                }
+            } catch (e) {}
+        }
+        return null;
+    });
+
     const [isLoadingAuth, setIsLoadingAuth] = useState(true);
 
     useEffect(() => {
@@ -60,7 +87,7 @@ export function useAuth() {
             try {
                 // Add timeout to prevent infinite loading
                 const timeoutPromise = new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('Auth timeout')), 5000)
+                    setTimeout(() => reject(new Error('Auth timeout')), 10000)
                 );
                 
                 const authPromise = supabase.auth.getSession();
@@ -92,30 +119,17 @@ export function useAuth() {
                         }
                     }
                 } else {
-                    // No session, but check if we have stale localStorage
-                    const storedProfile = localStorage.getItem('userProfile');
-                    if (storedProfile) {
-                        try {
-                            const parsed = JSON.parse(storedProfile);
-                            // Clear if older than 24 hours or no valid session
-                            const isStale = !parsed.timestamp || Date.now() - parsed.timestamp > 86400000;
-                            if (isStale) {
-                                console.log('Clearing stale localStorage profile');
-                                localStorage.removeItem('userProfile');
-                            }
-                        } catch {
-                            // Invalid JSON, clear it
-                            localStorage.removeItem('userProfile');
-                        }
-                    }
+                    // No session found by Supabase
+                    console.log('No active Supabase session found');
+                    // We DO NOT clear localStorage here anymore, 
+                    // unless we are sure it's invalid (handled by SIGNE_OUT event)
                 }
             } catch (err: any) {
-                // Handle timeout and abort errors gracefully
-                if (err.name === 'AbortError' || err.message === 'Auth timeout') {
-                    console.warn('Auth initialization timed out, clearing state');
-                    localStorage.removeItem('userProfile');
-                } else {
+                // Only clear on confirmed auth failure, not generic timeout
+                if (err.message !== 'Auth timeout') {
                     console.error("Auth init error:", err);
+                } else {
+                    console.warn('Auth initialization timed out, using fallback cache');
                 }
             } finally {
                 if (isMounted) {
@@ -146,7 +160,8 @@ export function useAuth() {
                         full_name: profile.full_name,
                         username: profile.username,
                         phone_number: profile.phone_number,
-                        role: profile.role
+                        role: profile.role,
+                        timestamp: Date.now()
                     };
                     localStorage.setItem('userProfile', JSON.stringify(userData));
                     
@@ -165,7 +180,7 @@ export function useAuth() {
                 }
             } else if (event === 'INITIAL_SESSION' && session?.user) {
                 console.log("Initial session detected.");
-                // Profile and redirection are handled by initializeAuth()
+                // Profile is handled by initializeAuth()
             }
         });
 
@@ -173,7 +188,15 @@ export function useAuth() {
             isMounted = false;
             subscription.unsubscribe();
         };
-    }, [navigate, location.pathname]);
+        // Dependency array: only internal stable vars
+    }, [navigate]);
+
+    // 2. Separate Redirection Logic (triggered when profile is loaded AND we are on auth pages)
+    useEffect(() => {
+        if (!isLoadingAuth && userProfile && ['/login', '/signup', '/forgot-password', '/'].includes(location.pathname)) {
+            navigate(`/${userProfile.role}`, { replace: true });
+        }
+    }, [isLoadingAuth, userProfile, location.pathname, navigate]);
 
     const handleLogout = async () => {
         await supabase.auth.signOut();

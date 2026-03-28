@@ -54,21 +54,28 @@ export function WaiterApp({ onLogout, profile }: WaiterAppProps) {
         title={`Waiter: ${profile?.full_name?.split(' ')[0] || 'Staff'}`}
         actions={
           <div className="flex items-center gap-2">
+            <CartSlider 
+              isOpen={isCartOpen} 
+              onOpenChange={setIsCartOpen} 
+              trigger={
+                <button 
+                  className="p-2 text-brand-maroon hover:bg-brand-maroon/10 rounded-full transition-colors"
+                  title="Open Ordering Slider"
+                >
+                  <Plus className="w-6 h-6" />
+                </button>
+              }
+            />
             <button 
-              onClick={() => setIsCartOpen(true)}
-              className="p-2 text-brand-maroon hover:bg-brand-maroon/10 rounded-full transition-colors"
-              title="Open Ordering Slider"
+              onClick={onLogout} 
+              className="p-2 text-destructive hover:bg-destructive/10 rounded-full transition-colors"
+              title="Logout"
             >
-              <Plus className="w-6 h-6" />
-            </button>
-            <button onClick={onLogout} className="p-2 text-destructive hover:bg-destructive/10 rounded-full transition-colors">
               <LogOut className="w-5 h-5" />
             </button>
           </div>
         }
       />
-
-      <CartSlider isOpen={isCartOpen} onOpenChange={setIsCartOpen} />
 
       <div className="flex-1 overflow-hidden flex flex-col">
         <AnimatePresence mode="wait">
