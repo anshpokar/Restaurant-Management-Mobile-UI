@@ -1,5 +1,5 @@
 import { useCart } from "@/contexts/cart-context";
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerTrigger } from "@/components/ui/drawer";
 import { ShoppingCart, User, Package, Plus, Minus, Trash2, ChefHat, X, CheckCircle2, Search, Utensils } from "lucide-react";
 import { Button } from "@/components/design-system/button";
 import { Badge } from "@/components/design-system/badge";
@@ -10,7 +10,15 @@ import { toast } from "sonner";
 import { ItemCustomizationModal } from "@/components/customer/ItemCustomizationModal";
 import { SpiceLevel } from "@/components/design-system/spice-level";
 
-export function CartSlider({ isOpen, onOpenChange }: { isOpen: boolean, onOpenChange: (open: boolean) => void }) {
+export function CartSlider({ 
+  isOpen, 
+  onOpenChange, 
+  trigger 
+}: { 
+  isOpen: boolean, 
+  onOpenChange: (open: boolean) => void,
+  trigger?: React.ReactNode
+}) {
   const [activeTab, setActiveTab] = useState<'menu' | 'draft'>('menu');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
